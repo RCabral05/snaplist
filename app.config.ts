@@ -9,6 +9,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "snaplist",
   userInterfaceStyle: "light",
   backgroundColor: "#ffffff",
+  owner: "buzzybuzz",
+  extra: {
+    eas: { projectId: "764ba08f-67fe-4639-8f92-643f01c53261" },
+  },
   ios: {
     bundleIdentifier: "com.snaplist.app",
     supportsTablet: false,
