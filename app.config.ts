@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: { projectId: "764ba08f-67fe-4639-8f92-643f01c53261" },
   },
   ios: {
-    bundleIdentifier: "com.snaplist.app",
+    bundleIdentifier: "com.rcabral.snaplist",
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -25,7 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: "com.snaplist.app",
+    package: "com.rcabral.snaplist",
     adaptiveIcon: { backgroundColor: "#ffffff" },
   },
   plugins: [
