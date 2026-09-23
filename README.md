@@ -28,9 +28,14 @@ npx eas build --profile development --platform ios
 ## Auth and the database
 
 Supabase, in its own project (not the weekly-rivals one - a schema change to one
-must not be able to break the other). Sign in with Apple and email/password;
-Apple is first because App Review requires it once any third-party sign-in is
-offered.
+must not be able to break the other). Sign in with Apple, Google or email; Apple
+is first because App Review requires it once any third-party sign-in is offered.
+The Google button hides itself until both client IDs are set, so the app never
+shows an option that is guaranteed to throw.
+
+After signing in, a seller claims a username before reaching the app. Routing
+has three states, not two - signed out, signed in without a name, and in - so
+every screen under `(app)` can assume a username exists.
 
 Schema lives in `supabase/migrations/`. The shape that matters:
 
@@ -48,17 +53,31 @@ app is to put it in a table the app has no policy for.
 `connections` has no insert or update policy either: rows appear when the backend
 finishes an OAuth round trip, never because the device asked.
 
+### Why usernames need two RPCs
+
+`profiles` is readable only by its owner, so a client-side "is this taken" query
+returns nothing and every name looks free. `username_available()` is a
+security-definer function that can see across rows and returns exactly one bit.
+
+`claim_username()` exists because checking and then setting would race: two people
+can both be told a name is free before either writes. The unique index on
+`lower(username)` is the real arbiter; the function just reports its verdict as a
+clean `username_taken` error. Case is preserved for display and ignored for
+uniqueness, so `Ryan` and `ryan` cannot both exist.
+
 ## Shape
 
 ```
 src/
   app/                    expo-router routes
-    (auth)/sign-in.tsx    Apple + email; shown when there is no session
+    (auth)/sign-in.tsx    Apple + Google + email; shown when there is no session
+    username.tsx          claim a name; shown when signed in but nameless
     (app)/                tabs: Shop · Sell · Listings · Account
       sell.tsx            the camera; creates a draft on shutter
     draft/[id].tsx        edit the draft, pick channels, publish
   lib/
-    auth.tsx              session + profile, Apple and email sign-in
+    auth.tsx              session + profile, Apple/Google/email, username claim
+    use-username-check.ts debounced availability, with stale-answer guard
     supabase.ts           client; anon key only, RLS does the real work
     marketplaces/         the adapter layer (see below)
     listings.ts           draft store + publish, AsyncStorage-backed

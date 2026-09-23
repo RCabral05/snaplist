@@ -1,3 +1,8 @@
+import {
+  GoogleSignin,
+  isCancelledResponse,
+  isSuccessResponse,
+} from "@react-native-google-signin/google-signin";
 import type { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import {
@@ -12,10 +17,30 @@ import {
 
 import { supabase } from "./supabase";
 
+const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+
+/**
+ * Google needs OAuth client IDs that only exist once someone creates them in the
+ * Google Cloud console. Rather than ship a button that throws, the UI asks this
+ * and hides the option until the IDs are configured.
+ */
+export const googleConfigured = !!googleWebClientId && !!googleIosClientId;
+
+if (googleConfigured) {
+  GoogleSignin.configure({
+    // The Web client ID is the audience of the idToken Supabase validates.
+    webClientId: googleWebClientId,
+    iosClientId: googleIosClientId,
+  });
+}
+
 /** Mirrors public.profiles - one row per auth user, created by a trigger. */
 export type Profile = {
   id: string;
   display_name: string;
+  /** Null until the seller has claimed one; the app routes on this. */
+  username: string | null;
 };
 
 type AuthContextValue = {
@@ -25,10 +50,13 @@ type AuthContextValue = {
   /** True until the persisted session has been restored and the profile loaded. */
   isLoading: boolean;
   signInWithApple: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Resolves once the name is theirs; throws "username_taken" if it is not. */
+  claimUsername: (username: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -55,7 +83,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadProfile = useCallback((forUid: string) => {
     return supabase
       .from("profiles")
-      .select("id, display_name")
+      .select("id, display_name, username")
       .eq("id", forUid)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -103,6 +131,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    await GoogleSignin.hasPlayServices(); // no-op on iOS
+    const response = await GoogleSignin.signIn();
+    if (isCancelledResponse(response)) return;
+    if (!isSuccessResponse(response) || !response.data.idToken) {
+      throw new Error("Google sign-in did not return an ID token.");
+    }
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: response.data.idToken,
+    });
+    if (error) throw error;
+  }, []);
+
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw error;
@@ -116,9 +158,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Also clear Google's cached account so the chooser shows next time.
+    if (googleConfigured) await GoogleSignin.signOut().catch(() => {});
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }, []);
+
+  const claimUsername = useCallback(
+    async (username: string) => {
+      const { error } = await supabase.rpc("claim_username", { candidate: username });
+      // Postgres raises bare codes ("username_taken"); surface them unchanged so
+      // the screen can decide what to say.
+      if (error) throw new Error(error.message);
+      if (uid) await loadProfile(uid);
+    },
+    [uid, loadProfile],
+  );
 
   const refreshProfile = useCallback(async () => {
     if (uid) await loadProfile(uid);
@@ -131,10 +186,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       profile,
       isLoading,
       signInWithApple,
+      signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
       signOut,
       refreshProfile,
+      claimUsername,
     }),
     [
       session,
@@ -142,10 +199,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       profile,
       isLoading,
       signInWithApple,
+      signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
       signOut,
       refreshProfile,
+      claimUsername,
     ],
   );
 

@@ -14,7 +14,11 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { colors } from "@/theme";
 
 function RootNavigator() {
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
+
+  // Signed in but nameless is its own state. Gating here rather than redirecting
+  // from inside a screen means every route under (app) can assume a username.
+  const needsUsername = !!user && !profile?.username;
 
   // Hold the navigator until the persisted session is restored, otherwise the
   // sign-in screen flashes for a fraction of a second on every cold start.
@@ -30,9 +34,12 @@ function RootNavigator() {
     <Stack
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}
     >
-      <Stack.Protected guard={!!user}>
+      <Stack.Protected guard={!!user && !needsUsername}>
         <Stack.Screen name="(app)" />
         <Stack.Screen name="draft/[id]" />
+      </Stack.Protected>
+      <Stack.Protected guard={needsUsername}>
+        <Stack.Screen name="username" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />

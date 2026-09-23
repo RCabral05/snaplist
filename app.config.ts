@@ -1,5 +1,12 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 
+// The iOS URL scheme Google Sign-In needs is just the iOS client ID reversed:
+//   1234-abcd.apps.googleusercontent.com  ->  com.googleusercontent.apps.1234-abcd
+const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "";
+const googleUrlScheme = iosClientId
+  ? `com.googleusercontent.apps.${iosClientId.replace(".apps.googleusercontent.com", "")}`
+  : "com.googleusercontent.apps.REPLACE_ME";
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Snaplist",
@@ -33,6 +40,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-dev-client",
     "expo-apple-authentication",
+    [
+      "@react-native-google-signin/google-signin",
+      { iosUrlScheme: googleUrlScheme },
+    ],
     [
       "expo-camera",
       { cameraPermission: "Snaplist uses the camera to photograph items you list for sale." },

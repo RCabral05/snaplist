@@ -14,11 +14,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
-import { useAuth } from "@/lib/auth";
+import { googleConfigured, useAuth } from "@/lib/auth";
 import { colors, radius, spacing, type } from "@/theme";
 
 export default function SignInScreen() {
-  const { signInWithApple, signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithApple, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,6 +69,15 @@ export default function SignInScreen() {
             style={s.apple}
             onPress={() => run(signInWithApple)}
           />
+
+          {googleConfigured ? (
+            <Button
+              label="Continue with Google"
+              variant="secondary"
+              onPress={() => run(signInWithGoogle)}
+              style={s.google}
+            />
+          ) : null}
 
           <View style={s.dividerRow}>
             <View style={s.rule} />
@@ -126,6 +135,7 @@ const s = StyleSheet.create({
   wordmark: { ...type.display, fontSize: 40, color: colors.ink },
   tagline: { ...type.body, color: colors.textMuted },
   apple: { height: 52, width: "100%" },
+  google: { marginTop: spacing.sm },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.sm },
   rule: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { ...type.small, color: colors.textFaint },
