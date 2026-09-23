@@ -1,76 +1,75 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
+import { useAuth } from "./auth";
 import { adapters, type ChannelId } from "./marketplaces";
+import { supabase } from "./supabase";
 
 /**
  * Which channels this seller has connected.
  *
- * Only the fact of a connection lives on the device. The OAuth tokens live on the
- * backend against the seller's account - a mobile binary is readable, so anything
- * shipped in it is public. See README.
+ * The row lives in public.connections and carries nothing secret. The OAuth
+ * tokens are in public.channel_credentials, which has RLS on and no policies at
+ * all - only the backend's service role can read them. The device is never meant
+ * to see a marketplace token, so it cannot.
+ *
+ * Rows are written by the backend at the end of the OAuth round trip; the app
+ * only reads them and can delete its own.
  */
-const KEY = "snaplist.connections.v1";
-
-export type Connection = { channel: ChannelId; label?: string; connectedAt: string };
-
-let cache: Connection[] | null = null;
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
-
-async function load(): Promise<Connection[]> {
-  if (cache) return cache;
-  const raw = await AsyncStorage.getItem(KEY);
-  cache = raw ? (JSON.parse(raw) as Connection[]) : [];
-  return cache;
-}
-
-async function save(next: Connection[]) {
-  cache = next;
-  await AsyncStorage.setItem(KEY, JSON.stringify(next));
-  emit();
-}
-
-export async function connect(channel: ChannelId, label?: string) {
-  const current = await load();
-  const next = [
-    ...current.filter((c) => c.channel !== channel),
-    { channel, label, connectedAt: new Date().toISOString() },
-  ];
-  await save(next);
-}
-
-export async function disconnect(channel: ChannelId) {
-  const current = await load();
-  await save(current.filter((c) => c.channel !== channel));
-}
+export type Connection = {
+  id: string;
+  channel: ChannelId;
+  label: string | null;
+  status: "active" | "expired" | "revoked";
+  connected_at: string;
+};
 
 export function useConnections() {
-  const [connections, setConnections] = useState<Connection[]>(cache ?? []);
-  const [isLoading, setLoading] = useState(!cache);
+  const { user } = useAuth();
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [isLoading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    load().then((c) => {
-      setConnections([...c]);
+  const refresh = useCallback(async () => {
+    if (!user) {
+      setConnections([]);
       setLoading(false);
-    });
-  }, []);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("connections")
+      .select("id, channel, label, status, connected_at")
+      .eq("user_id", user.id);
+
+    if (error) console.error("connections load failed", error);
+    setConnections((data as Connection[] | null) ?? []);
+    setLoading(false);
+  }, [user]);
 
   useEffect(() => {
-    refresh();
-    const listener = () => setConnections([...(cache ?? [])]);
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
+    void refresh();
   }, [refresh]);
 
   const isConnected = useCallback(
     (channel: ChannelId) => {
       const adapter = adapters.find((a) => a.id === channel);
       if (adapter && !adapter.requiresConnection) return true;
-      return connections.some((c) => c.channel === channel);
+      return connections.some((c) => c.channel === channel && c.status === "active");
     },
     [connections],
   );
 
-  return { connections, isConnected, isLoading, refresh };
+  const disconnect = useCallback(
+    async (channel: ChannelId) => {
+      if (!user) return;
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("channel", channel);
+      if (error) throw error;
+      await refresh();
+    },
+    [user, refresh],
+  );
+
+  return { connections, isConnected, disconnect, isLoading, refresh };
 }

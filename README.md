@@ -6,7 +6,8 @@ connected channels — eBay, Shopify, and whatever comes after.
 
 ## Status
 
-Scaffold. The app runs and the whole seller flow is walkable — camera → draft →
+Scaffold plus real auth. Sign-in works against Snaplist's own Supabase project;
+the rest of the seller flow is walkable — camera → draft →
 channel picker → publish → status list — but there is no backend yet, so
 `MOCK` is on: the model suggestion returns a placeholder and publishing resolves
 locally. Everything below the "What's next" line is not built.
@@ -24,15 +25,41 @@ Expo Go will not work (custom native modules). Build a dev client:
 npx eas build --profile development --platform ios
 ```
 
+## Auth and the database
+
+Supabase, in its own project (not the weekly-rivals one - a schema change to one
+must not be able to break the other). Sign in with Apple and email/password;
+Apple is first because App Review requires it once any third-party sign-in is
+offered.
+
+Schema lives in `supabase/migrations/`. The shape that matters:
+
+| table | who can read it |
+| --- | --- |
+| `profiles` | the owner |
+| `connections` | the owner - non-secret, just "eBay is connected" |
+| `channel_credentials` | **nobody**: RLS on, zero policies, service role only |
+| `listings`, `listing_channels` | the owner |
+
+`channel_credentials` is split out from `connections` on purpose. Postgres RLS is
+row-level, not column-level, so the only way to keep a token unreadable by the
+app is to put it in a table the app has no policy for.
+
+`connections` has no insert or update policy either: rows appear when the backend
+finishes an OAuth round trip, never because the device asked.
+
 ## Shape
 
 ```
 src/
   app/                    expo-router routes
+    (auth)/sign-in.tsx    Apple + email; shown when there is no session
     (app)/                tabs: Shop · Sell · Listings · Account
       sell.tsx            the camera; creates a draft on shutter
     draft/[id].tsx        edit the draft, pick channels, publish
   lib/
+    auth.tsx              session + profile, Apple and email sign-in
+    supabase.ts           client; anon key only, RLS does the real work
     marketplaces/         the adapter layer (see below)
     listings.ts           draft store + publish, AsyncStorage-backed
     connections.ts        which channels this seller has connected
@@ -79,15 +106,19 @@ worked or didn't.
 
 ## What's next
 
-1. **Backend** (Next.js on Vercel, same stack as weekly-rivals): auth, photo
-   upload, `/api/listings/publish`, OAuth callbacks for eBay and Shopify.
-2. **Vision endpoint**: photo → title, category, condition, suggested price with
+1. **Backend** (Next.js on Vercel, same stack as weekly-rivals): photo upload,
+   `/api/listings/publish`, OAuth callbacks for eBay and Shopify. Auth is done.
+2. **Move listings behind `user_id`.** The tables exist and are locked down, but
+   `listings.ts` is still AsyncStorage-only, so drafts die with the install. This
+   needs photo upload to Supabase Storage first - a draft full of `file://` URIs
+   is worthless on a second device.
+3. **Vision endpoint**: photo → title, category, condition, suggested price with
    a comp range.
-3. **Real eBay adapter**: Sell Inventory API, category suggestion from its
+4. **Real eBay adapter**: Sell Inventory API, category suggestion from its
    taxonomy, condition enum mapping.
-4. **Real Shopify adapter**: Admin API product create, one default variant.
-5. **Our marketplace**: the Shop tab has nothing to render until there is a feed.
-6. **Delisting**: when an item sells on one channel, end it on the others. This is
+5. **Real Shopify adapter**: Admin API product create, one default variant.
+6. **Our marketplace**: the Shop tab has nothing to render until there is a feed.
+7. **Delisting**: when an item sells on one channel, end it on the others. This is
    the feature resellers actually pay for, and it is the reason to own the
    cross-posting rather than bolt it on.
 

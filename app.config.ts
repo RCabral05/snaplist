@@ -15,6 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     bundleIdentifier: "com.rcabral.snaplist",
+    usesAppleSignIn: true,
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -31,6 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-dev-client",
+    "expo-apple-authentication",
     [
       "expo-camera",
       { cameraPermission: "Snaplist uses the camera to photograph items you list for sale." },

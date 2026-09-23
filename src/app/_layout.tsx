@@ -7,9 +7,39 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { colors } from "@/theme";
+
+function RootNavigator() {
+  const { user, isLoading } = useAuth();
+
+  // Hold the navigator until the persisted session is restored, otherwise the
+  // sign-in screen flashes for a fraction of a second on every cold start.
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.ember} />
+      </View>
+    );
+  }
+
+  return (
+    <Stack
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}
+    >
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(app)" />
+        <Stack.Screen name="draft/[id]" />
+      </Stack.Protected>
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [fontsReady] = useFonts({
@@ -23,15 +53,9 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.paper }}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.paper },
-        }}
-      >
-        <Stack.Screen name="(app)" />
-        <Stack.Screen name="draft/[id]" options={{ presentation: "card" }} />
-      </Stack>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
       <StatusBar style="dark" />
     </GestureHandlerRootView>
   );

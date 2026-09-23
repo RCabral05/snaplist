@@ -1,25 +1,26 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { ChannelRow } from "@/components/channel-row";
-import { MOCK } from "@/lib/api";
-import { connect, disconnect, useConnections } from "@/lib/connections";
+import { useAuth } from "@/lib/auth";
+import { useConnections } from "@/lib/connections";
 import { adapters } from "@/lib/marketplaces";
-import { colors, spacing, type } from "@/theme";
+import { colors, radius, spacing, type } from "@/theme";
 
-/**
- * Connections screen. The real flows are OAuth round trips opened in a browser and
- * finished by the backend; until that exists, connecting is a local toggle so the
- * rest of the app (channel picker, publish) can be exercised.
- */
 export default function AccountScreen() {
-  const { isConnected } = useConnections();
+  const { user, profile, signOut } = useAuth();
+  const { isConnected, disconnect } = useConnections();
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={s.body}>
         <Text style={s.title}>Account</Text>
+
+        <View style={s.who}>
+          <Text style={s.name}>{profile?.display_name || "Seller"}</Text>
+          <Text style={s.email}>{user?.email ?? ""}</Text>
+        </View>
 
         <Text style={s.section}>Channels</Text>
         {adapters.map((adapter) => {
@@ -31,21 +32,34 @@ export default function AccountScreen() {
                 <Button
                   label={connected ? "Disconnect " + adapter.name : "Connect " + adapter.name}
                   variant="secondary"
-                  onPress={() =>
-                    connected ? disconnect(adapter.id) : connect(adapter.id)
-                  }
+                  onPress={() => {
+                    if (connected) {
+                      disconnect(adapter.id).catch((e) =>
+                        Alert.alert("Could not disconnect", e?.message ?? ""),
+                      );
+                      return;
+                    }
+                    // Connecting is an OAuth round trip that finishes on the
+                    // backend, because that is the only place the token may land.
+                    Alert.alert(
+                      "Not available yet",
+                      "Connecting " +
+                        adapter.name +
+                        " needs the backend to complete the OAuth handshake and store the token. Nothing to connect to yet.",
+                    );
+                  }}
                 />
               ) : null}
             </View>
           );
         })}
 
-        {MOCK ? (
-          <Text style={s.note}>
-            Running without a backend: connecting is a local toggle and publishing does not leave
-            the device. Set EXPO_PUBLIC_API_URL to point at the real API.
-          </Text>
-        ) : null}
+        <Button
+          label="Sign out"
+          variant="ghost"
+          onPress={() => signOut().catch(() => {})}
+          style={{ marginTop: spacing.lg }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -55,7 +69,14 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
   body: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
   title: { ...type.display, color: colors.ink },
+  who: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    gap: 2,
+  },
+  name: { ...type.bodyMedium, color: colors.ink },
+  email: { ...type.small, color: colors.textMuted },
   section: { ...type.label, color: colors.textMuted, marginTop: spacing.sm },
   channelBlock: { gap: spacing.sm },
-  note: { ...type.small, color: colors.textMuted, marginTop: spacing.md, lineHeight: 20 },
 });
