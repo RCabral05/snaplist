@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useBrands } from "@/lib/brands";
 import { emptyDraft, putDraft } from "@/lib/listings";
 import { uploadListingPhoto } from "@/lib/photos";
+import { clearSuggesting, markSuggesting } from "@/lib/suggesting";
 import { suggestFromPhoto } from "@/lib/vision";
 import { colors, radius, spacing, type } from "@/theme";
 
@@ -44,6 +45,9 @@ export default function SellScreen() {
   async function capture() {
     if (busy) return;
     setBusy(true);
+    // Hoisted so the finally can always clear the flag. A draft stuck showing
+    // "reading the photo" forever is worse than one that never showed it.
+    let draftId: string | null = null;
     try {
       const photo = await camera.current?.takePictureAsync({ quality: 0.8, base64: true });
       if (!photo?.uri) return;
@@ -55,6 +59,11 @@ export default function SellScreen() {
       // device, which is exactly why it is replaced by the Storage path below as
       // soon as the upload lands - usually before the seller has typed a title.
       const draft = await putDraft(emptyDraft(active.id, [photo.uri]));
+
+      // Flagged before navigating, so the editor is already showing "reading the
+      // photo" by the time it mounts rather than a frame of empty fields.
+      draftId = draft.id;
+      markSuggesting(draftId);
       router.push({ pathname: "/draft/[id]", params: { id: draft.id } });
 
       // Upload, then ask. These used to run in parallel, back when the model
@@ -87,6 +96,7 @@ export default function SellScreen() {
         });
       }
     } finally {
+      if (draftId) clearSuggesting(draftId);
       setBusy(false);
     }
   }

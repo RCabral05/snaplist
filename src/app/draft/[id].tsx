@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -20,6 +21,7 @@ import { SectionLabel } from "@/components/screen";
 import { useConnections } from "@/lib/connections";
 import { getDraft, money, parseMoney, publish, putDraft, removeDraft } from "@/lib/listings";
 import { usePhotoUrl } from "@/lib/photos";
+import { useIsSuggesting } from "@/lib/suggesting";
 import {
   adapters,
   canPublish,
@@ -40,24 +42,33 @@ export default function DraftScreen() {
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const suggesting = useIsSuggesting(id);
+
   useEffect(() => {
     let alive = true;
-    // Poll briefly: the suggestion from the camera screen lands after this mounts.
+    // The suggestion is written by the camera screen's timeline, not this one, so
+    // the editor watches for it. Polling is tied to whether that work is actually
+    // running rather than to a fixed window - the old eight seconds was a guess
+    // made before there was a model call behind it, and a slow one landed after
+    // the screen had stopped looking.
     const tick = () =>
       getDraft(id).then((d) => {
         if (!alive || !d) return;
         setDraft((prev) => (prev && prev.updatedAt === d.updatedAt ? prev : d));
         setPrice((p) => (p ? p : d.priceCents ? String(d.priceCents / 100) : ""));
       });
+
     tick();
+    if (!suggesting) return () => {
+      alive = false;
+    };
+
     const timer = setInterval(tick, 700);
-    const stop = setTimeout(() => clearInterval(timer), 8000);
     return () => {
       alive = false;
       clearInterval(timer);
-      clearTimeout(stop);
     };
-  }, [id]);
+  }, [id, suggesting]);
 
   const issues = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const ready = draft ? canPublish(draft) : false;
@@ -140,7 +151,19 @@ export default function DraftScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       {header}
       <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
-        {heroUrl ? <Image source={{ uri: heroUrl }} style={s.hero} contentFit="cover" /> : null}
+        {heroUrl ? (
+          <View>
+            <Image source={{ uri: heroUrl }} style={s.hero} contentFit="cover" />
+            {suggesting ? (
+              <View style={s.reading}>
+                <View style={s.readingPill}>
+                  <ActivityIndicator size="small" color={colors.white} />
+                  <Text style={s.readingText}>Reading the photo…</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         <Field label="Title">
           <TextInput
@@ -274,6 +297,29 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
   },
+  // Over the photograph rather than beside it: the photo is the thing being
+  // read, and an empty title field is not obviously busy.
+  reading: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(22,24,29,0.35)",
+    borderRadius: radius.lg,
+  },
+  readingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(22,24,29,0.85)",
+  },
+  readingText: { ...type.small, color: colors.white },
   input: { ...type.body, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 4 },
   inputMulti: { minHeight: 96, textAlignVertical: "top", paddingTop: spacing.sm + 4 },
   currency: { ...type.body, color: colors.inkFaint },
