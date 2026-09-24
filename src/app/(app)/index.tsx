@@ -1,31 +1,45 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Screen } from "@/components/screen";
-import { MOCK } from "@/lib/api";
+import { ShopGrid } from "@/components/shop-grid";
+import { useFeed } from "@/lib/shop";
 
 /**
- * The buyer side of our own marketplace. It has nothing to show until the backend
- * serves a feed, and saying so beats a grid of placeholder rectangles.
+ * The buyer side of our own marketplace: every listing anyone has published,
+ * newest first. A row only reaches here once publish() has stamped published_at,
+ * which is also the only thing the public read policy lets through.
  */
 export default function ShopScreen() {
   const router = useRouter();
+  const { items, isLoading, refresh } = useFeed();
+
+  // Something published on the Sell tab should be here by the time the buyer
+  // taps back over, without waiting for a cold start.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   return (
     <Screen title="Shop">
-      <EmptyState
-        icon="bag"
-        title="Nothing listed yet"
-        // The MOCK branch used to print EXPO_PUBLIC_API_URL at the seller. That
-        // is a note to whoever is building the backend, not something a person
-        // holding the app can act on - it belongs in the README.
-        body={
-          MOCK
-            ? "The marketplace opens once the first sellers list something."
-            : "Be the first to list something."
+      <ShopGrid
+        items={items}
+        onRefresh={refresh}
+        refreshing={isLoading && items.length > 0}
+        empty={
+          isLoading ? undefined : (
+            <EmptyState
+              icon="bag"
+              title="Nothing listed yet"
+              body="The marketplace opens once the first sellers list something."
+              actionLabel="Sell something"
+              onAction={() => router.push("/sell")}
+            />
+          )
         }
-        actionLabel="Sell something"
-        onAction={() => router.push("/sell")}
       />
     </Screen>
   );

@@ -47,7 +47,8 @@ Schema lives in `supabase/migrations/`. The shape that matters:
 | `channel_credentials` | **nobody**: RLS on, zero policies, service role only |
 | `listings`, `listing_channels` | the owner |
 | `avatars` bucket (Storage) | anyone - public read; writes confined to `<uid>/` |
-| `listing-photos` bucket | the owner only - private, signed URLs; same `<uid>/` rule |
+| `listing-photos` bucket | the owner while it is a draft; anyone once the listing is published |
+| `public_profiles` (view) | anyone - id, username, display_name, avatar_url and nothing else |
 
 `channel_credentials` is split out from `connections` on purpose. Postgres RLS is
 row-level, not column-level, so the only way to keep a token unreadable by the
@@ -84,6 +85,7 @@ src/
     use-username-check.ts debounced availability, with stale-answer guard
     avatar.ts             pick a photo, upload it, sweep the previous one
     photos.ts             listing photos: upload, sign, resolve for display
+    shop.ts               the buyer side: the feed, and one seller's shop
     listings.ts           drafts in Postgres; channel state still local
     supabase.ts           client; anon key only, RLS does the real work
     marketplaces/         the adapter layer (see below)
@@ -144,7 +146,10 @@ worked or didn't.
 4. **Real eBay adapter**: Sell Inventory API, category suggestion from its
    taxonomy, condition enum mapping.
 5. **Real Shopify adapter**: Admin API product create, one default variant.
-6. **Our marketplace**: the Shop tab has nothing to render until there is a feed.
+6. ~~**Our marketplace**~~ Done for the basics. `published_at` on a listing is
+   what makes it public, `snaplist` is the one channel the device may publish to
+   by itself, and the Shop tab reads the feed. Still to come: search, categories,
+   and anything resembling a buying flow.
 7. **Delisting**: when an item sells on one channel, end it on the others. This is
    the feature resellers actually pay for, and it is the reason to own the
    cross-posting rather than bolt it on.

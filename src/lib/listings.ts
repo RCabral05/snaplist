@@ -170,6 +170,18 @@ async function saveStatuses(next: ChannelListing[]) {
 export async function publish(draft: ListingDraft): Promise<ChannelListing[]> {
   const existing = await loadStatuses();
 
+  // Going live on our own marketplace is the one publish the device may do by
+  // itself: no OAuth token, no backend, just a column on a row it already owns.
+  // published_at is what the Shop feed and the public read policies key on.
+  if (draft.channels.includes("snaplist")) {
+    const { error } = await supabase
+      .from("listings")
+      .update({ published_at: now() })
+      .eq("id", draft.id)
+      .is("published_at", null);
+    if (error) throw error;
+  }
+
   const results: ChannelListing[] = MOCK
     ? draft.channels.map((channel) => ({
         listingId: draft.id,

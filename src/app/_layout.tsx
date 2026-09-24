@@ -38,6 +38,7 @@ function RootNavigator() {
         <Stack.Screen name="(app)" />
         <Stack.Screen name="draft/[id]" />
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
+        <Stack.Screen name="seller/[username]" />
       </Stack.Protected>
       <Stack.Protected guard={needsUsername}>
         <Stack.Screen name="username" />
