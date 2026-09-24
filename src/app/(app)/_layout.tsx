@@ -53,7 +53,7 @@ export default function AppLayout() {
       />
       <Tabs.Screen
         name="listings"
-        options={{ title: "Listings", tabBarIcon: tabIcon("square.stack.fill", "square.stack") }}
+        options={{ title: "Brand", tabBarIcon: tabIcon("storefront.fill", "storefront") }}
       />
       <Tabs.Screen
         name="account"

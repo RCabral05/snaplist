@@ -1,20 +1,18 @@
 import { useRouter } from "expo-router";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import { Screen, SectionLabel } from "@/components/screen";
 import { useAuth } from "@/lib/auth";
 import { useBrands, type Brand } from "@/lib/brands";
-import { useConnections } from "@/lib/connections";
-import { adapters, type MarketplaceAdapter } from "@/lib/marketplaces";
-import { colors, fonts, radius, spacing, type } from "@/theme";
+import { colors, radius, spacing, type } from "@/theme";
 
 export default function AccountScreen() {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
   const { brands, active, setActive } = useBrands();
-  const { isConnected, disconnect } = useConnections();
+
 
   return (
     <Screen title="Account" scroll>
@@ -66,24 +64,8 @@ export default function AccountScreen() {
         </Pressable>
       </View>
 
-      <View style={s.group}>
-        <SectionLabel>Channels</SectionLabel>
-        <View style={s.rows}>
-          {adapters.map((adapter, i) => (
-            <ChannelConnection
-              key={adapter.id}
-              adapter={adapter}
-              connected={isConnected(adapter.id)}
-              first={i === 0}
-              onDisconnect={() =>
-                disconnect(adapter.id).catch((e) =>
-                  Alert.alert("Could not disconnect", e?.message ?? ""),
-                )
-              }
-            />
-          ))}
-        </View>
-      </View>
+      {/* Channels used to live here. They belong to a brand, not to an account -
+          @nike's eBay is not another brand's - so they are on the Brand tab. */}
 
       <Pressable
         onPress={() => signOut().catch(() => {})}
@@ -140,63 +122,6 @@ function BrandRow({
   );
 }
 
-/**
- * One channel and its single action. The action is a pill on the row rather than
- * a full-width button beneath it - stacking two 52pt buttons down the screen made
- * connecting eBay look like the most important thing in the app.
- */
-function ChannelConnection({
-  adapter,
-  connected,
-  first,
-  onDisconnect,
-}: {
-  adapter: MarketplaceAdapter;
-  connected: boolean;
-  first: boolean;
-  onDisconnect: () => void;
-}) {
-  const press = () => {
-    if (connected) return onDisconnect();
-    // Connecting is an OAuth round trip that finishes on the backend, because
-    // that is the only place the token may land.
-    Alert.alert(
-      "Not available yet",
-      "Connecting " +
-        adapter.name +
-        " needs the backend to complete the OAuth handshake and store the token. Nothing to connect to yet.",
-    );
-  };
-
-  return (
-    <View style={[s.row, !first && s.rowDivided]}>
-      <View style={s.rowBody}>
-        <Text style={s.rowName}>{adapter.name}</Text>
-        <Text style={s.rowBlurb} numberOfLines={1}>
-          {adapter.requiresConnection
-            ? connected
-              ? "Connected"
-              : "Not connected"
-            : adapter.blurb}
-        </Text>
-      </View>
-
-      {adapter.requiresConnection ? (
-        <Pressable onPress={press} style={({ pressed }) => [s.pill, pressed && s.pressed]}>
-          <Text style={[s.pillText, connected && s.pillTextOff]}>
-            {connected ? "Disconnect" : "Connect"}
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={s.always}>
-          <Icon name="checkmark" size={12} color={colors.live} weight="bold" />
-          <Text style={s.alwaysText}>Always on</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   pressed: { opacity: 0.6 },
 
@@ -235,17 +160,6 @@ const s = StyleSheet.create({
   rowBlurb: { ...type.small, fontSize: 13, color: colors.textMuted },
   addText: { ...type.bodyMedium, fontSize: 15, color: colors.ember, flex: 1 },
 
-  pill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  pillText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.ink },
-  pillTextOff: { color: colors.textMuted },
-  always: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  alwaysText: { ...type.small, fontSize: 13, color: colors.live },
 
   signOut: { alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.sm },
   signOutText: { ...type.body, color: colors.danger },

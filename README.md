@@ -51,7 +51,7 @@ Schema lives in `supabase/migrations/`. The shape that matters:
 | table | who can read it |
 | --- | --- |
 | `profiles` | the owner |
-| `connections` | the owner - non-secret, just "eBay is connected" |
+| `connections` | the brand owner - non-secret, just "eBay is connected"; keyed by brand |
 | `channel_credentials` | **nobody**: RLS on, zero policies, service role only |
 | `listings`, `listing_channels` | the owner |
 | `avatars` bucket (Storage) | anyone - public read; writes confined to `<uid>/` |
