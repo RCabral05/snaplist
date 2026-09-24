@@ -30,6 +30,11 @@ export type ListingDraft = {
   /** Free-text for now; each adapter maps it onto its own taxonomy. */
   category?: string;
   brand?: string;
+  /**
+   * How sure the model was about the suggestion that filled this in, 0 to 1.
+   * Undefined once the seller has edited the title, or if nothing was suggested.
+   */
+  suggestedConfidence?: number;
   /** Channels the seller has chosen to publish to. */
   channels: ChannelId[];
   createdAt: string;

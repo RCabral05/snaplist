@@ -91,6 +91,10 @@ export default function SellScreen() {
                 brand: suggestion.brand,
                 condition: suggestion.condition,
                 priceCents: suggestion.priceCents,
+                // Kept rather than discarded: the editor warns on a low one, and
+                // a guess that fills the form as confidently as a recognition is
+                // how you end up with wrong titles that look reviewed.
+                suggestedConfidence: suggestion.confidence,
               }
             : {}),
         });

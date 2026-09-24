@@ -33,6 +33,9 @@ import { colors, radius, spacing, type } from "@/theme";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
+/** Below this, the suggestion is a guess worth flagging rather than a recognition. */
+const UNSURE_BELOW = 0.6;
+
 export default function DraftScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -97,8 +100,14 @@ export default function DraftScreen() {
     );
   }
 
+  const unsure =
+    draft.suggestedConfidence !== undefined && draft.suggestedConfidence < UNSURE_BELOW;
+
   const set = (patch: Partial<ListingDraft>) => {
     const next = { ...draft, ...patch };
+    // Touching the title is the seller saying they have read it, so the caveat
+    // has done its job and should stop nagging.
+    if (patch.title !== undefined) next.suggestedConfidence = undefined;
     setDraft(next);
     putDraft(next);
   };
@@ -162,6 +171,16 @@ export default function DraftScreen() {
                 </View>
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {unsure ? (
+          <View style={s.unsure}>
+            <Icon name="exclamationmark.triangle" size={15} color={colors.pending} />
+            <Text style={s.unsureText}>
+              Snaplist was not confident about this one. Check the title and the price
+              before you publish.
+            </Text>
           </View>
         ) : null}
 
@@ -323,6 +342,17 @@ const s = StyleSheet.create({
   input: { ...type.body, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 4 },
   inputMulti: { minHeight: 96, textAlignVertical: "top", paddingTop: spacing.sm + 4 },
   currency: { ...type.body, color: colors.inkFaint },
+  unsure: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(192,120,0,0.35)",
+    backgroundColor: "rgba(192,120,0,0.07)",
+  },
+  unsureText: { ...type.small, fontSize: 13, color: colors.inkDim, lineHeight: 19, flex: 1 },
   row: { flexDirection: "row", gap: spacing.sm },
   rowItem: { flex: 1 },
   channels: { gap: spacing.sm, marginTop: spacing.xs },
