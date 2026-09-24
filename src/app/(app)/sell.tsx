@@ -57,12 +57,18 @@ export default function SellScreen() {
       const draft = await putDraft(emptyDraft(active.id, [photo.uri]));
       router.push({ pathname: "/draft/[id]", params: { id: draft.id } });
 
-      const [uploaded, suggestion] = await Promise.all([
+      // Upload, then ask. These used to run in parallel, back when the model
+      // call took a local file URI; it takes a Storage path now, so there is
+      // nothing to identify until the photo has landed. The editor is already
+      // open on the photograph either way, so the wait is not in the seller's
+      // way - and a failed upload correctly means no suggestion rather than a
+      // suggestion about a photo nobody can see.
+      const uploaded =
         user && photo.base64
-          ? uploadListingPhoto(user.id, draft.id, photo.base64).catch(() => null)
-          : Promise.resolve(null),
-        suggestFromPhoto(photo.uri).catch(() => null),
-      ]);
+          ? await uploadListingPhoto(user.id, draft.id, photo.base64).catch(() => null)
+          : null;
+
+      const suggestion = uploaded ? await suggestFromPhoto(uploaded).catch(() => null) : null;
 
       if (uploaded || suggestion) {
         await putDraft({
