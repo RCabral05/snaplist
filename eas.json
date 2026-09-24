@@ -4,10 +4,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": { "simulator": false },
-      "env": {
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "906492357935-qutsvarbumfnnb9sp5bjkdklckm7o6os.apps.googleusercontent.com"
-      }
+      "ios": { "simulator": false }
     },
     "preview": { "distribution": "internal" },
     "production": { "autoIncrement": true }
