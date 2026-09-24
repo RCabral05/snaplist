@@ -1,8 +1,3 @@
-import {
-  GoogleSignin,
-  isCancelledResponse,
-  isSuccessResponse,
-} from "@react-native-google-signin/google-signin";
 import type { Session, User } from "@supabase/supabase-js";
 import * as AppleAuthentication from "expo-apple-authentication";
 import {
@@ -21,19 +16,39 @@ const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 /**
- * Google needs OAuth client IDs that only exist once someone creates them in the
- * Google Cloud console. Rather than ship a button that throws, the UI asks this
- * and hides the option until the IDs are configured.
+ * Google sign-in is optional twice over, and both have to be true before the
+ * button can appear:
+ *
+ *   1. the OAuth client IDs exist (someone made them in the Google console), and
+ *   2. the native module is actually in this binary.
+ *
+ * The second one is easy to forget. Adding the package changes the native build,
+ * so any dev client made before that has no RNGoogleSignin - and importing it at
+ * the top of this file took the whole app down on launch, for a feature that was
+ * switched off anyway. It is loaded defensively instead: one attempt, cached, and
+ * a miss just means no Google button.
  */
-export const googleConfigured = !!googleWebClientId && !!googleIosClientId;
+type GoogleSdk = typeof import("@react-native-google-signin/google-signin");
 
-if (googleConfigured) {
-  GoogleSignin.configure({
-    // The Web client ID is the audience of the idToken Supabase validates.
-    webClientId: googleWebClientId,
-    iosClientId: googleIosClientId,
-  });
+let sdk: GoogleSdk | null | undefined;
+function google(): GoogleSdk | null {
+  if (sdk !== undefined) return sdk;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const loaded = require("@react-native-google-signin/google-signin") as GoogleSdk;
+    loaded.GoogleSignin.configure({
+      // The Web client ID is the audience of the idToken Supabase validates.
+      webClientId: googleWebClientId,
+      iosClientId: googleIosClientId,
+    });
+    sdk = loaded;
+  } catch {
+    sdk = null; // not built into this binary
+  }
+  return sdk;
 }
+
+export const googleConfigured = !!googleWebClientId && !!googleIosClientId && !!google();
 
 /** Mirrors public.profiles - one row per auth user, created by a trigger. */
 export type Profile = {
@@ -132,10 +147,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    await GoogleSignin.hasPlayServices(); // no-op on iOS
-    const response = await GoogleSignin.signIn();
-    if (isCancelledResponse(response)) return;
-    if (!isSuccessResponse(response) || !response.data.idToken) {
+    const g = google();
+    if (!g) throw new Error("Google sign-in is not available in this build.");
+    await g.GoogleSignin.hasPlayServices(); // no-op on iOS
+    const response = await g.GoogleSignin.signIn();
+    if (g.isCancelledResponse(response)) return;
+    if (!g.isSuccessResponse(response) || !response.data.idToken) {
       throw new Error("Google sign-in did not return an ID token.");
     }
     const { error } = await supabase.auth.signInWithIdToken({
@@ -159,7 +176,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     // Also clear Google's cached account so the chooser shows next time.
-    if (googleConfigured) await GoogleSignin.signOut().catch(() => {});
+    await google()?.GoogleSignin.signOut().catch(() => {});
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }, []);
