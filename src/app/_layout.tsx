@@ -11,18 +11,21 @@ import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { BrandProvider, useBrands } from "@/lib/brands";
 import { colors } from "@/theme";
 
 function RootNavigator() {
-  const { user, profile, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { brands, isLoading: brandsLoading } = useBrands();
 
-  // Signed in but nameless is its own state. Gating here rather than redirecting
-  // from inside a screen means every route under (app) can assume a username.
-  const needsUsername = !!user && !profile?.username;
+  // Signed in with no brand is its own state, the way "signed in without a
+  // username" used to be. Gating here rather than redirecting from inside a
+  // screen means everything under (app) can assume an active brand exists.
+  const needsBrand = !!user && brands.length === 0;
 
-  // Hold the navigator until the persisted session is restored, otherwise the
-  // sign-in screen flashes for a fraction of a second on every cold start.
-  if (isLoading) {
+  // Hold the navigator until the session is restored and, if there is one, its
+  // brands have loaded. Otherwise onboarding flashes on every cold start.
+  if (authLoading || (!!user && brandsLoading)) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={colors.ember} />
@@ -31,17 +34,18 @@ function RootNavigator() {
   }
 
   return (
-    <Stack
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}
-    >
-      <Stack.Protected guard={!!user && !needsUsername}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
+      <Stack.Protected guard={!!user && !needsBrand}>
         <Stack.Screen name="(app)" />
         <Stack.Screen name="draft/[id]" />
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
-        <Stack.Screen name="seller/[username]" />
+        <Stack.Screen name="brand-settings" options={{ presentation: "modal" }} />
+        <Stack.Screen name="brand/[slug]" />
       </Stack.Protected>
-      <Stack.Protected guard={needsUsername}>
-        <Stack.Screen name="username" />
+      {/* Reachable in both signed-in states: it is onboarding when there is no
+          brand yet, and a push from Account when adding another. */}
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="new-brand" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />
@@ -63,7 +67,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.paper }}>
       <AuthProvider>
-        <RootNavigator />
+        <BrandProvider>
+          <RootNavigator />
+        </BrandProvider>
       </AuthProvider>
       <StatusBar style="dark" />
     </GestureHandlerRootView>

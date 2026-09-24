@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { useAuth } from "@/lib/auth";
+import { useBrands } from "@/lib/brands";
 import { emptyDraft, putDraft } from "@/lib/listings";
 import { uploadListingPhoto } from "@/lib/photos";
 import { suggestFromPhoto } from "@/lib/vision";
@@ -20,6 +21,7 @@ export default function SellScreen() {
   const router = useRouter();
   const camera = useRef<CameraView>(null);
   const { user } = useAuth();
+  const { active } = useBrands();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
 
@@ -46,11 +48,13 @@ export default function SellScreen() {
       const photo = await camera.current?.takePictureAsync({ quality: 0.8, base64: true });
       if (!photo?.uri) return;
 
+      if (!active) return; // the routing guard means there is always a brand
+
       // The row is created with the local file:// URI so the editor opens on the
       // photograph instead of a placeholder. That URI means nothing on another
       // device, which is exactly why it is replaced by the Storage path below as
       // soon as the upload lands - usually before the seller has typed a title.
-      const draft = await putDraft(emptyDraft([photo.uri]));
+      const draft = await putDraft(emptyDraft(active.id, [photo.uri]));
       router.push({ pathname: "/draft/[id]", params: { id: draft.id } });
 
       const [uploaded, suggestion] = await Promise.all([

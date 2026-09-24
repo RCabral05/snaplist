@@ -16,7 +16,9 @@ export type Condition = "new" | "like_new" | "good" | "fair" | "parts";
 
 export type ListingDraft = {
   id: string;
-  /** Local file URIs until the backend has uploaded them; then remote URLs. */
+  /** The brand it is sold under. Every listing has one; buyers see the brand. */
+  brandId: string;
+  /** Local file URIs until the photo has uploaded; then Storage object paths. */
   photos: string[];
   title: string;
   description: string;

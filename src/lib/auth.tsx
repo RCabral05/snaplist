@@ -54,14 +54,17 @@ export const googleConfigured = !!googleWebClientId && !!googleIosClientId && !!
 export type Profile = {
   id: string;
   display_name: string;
-  /** Null until the seller has claimed one; the app routes on this. */
+  /**
+   * Deprecated. The storefront handle moved to brands.slug; this column is kept
+   * only because 0007 backfilled the first brand from it. Nothing reads it.
+   */
   username: string | null;
   /** Public Storage URL, or null while they are still the initials. */
   avatar_url: string | null;
 };
 
-/** The fields a seller may change about themselves. Username is not one of
- *  them: it goes through claim_username, which arbitrates uniqueness. */
+/** The fields a seller may change about themselves. The storefront handle is
+ *  not one of them - that lives on the brand. */
 export type ProfilePatch = Partial<Pick<Profile, "display_name" | "avatar_url">>;
 
 type AuthContextValue = {
@@ -76,8 +79,6 @@ type AuthContextValue = {
   refreshProfile: () => Promise<void>;
   /** Writes the patch and refreshes, so every screen sees the new value at once. */
   updateProfile: (patch: ProfilePatch) => Promise<void>;
-  /** Resolves once the name is theirs; throws "username_taken" if it is not. */
-  claimUsername: (username: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -175,17 +176,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (error) throw error;
   }, []);
 
-  const claimUsername = useCallback(
-    async (username: string) => {
-      const { error } = await supabase.rpc("claim_username", { candidate: username });
-      // Postgres raises bare codes ("username_taken"); surface them unchanged so
-      // the screen can decide what to say.
-      if (error) throw new Error(error.message);
-      if (uid) await loadProfile(uid);
-    },
-    [uid, loadProfile],
-  );
-
   const refreshProfile = useCallback(async () => {
     if (uid) await loadProfile(uid);
   }, [uid, loadProfile]);
@@ -211,7 +201,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut,
       refreshProfile,
       updateProfile,
-      claimUsername,
     }),
     [
       session,
@@ -223,7 +212,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut,
       refreshProfile,
       updateProfile,
-      claimUsername,
     ],
   );
 

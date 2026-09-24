@@ -12,21 +12,23 @@ import { Avatar } from "./avatar";
 import { Icon } from "./icon";
 
 /**
- * Two columns of product cards, used by the Shop feed and by one seller's shop.
- * The photo leads: these are second-hand goods and the picture is the listing.
+ * Two columns of product cards, used by the Shop feed and by one brand's
+ * storefront. The photo leads: these are second-hand goods and the picture is
+ * the listing. The brand line is suppressed on a storefront, where every card
+ * would otherwise repeat the name already in the header.
  */
 export function ShopGrid({
   items,
   header,
   empty,
-  showSeller = true,
+  showBrand = true,
   onRefresh,
   refreshing,
 }: {
   items: ShopItem[];
   header?: ReactElement;
   empty?: ReactElement;
-  showSeller?: boolean;
+  showBrand?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
@@ -34,7 +36,7 @@ export function ShopGrid({
     <FlatList
       data={items}
       keyExtractor={(i) => i.id}
-      renderItem={({ item }) => <Card item={item} showSeller={showSeller} />}
+      renderItem={({ item }) => <Card item={item} showBrand={showBrand} />}
       numColumns={2}
       columnWrapperStyle={items.length ? s.column : undefined}
       contentContainerStyle={items.length ? s.list : s.listEmpty}
@@ -47,10 +49,10 @@ export function ShopGrid({
   );
 }
 
-function Card({ item, showSeller }: { item: ShopItem; showSeller: boolean }) {
+function Card({ item, showBrand }: { item: ShopItem; showBrand: boolean }) {
   const router = useRouter();
   const url = usePhotoUrl(item.photo);
-  const handle = item.seller?.username;
+  const slug = item.brand?.slug;
 
   return (
     <View style={s.card}>
@@ -69,20 +71,15 @@ function Card({ item, showSeller }: { item: ShopItem; showSeller: boolean }) {
       </Text>
       <Text style={s.price}>{money(item.priceCents, item.currency)}</Text>
 
-      {showSeller && handle ? (
+      {showBrand && slug ? (
         <Pressable
-          onPress={() => router.push({ pathname: "/seller/[username]", params: { username: handle } })}
-          style={({ pressed }) => [s.seller, pressed && s.pressed]}
+          onPress={() => router.push({ pathname: "/brand/[slug]", params: { slug } })}
+          style={({ pressed }) => [s.brand, pressed && s.pressed]}
           hitSlop={6}
         >
-          <Avatar
-            url={item.seller?.avatar_url}
-            name={item.seller?.display_name}
-            handle={handle}
-            size={18}
-          />
-          <Text style={s.handle} numberOfLines={1}>
-            @{handle}
+          <Avatar url={item.brand?.logo_url} name={item.brand?.name} handle={slug} size={18} />
+          <Text style={s.brandName} numberOfLines={1}>
+            {item.brand?.name || `@${slug}`}
           </Text>
         </Pressable>
       ) : null}
@@ -106,7 +103,7 @@ const s = StyleSheet.create({
   photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
   title: { ...type.small, color: colors.ink, marginTop: 2 },
   price: { ...type.price, fontSize: 15, color: colors.ink },
-  seller: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  brand: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   pressed: { opacity: 0.6 },
-  handle: { ...type.small, fontSize: 12, color: colors.textMuted, flexShrink: 1 },
+  brandName: { ...type.small, fontSize: 12, color: colors.textMuted, flexShrink: 1 },
 });

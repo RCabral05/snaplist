@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 
 import { supabase } from "./supabase";
 
-export const USERNAME_MIN = 3;
-export const USERNAME_MAX = 20;
+export const HANDLE_MIN = 3;
+export const HANDLE_MAX = 20;
 const SHAPE = /^[A-Za-z0-9_]+$/;
 
-export type UsernameStatus =
+export type HandleStatus =
   | { kind: "empty" }
   | { kind: "too-short" }
   | { kind: "too-long" }
@@ -20,48 +20,47 @@ export type UsernameStatus =
 /**
  * Everything that can be judged without the server. Returns null when the
  * candidate is well formed, which is the only case worth a round trip - there is
- * no reason to ask whether "a b" is a legal username.
+ * no reason to ask whether "a b" is a legal handle.
  */
-function localStatus(value: string, current?: string | null): UsernameStatus | null {
+function localStatus(value: string, current?: string | null): HandleStatus | null {
   if (!value) return { kind: "empty" };
   if (current && value.toLowerCase() === current.toLowerCase()) return { kind: "unchanged" };
   if (!SHAPE.test(value)) return { kind: "invalid" };
-  if (value.length < USERNAME_MIN) return { kind: "too-short" };
-  if (value.length > USERNAME_MAX) return { kind: "too-long" };
+  if (value.length < HANDLE_MIN) return { kind: "too-short" };
+  if (value.length > HANDLE_MAX) return { kind: "too-long" };
   return null;
 }
 
 /**
- * Live availability, debounced.
+ * Live availability for a claimable handle, debounced.
  *
- * The answer is tagged with the text it was asked about, so a slow reply that
- * lands after the field has moved on is simply not the answer to the current
- * question and is ignored. That tag also keeps the local verdict out of state
- * entirely: it is derived during render, and the effect only ever deals with
- * the network.
+ * `rpc` is a security-definer function returning one boolean, because the table
+ * behind it is never readable across rows - the whole reason availability cannot
+ * be checked with a plain select. Brands use brand_slug_available.
  *
- * Pass `current` when renaming. username_available() counts every row including
- * the seller's own, so without it their existing name reports back as taken the
- * moment the edit screen opens - technically true, and useless to say.
+ * The answer is tagged with the text it was asked about, so a slow reply landing
+ * after the field has moved on is simply not the answer to the current question.
+ * Pass `current` when renaming, or the holder's own handle reports back as taken.
  */
-export function useUsernameCheck(
+export function useHandleCheck(
   raw: string,
+  rpc: string,
   current?: string | null,
   delay = 350,
-): UsernameStatus {
+): HandleStatus {
   const value = raw.trim();
   const local = localStatus(value, current);
-  const [answer, setAnswer] = useState<{ for: string; status: UsernameStatus } | null>(null);
+  const [answer, setAnswer] = useState<{ for: string; status: HandleStatus } | null>(null);
 
   // A boolean, not `local` itself: that object is rebuilt every render and would
   // restart the debounce on each keystroke-driven re-render.
   const needsServer = local === null;
 
   useEffect(() => {
-    if (!needsServer) return; // nothing the server can add
+    if (!needsServer) return;
 
     const timer = setTimeout(async () => {
-      const { data, error } = await supabase.rpc("username_available", { candidate: value });
+      const { data, error } = await supabase.rpc(rpc, { candidate: value });
       setAnswer({
         for: value,
         status: error
@@ -71,25 +70,25 @@ export function useUsernameCheck(
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [value, needsServer, delay]);
+  }, [value, needsServer, rpc, delay]);
 
   if (local) return local;
-  if (answer?.for === value) return answer.status;
+  if (answer && answer.for === value) return answer.status;
   return { kind: "checking" };
 }
 
-export function usernameHint(status: UsernameStatus): string {
+export function handleHint(status: HandleStatus, noun = "handle"): string {
   switch (status.kind) {
     case "empty":
       return "Letters, numbers and underscores.";
     case "too-short":
-      return "At least " + USERNAME_MIN + " characters.";
+      return "At least " + HANDLE_MIN + " characters.";
     case "too-long":
-      return "At most " + USERNAME_MAX + " characters.";
+      return "At most " + HANDLE_MAX + " characters.";
     case "invalid":
       return "Letters, numbers and underscores only.";
     case "unchanged":
-      return "This is your username.";
+      return `This is your ${noun}.`;
     case "checking":
       return "Checking…";
     case "available":

@@ -34,9 +34,17 @@ once any third-party sign-in is offered. The Google button hides itself until
 both client IDs are set, so the app never shows an option that is guaranteed to
 throw.
 
-After signing in, a seller claims a username before reaching the app. Routing
-has three states, not two - signed out, signed in without a name, and in - so
-every screen under `(app)` can assume a username exists.
+After signing in, a seller creates a brand before reaching the app. Routing has
+three states, not two - signed out, signed in with no brand, and in - so every
+screen under `(app)` can assume an active brand exists.
+
+A brand is what a seller sells under, and the handle belongs to it rather than to
+the person: `` is a storefront, not a human. That split is what lets other
+things hang off a brand later - events are the next one - without every table
+growing its own `user_id`. One account may own several. `profiles` keeps
+`display_name` and `avatar_url` as the private person behind the brands, and its
+`username` column is dead: migration 0007 backfilled the first brand from it and
+nothing reads it now.
 
 Schema lives in `supabase/migrations/`. The shape that matters:
 
@@ -49,6 +57,9 @@ Schema lives in `supabase/migrations/`. The shape that matters:
 | `avatars` bucket (Storage) | anyone - public read; writes confined to `<uid>/` |
 | `listing-photos` bucket | the owner while it is a draft; anyone once the listing is published |
 | `public_profiles` (view) | anyone - id, username, display_name, avatar_url and nothing else |
+| `brands` | the owner |
+| `public_brands` (view) | anyone - slug, name, logo and bio, but never owner_id |
+| `brand-logos` bucket | anyone - public read; writes confined to `<uid>/` |
 
 `channel_credentials` is split out from `connections` on purpose. Postgres RLS is
 row-level, not column-level, so the only way to keep a token unreadable by the
@@ -57,16 +68,16 @@ app is to put it in a table the app has no policy for.
 `connections` has no insert or update policy either: rows appear when the backend
 finishes an OAuth round trip, never because the device asked.
 
-### Why usernames need two RPCs
+### Why claiming a handle needs two RPCs
 
 `profiles` is readable only by its owner, so a client-side "is this taken" query
-returns nothing and every name looks free. `username_available()` is a
+returns nothing and every name looks free. `brand_slug_available()` is a
 security-definer function that can see across rows and returns exactly one bit.
 
-`claim_username()` exists because checking and then setting would race: two people
+`create_brand()` exists because checking and then inserting would race: two people
 can both be told a name is free before either writes. The unique index on
-`lower(username)` is the real arbiter; the function just reports its verdict as a
-clean `username_taken` error. Case is preserved for display and ignored for
+`lower(slug)` is the real arbiter; the function just reports its verdict as a
+clean `slug_taken` error. Case is preserved for display and ignored for
 uniqueness, so `Ryan` and `ryan` cannot both exist.
 
 ## Shape
@@ -75,14 +86,17 @@ uniqueness, so `Ryan` and `ryan` cannot both exist.
 src/
   app/                    expo-router routes
     (auth)/sign-in.tsx    Apple + Google; shown when there is no session
-    username.tsx          claim a name; shown when signed in but nameless
+    new-brand.tsx         create a brand; onboarding, and adding another later
     (app)/                tabs: Shop · Sell · Listings · Account
       sell.tsx            the camera; creates a draft on shutter
     draft/[id].tsx        edit the draft, pick channels, publish
-    edit-profile.tsx      modal: photo, display name, username change
+    edit-profile.tsx      modal: the person - photo and name, seen by nobody
+    brand-settings.tsx    modal: the storefront - logo, name, handle, bio
+    brand/[slug].tsx      a brand's public storefront
   lib/
-    auth.tsx              session + profile, Apple/Google, username claim
-    use-username-check.ts debounced availability, with stale-answer guard
+    auth.tsx              session + profile, Apple/Google
+    brands.tsx            the brands you own, and which one is active
+    use-handle-check.ts   debounced availability, with stale-answer guard
     avatar.ts             pick a photo, upload it, sweep the previous one
     photos.ts             listing photos: upload, sign, resolve for display
     shop.ts               the buyer side: the feed, and one seller's shop
