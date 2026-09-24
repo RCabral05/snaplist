@@ -32,6 +32,7 @@ type Row = {
   category: string | null;
   brand: string | null;
   suggested_confidence: number | null;
+  published_at: string | null;
   photos: string[];
   channels: string[];
   created_at: string;
@@ -61,6 +62,7 @@ const toDraft = (r: Row): ListingDraft => ({
   category: r.category ?? undefined,
   brand: r.brand ?? undefined,
   suggestedConfidence: r.suggested_confidence ?? undefined,
+  publishedAt: r.published_at ?? undefined,
   channels: (r.channels ?? []) as ChannelId[],
   createdAt: r.created_at,
   updatedAt: r.updated_at,

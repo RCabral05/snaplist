@@ -1,12 +1,12 @@
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/avatar";
 import { EmptyState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
-import { Screen, SectionLabel } from "@/components/screen";
+import { Screen } from "@/components/screen";
 import { useBrands } from "@/lib/brands";
 import { useConnections } from "@/lib/connections";
 import { money, useListings, type ListingDraft } from "@/lib/listings";
@@ -14,16 +14,23 @@ import { adapterFor, adapters } from "@/lib/marketplaces";
 import { usePhotoUrl } from "@/lib/photos";
 import { colors, fonts, radius, spacing, type } from "@/theme";
 
+type Filter = "all" | "live" | "draft";
+
 /**
  * The active brand's home: how it is doing, what it is connected to, and
- * everything it has listed. Products are what hangs off a brand today; when
- * events arrive they get a section here rather than a tab of their own.
+ * everything it has listed.
+ *
+ * Whether a listing is live comes from listings.published_at - the same column
+ * the Shop feed reads. It used to come from a per-device cache of channel
+ * states, which meant an item could be visibly for sale in Shop and still say
+ * "Draft" here: two sources of truth for one fact, disagreeing.
  */
 export default function BrandScreen() {
   const router = useRouter();
   const { active, brands, setActive } = useBrands();
-  const { drafts, channelsFor, refresh } = useListings();
+  const { drafts, refresh } = useListings();
   const { isConnected, disconnect } = useConnections();
+  const [filter, setFilter] = useState<Filter>("all");
 
   useFocusEffect(
     useCallback(() => {
@@ -31,21 +38,14 @@ export default function BrandScreen() {
     }, [refresh]),
   );
 
-  // Counted from the per-channel states rather than the drafts: a listing can be
-  // live on one channel and failed on another, and pretending otherwise is the
-  // thing publish() was built not to do.
-  const counts = useMemo(() => {
-    let live = 0;
-    let failed = 0;
-    let draft = 0;
-    for (const d of drafts) {
-      const states = channelsFor(d.id);
-      if (!states.length) draft += 1;
-      else if (states.some((c) => c.state === "live")) live += 1;
-      if (states.some((c) => c.state === "failed")) failed += 1;
-    }
-    return { live, failed, draft };
-  }, [drafts, channelsFor]);
+  const live = useMemo(() => drafts.filter((d) => d.publishedAt).length, [drafts]);
+  const unpublished = drafts.length - live;
+
+  const shown = useMemo(() => {
+    if (filter === "live") return drafts.filter((d) => d.publishedAt);
+    if (filter === "draft") return drafts.filter((d) => !d.publishedAt);
+    return drafts;
+  }, [drafts, filter]);
 
   const header = (
     <View style={s.head}>
@@ -65,8 +65,6 @@ export default function BrandScreen() {
         {brands.length > 1 ? (
           <Pressable
             onPress={() => {
-              // Round-robin rather than a picker: with a handful of brands the
-              // sheet costs more taps than it saves.
               const i = brands.findIndex((b) => b.id === active?.id);
               setActive(brands[(i + 1) % brands.length].id);
             }}
@@ -80,12 +78,6 @@ export default function BrandScreen() {
           <Icon name="chevron.right" size={14} color={colors.inkFaint} weight="semibold" />
         )}
       </Pressable>
-
-      <View style={s.stats}>
-        <Stat label="Live" value={counts.live} tone={colors.live} />
-        <Stat label="Drafts" value={counts.draft} />
-        <Stat label="Failed" value={counts.failed} tone={counts.failed ? colors.failed : undefined} />
-      </View>
 
       <View style={s.channels}>
         {adapters
@@ -130,65 +122,95 @@ export default function BrandScreen() {
         ) : null}
       </View>
 
-      {drafts.length ? <SectionLabel style={s.listingsLabel}>Listings</SectionLabel> : null}
+      {drafts.length ? (
+        <View style={s.filters}>
+          <FilterTab label="All" count={drafts.length} on={filter === "all"} onPress={() => setFilter("all")} />
+          <FilterTab label="Live" count={live} on={filter === "live"} onPress={() => setFilter("live")} />
+          <FilterTab
+            label="Drafts"
+            count={unpublished}
+            on={filter === "draft"}
+            onPress={() => setFilter("draft")}
+          />
+        </View>
+      ) : null}
     </View>
   );
 
-  const renderItem = ({ item }: { item: ListingDraft }) => {
-    const statuses = channelsFor(item.id);
-    return (
-      <Pressable
-        onPress={() => router.push({ pathname: "/draft/[id]", params: { id: item.id } })}
-        style={({ pressed }) => [s.card, pressed && s.pressed]}
-      >
-        <Thumb photo={item.photos[0]} />
-        <View style={s.body}>
-          <Text style={s.name} numberOfLines={1}>
-            {item.title || "Untitled item"}
-          </Text>
+  const renderItem = ({ item }: { item: ListingDraft }) => (
+    <Pressable
+      onPress={() => router.push({ pathname: "/draft/[id]", params: { id: item.id } })}
+      style={({ pressed }) => [s.card, pressed && s.pressed]}
+    >
+      <Thumb photo={item.photos[0]} />
+      <View style={s.body}>
+        <Text style={s.name} numberOfLines={1}>
+          {item.title || "Untitled item"}
+        </Text>
+        <View style={s.stateRow}>
+          <View style={[s.stateDot, item.publishedAt ? s.stateDotLive : null]} />
           <Text style={s.meta} numberOfLines={1}>
-            {statuses.length
-              ? statuses.map((c) => adapterFor(c.channel).name + " " + c.state).join("  ·  ")
+            {item.publishedAt
+              ? "Live on Snaplist"
               : "Draft · " + item.channels.map((c) => adapterFor(c).name).join(", ")}
           </Text>
         </View>
-        <View style={s.trailing}>
-          <Text style={s.price}>{money(item.priceCents, item.currency)}</Text>
-          <Icon name="chevron.right" size={13} color={colors.inkFaint} weight="semibold" />
-        </View>
-      </Pressable>
-    );
-  };
+      </View>
+      <View style={s.trailing}>
+        <Text style={s.price}>{money(item.priceCents, item.currency)}</Text>
+        <Icon name="chevron.right" size={13} color={colors.inkFaint} weight="semibold" />
+      </View>
+    </Pressable>
+  );
 
   return (
     <Screen title={active?.name || "Brand"}>
       <FlatList
-        data={drafts}
+        data={shown}
         keyExtractor={(d) => d.id}
         renderItem={renderItem}
         ListHeaderComponent={header}
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <EmptyState
-            icon="square.stack"
-            title="Nothing listed yet"
-            body="Photograph something on the Sell tab and it lands here as a draft."
-            actionLabel="Take a photo"
-            onAction={() => router.push("/sell")}
-          />
+          drafts.length ? (
+            <View style={s.none}>
+              <Text style={s.noneText}>
+                {filter === "live" ? "Nothing is live yet." : "No drafts - everything is live."}
+              </Text>
+            </View>
+          ) : (
+            <EmptyState
+              icon="square.stack"
+              title="Nothing listed yet"
+              body="Photograph something on the Sell tab and it lands here as a draft."
+              actionLabel="Take a photo"
+              onAction={() => router.push("/sell")}
+            />
+          )
         }
       />
     </Screen>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+function FilterTab({
+  label,
+  count,
+  on,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  on: boolean;
+  onPress: () => void;
+}) {
   return (
-    <View style={s.stat}>
-      <Text style={[s.statValue, tone ? { color: tone } : null]}>{value}</Text>
-      <Text style={s.statLabel}>{label}</Text>
-    </View>
+    <Pressable onPress={onPress} style={[s.filter, on && s.filterOn]}>
+      <Text style={[s.filterText, on && s.filterTextOn]}>
+        {label} {count}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -222,17 +244,6 @@ const s = StyleSheet.create({
   switch: { flexDirection: "row", alignItems: "center", gap: 4 },
   switchText: { ...type.small, fontSize: 12, color: colors.inkDim },
 
-  stats: {
-    flexDirection: "row",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-  },
-  stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { ...type.display, fontSize: 24, color: colors.ink },
-  statLabel: { ...type.label, fontSize: 10, color: colors.textFaint },
-
   channels: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
     flexDirection: "row",
@@ -249,7 +260,19 @@ const s = StyleSheet.create({
   dotOn: { backgroundColor: colors.live },
   chipText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
   chipTextOn: { color: colors.ink },
-  listingsLabel: { marginTop: spacing.sm },
+
+  // Counts sit on the tabs rather than in a separate stat block: three numbers
+  // above three filters saying the same three numbers was one row too many.
+  filters: { flexDirection: "row", gap: spacing.xs },
+  filter: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  filterOn: { backgroundColor: colors.ink },
+  filterText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  filterTextOn: { color: colors.white },
 
   card: {
     flexDirection: "row",
@@ -266,7 +289,13 @@ const s = StyleSheet.create({
   thumbEmpty: { alignItems: "center", justifyContent: "center" },
   body: { flex: 1, minWidth: 0, gap: 3 },
   name: { ...type.bodyMedium, color: colors.ink },
-  meta: { ...type.small, fontSize: 13, color: colors.textMuted },
+  stateRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  stateDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.draft },
+  stateDotLive: { backgroundColor: colors.live },
+  meta: { ...type.small, fontSize: 13, color: colors.textMuted, flexShrink: 1 },
   trailing: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   price: { ...type.price, fontSize: 16, color: colors.ink },
+
+  none: { paddingTop: spacing.xl, alignItems: "center" },
+  noneText: { ...type.small, color: colors.textMuted },
 });

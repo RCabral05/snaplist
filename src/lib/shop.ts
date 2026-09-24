@@ -73,13 +73,23 @@ async function withBrands(rows: ListingRow[]): Promise<ShopItem[]> {
   }));
 }
 
-export async function fetchFeed(limit = 50): Promise<ShopItem[]> {
-  const { data, error } = await supabase
+export async function fetchFeed(query = "", limit = 50): Promise<ShopItem[]> {
+  let q = supabase
     .from("listings")
     .select(SELECT)
     .not("published_at", "is", null)
     .order("published_at", { ascending: false })
     .limit(limit);
+
+  // Filtered in Postgres, not in the client. A feed small enough to filter on
+  // the device today will not stay that way, and the index is already there.
+  // Commas and parentheses would be read as PostgREST syntax, so they go.
+  const term = query.trim().replace(/[,()]/g, "");
+  if (term) {
+    q = q.or(`title.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return withBrands((data ?? []) as ListingRow[]);
 }
@@ -139,8 +149,8 @@ function useItems(load: () => Promise<ShopItem[]>) {
   };
 }
 
-export function useFeed() {
-  return useItems(useCallback(() => fetchFeed(), []));
+export function useFeed(query = "") {
+  return useItems(useCallback(() => fetchFeed(query), [query]));
 }
 
 export function useBrandShop(slug?: string) {

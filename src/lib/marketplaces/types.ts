@@ -35,6 +35,12 @@ export type ListingDraft = {
    * Undefined once the seller has edited the title, or if nothing was suggested.
    */
   suggestedConfidence?: number;
+  /**
+   * When it went live on our own marketplace, or undefined while it is a draft.
+   * This is the fact - not the per-device channel cache, which only knows what
+   * this install happened to do.
+   */
+  publishedAt?: string;
   /** Channels the seller has chosen to publish to. */
   channels: ChannelId[];
   createdAt: string;
