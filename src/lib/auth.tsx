@@ -56,7 +56,13 @@ export type Profile = {
   display_name: string;
   /** Null until the seller has claimed one; the app routes on this. */
   username: string | null;
+  /** Public Storage URL, or null while they are still the initials. */
+  avatar_url: string | null;
 };
+
+/** The fields a seller may change about themselves. Username is not one of
+ *  them: it goes through claim_username, which arbitrates uniqueness. */
+export type ProfilePatch = Partial<Pick<Profile, "display_name" | "avatar_url">>;
 
 type AuthContextValue = {
   session: Session | null;
@@ -66,10 +72,10 @@ type AuthContextValue = {
   isLoading: boolean;
   signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Writes the patch and refreshes, so every screen sees the new value at once. */
+  updateProfile: (patch: ProfilePatch) => Promise<void>;
   /** Resolves once the name is theirs; throws "username_taken" if it is not. */
   claimUsername: (username: string) => Promise<void>;
 };
@@ -98,7 +104,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadProfile = useCallback((forUid: string) => {
     return supabase
       .from("profiles")
-      .select("id, display_name, username")
+      .select("id, display_name, username, avatar_url")
       .eq("id", forUid)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -162,18 +168,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (error) throw error;
   }, []);
 
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error) throw error;
-  }, []);
-
-  const signUpWithEmail = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
-    if (error) throw error;
-    // With email confirmation on, signUp returns a user but no session.
-    return { needsConfirmation: !data.session };
-  }, []);
-
   const signOut = useCallback(async () => {
     // Also clear Google's cached account so the chooser shows next time.
     await google()?.GoogleSignin.signOut().catch(() => {});
@@ -196,6 +190,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (uid) await loadProfile(uid);
   }, [uid, loadProfile]);
 
+  const updateProfile = useCallback(
+    async (patch: ProfilePatch) => {
+      if (!uid) throw new Error("Not signed in.");
+      const { error } = await supabase.from("profiles").update(patch).eq("id", uid);
+      if (error) throw error;
+      await loadProfile(uid);
+    },
+    [uid, loadProfile],
+  );
+
   const value = useMemo(
     () => ({
       session,
@@ -204,10 +208,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isLoading,
       signInWithApple,
       signInWithGoogle,
-      signInWithEmail,
-      signUpWithEmail,
       signOut,
       refreshProfile,
+      updateProfile,
       claimUsername,
     }),
     [
@@ -217,10 +220,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isLoading,
       signInWithApple,
       signInWithGoogle,
-      signInWithEmail,
-      signUpWithEmail,
       signOut,
       refreshProfile,
+      updateProfile,
       claimUsername,
     ],
   );

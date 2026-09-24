@@ -29,7 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSCameraUsageDescription:
         "Snaplist uses the camera to photograph the items you list for sale.",
       NSPhotoLibraryUsageDescription:
-        "Snaplist uses your photo library to attach existing photos to a listing.",
+        "Snaplist uses your photo library for listing photos and your profile picture.",
     },
   },
   android: {
@@ -43,6 +43,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "@react-native-google-signin/google-signin",
       { iosUrlScheme: googleUrlScheme },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "Snaplist uses your photo library for listing photos and your profile picture.",
+      },
     ],
     [
       "expo-camera",

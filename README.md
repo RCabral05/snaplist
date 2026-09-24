@@ -28,10 +28,11 @@ npx eas build --profile development --platform ios
 ## Auth and the database
 
 Supabase, in its own project (not the weekly-rivals one - a schema change to one
-must not be able to break the other). Sign in with Apple, Google or email; Apple
-is first because App Review requires it once any third-party sign-in is offered.
-The Google button hides itself until both client IDs are set, so the app never
-shows an option that is guaranteed to throw.
+must not be able to break the other). Sign in with Apple or Google - there is no
+email/password path on purpose. Apple is first because App Review requires it
+once any third-party sign-in is offered. The Google button hides itself until
+both client IDs are set, so the app never shows an option that is guaranteed to
+throw.
 
 After signing in, a seller claims a username before reaching the app. Routing
 has three states, not two - signed out, signed in without a name, and in - so
@@ -45,6 +46,7 @@ Schema lives in `supabase/migrations/`. The shape that matters:
 | `connections` | the owner - non-secret, just "eBay is connected" |
 | `channel_credentials` | **nobody**: RLS on, zero policies, service role only |
 | `listings`, `listing_channels` | the owner |
+| `avatars` bucket (Storage) | anyone - public read; writes confined to `<uid>/` |
 
 `channel_credentials` is split out from `connections` on purpose. Postgres RLS is
 row-level, not column-level, so the only way to keep a token unreadable by the
@@ -70,14 +72,16 @@ uniqueness, so `Ryan` and `ryan` cannot both exist.
 ```
 src/
   app/                    expo-router routes
-    (auth)/sign-in.tsx    Apple + Google + email; shown when there is no session
+    (auth)/sign-in.tsx    Apple + Google; shown when there is no session
     username.tsx          claim a name; shown when signed in but nameless
     (app)/                tabs: Shop · Sell · Listings · Account
       sell.tsx            the camera; creates a draft on shutter
     draft/[id].tsx        edit the draft, pick channels, publish
+    edit-profile.tsx      modal: photo, display name, username change
   lib/
-    auth.tsx              session + profile, Apple/Google/email, username claim
+    auth.tsx              session + profile, Apple/Google, username claim
     use-username-check.ts debounced availability, with stale-answer guard
+    avatar.ts             pick a photo, upload it, sweep the previous one
     supabase.ts           client; anon key only, RLS does the real work
     marketplaces/         the adapter layer (see below)
     listings.ts           draft store + publish, AsyncStorage-backed

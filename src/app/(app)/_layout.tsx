@@ -1,15 +1,28 @@
+import type { SFSymbol } from "expo-symbols";
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
 
-import { colors, type } from "@/theme";
+import { Icon } from "@/components/icon";
+import { colors, fonts, radius } from "@/theme";
 
-/** The sell tab is the product; it gets the only colour in the bar. */
-function SellTab({ focused }: { focused: boolean }) {
+/**
+ * The sell tab is the product, so it is drawn as an action rather than a
+ * destination: a filled ember disc, coloured whether or not it is the current
+ * tab. The theme keeps every other piece of chrome grey precisely so this one
+ * thing can be the only saturated colour on screen.
+ */
+function SellTab() {
   return (
-    <View style={[s.sell, focused && s.sellOn]}>
-      <Text style={s.sellMark}>+</Text>
+    <View style={s.sell}>
+      <Icon name="plus" size={20} color={colors.white} weight="semibold" />
     </View>
   );
+}
+
+function tabIcon(on: SFSymbol, off: SFSymbol) {
+  return function TabIcon({ focused, color }: { focused: boolean; color: ColorValue }) {
+    return <Icon name={focused ? on : off} size={23} color={color} />;
+  };
 }
 
 export default function AppLayout() {
@@ -19,30 +32,48 @@ export default function AppLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
-        tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.border },
-        tabBarLabelStyle: { ...type.label, fontSize: 10 },
+        tabBarStyle: {
+          backgroundColor: colors.paper,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+        },
+        // Sentence case at 11pt, not the uppercase label style: four wide
+        // letter-spaced words across a phone leaves no air between them.
+        tabBarLabelStyle: { fontFamily: fonts.sansMedium, fontSize: 11, letterSpacing: 0 },
+        tabBarItemStyle: { paddingTop: 6 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Shop" }} />
+      <Tabs.Screen
+        name="index"
+        options={{ title: "Shop", tabBarIcon: tabIcon("bag.fill", "bag") }}
+      />
       <Tabs.Screen
         name="sell"
-        options={{ title: "Sell", tabBarIcon: ({ focused }) => <SellTab focused={focused} /> }}
+        options={{ title: "Sell", tabBarIcon: SellTab, tabBarLabel: () => null }}
       />
-      <Tabs.Screen name="listings" options={{ title: "Listings" }} />
-      <Tabs.Screen name="account" options={{ title: "Account" }} />
+      <Tabs.Screen
+        name="listings"
+        options={{ title: "Listings", tabBarIcon: tabIcon("square.stack.fill", "square.stack") }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: tabIcon("person.crop.circle.fill", "person.crop.circle"),
+        }}
+      />
     </Tabs>
   );
 }
 
 const s = StyleSheet.create({
   sell: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.ruleStrong,
+    width: 42,
+    height: 42,
+    borderRadius: radius.pill,
+    backgroundColor: colors.ember,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 2,
   },
-  sellOn: { backgroundColor: colors.ember },
-  sellMark: { color: colors.white, fontSize: 20, lineHeight: 24, fontFamily: "Archivo_700Bold" },
 });
