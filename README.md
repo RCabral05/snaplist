@@ -47,6 +47,7 @@ Schema lives in `supabase/migrations/`. The shape that matters:
 | `channel_credentials` | **nobody**: RLS on, zero policies, service role only |
 | `listings`, `listing_channels` | the owner |
 | `avatars` bucket (Storage) | anyone - public read; writes confined to `<uid>/` |
+| `listing-photos` bucket | the owner only - private, signed URLs; same `<uid>/` rule |
 
 `channel_credentials` is split out from `connections` on purpose. Postgres RLS is
 row-level, not column-level, so the only way to keep a token unreadable by the
@@ -82,6 +83,8 @@ src/
     auth.tsx              session + profile, Apple/Google, username claim
     use-username-check.ts debounced availability, with stale-answer guard
     avatar.ts             pick a photo, upload it, sweep the previous one
+    photos.ts             listing photos: upload, sign, resolve for display
+    listings.ts           drafts in Postgres; channel state still local
     supabase.ts           client; anon key only, RLS does the real work
     marketplaces/         the adapter layer (see below)
     listings.ts           draft store + publish, AsyncStorage-backed
@@ -131,10 +134,11 @@ worked or didn't.
 
 1. **Backend** (Next.js on Vercel, same stack as weekly-rivals): photo upload,
    `/api/listings/publish`, OAuth callbacks for eBay and Shopify. Auth is done.
-2. **Move listings behind `user_id`.** The tables exist and are locked down, but
-   `listings.ts` is still AsyncStorage-only, so drafts die with the install. This
-   needs photo upload to Supabase Storage first - a draft full of `file://` URIs
-   is worthless on a second device.
+2. ~~**Move listings behind `user_id`.**~~ Done. Drafts are rows in
+   `public.listings`, photos are objects in the private `listing-photos` bucket,
+   and the row holds the object path rather than a `file://` URI. Per-channel
+   publish state is still AsyncStorage: `listing_channels` has no insert policy
+   for the device, so those rows wait on the backend.
 3. **Vision endpoint**: photo → title, category, condition, suggested price with
    a comp range.
 4. **Real eBay adapter**: Sell Inventory API, category suggestion from its

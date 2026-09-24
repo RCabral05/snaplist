@@ -1,5 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 
+import { toBytes } from "./base64";
 import { supabase } from "./supabase";
 
 const BUCKET = "avatars";
@@ -67,11 +68,4 @@ async function sweep(uid: string, keep: string | null): Promise<void> {
   // A failed sweep leaves an orphan file, which is untidy but harmless - never
   // worth failing the seller's edit over.
   if (stale.length) await supabase.storage.from(BUCKET).remove(stale);
-}
-
-function toBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
 }

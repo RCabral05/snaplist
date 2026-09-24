@@ -19,6 +19,7 @@ import { Icon } from "@/components/icon";
 import { SectionLabel } from "@/components/screen";
 import { useConnections } from "@/lib/connections";
 import { getDraft, money, parseMoney, publish, putDraft, removeDraft } from "@/lib/listings";
+import { usePhotoUrl } from "@/lib/photos";
 import {
   adapters,
   canPublish,
@@ -60,6 +61,9 @@ export default function DraftScreen() {
 
   const issues = useMemo(() => (draft ? validateDraft(draft) : []), [draft]);
   const ready = draft ? canPublish(draft) : false;
+  // Called before the early return below so the hook order stays stable while
+  // the draft is still loading.
+  const heroUrl = usePhotoUrl(draft?.photos?.[0]);
 
   const header = (
     <View style={s.header}>
@@ -136,9 +140,7 @@ export default function DraftScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       {header}
       <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
-        {draft.photos[0] ? (
-          <Image source={{ uri: draft.photos[0] }} style={s.hero} contentFit="cover" />
-        ) : null}
+        {heroUrl ? <Image source={{ uri: heroUrl }} style={s.hero} contentFit="cover" /> : null}
 
         <Field label="Title">
           <TextInput

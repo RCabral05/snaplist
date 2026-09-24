@@ -5,7 +5,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
+import { useAuth } from "@/lib/auth";
 import { emptyDraft, putDraft } from "@/lib/listings";
+import { uploadListingPhoto } from "@/lib/photos";
 import { suggestFromPhoto } from "@/lib/vision";
 import { colors, radius, spacing, type } from "@/theme";
 
@@ -17,6 +19,7 @@ import { colors, radius, spacing, type } from "@/theme";
 export default function SellScreen() {
   const router = useRouter();
   const camera = useRef<CameraView>(null);
+  const { user } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
 
@@ -40,22 +43,37 @@ export default function SellScreen() {
     if (busy) return;
     setBusy(true);
     try {
-      const photo = await camera.current?.takePictureAsync({ quality: 0.8 });
+      const photo = await camera.current?.takePictureAsync({ quality: 0.8, base64: true });
       if (!photo?.uri) return;
 
+      // The row is created with the local file:// URI so the editor opens on the
+      // photograph instead of a placeholder. That URI means nothing on another
+      // device, which is exactly why it is replaced by the Storage path below as
+      // soon as the upload lands - usually before the seller has typed a title.
       const draft = await putDraft(emptyDraft([photo.uri]));
       router.push({ pathname: "/draft/[id]", params: { id: draft.id } });
 
-      const suggestion = await suggestFromPhoto(photo.uri).catch(() => null);
-      if (suggestion) {
+      const [uploaded, suggestion] = await Promise.all([
+        user && photo.base64
+          ? uploadListingPhoto(user.id, draft.id, photo.base64).catch(() => null)
+          : Promise.resolve(null),
+        suggestFromPhoto(photo.uri).catch(() => null),
+      ]);
+
+      if (uploaded || suggestion) {
         await putDraft({
           ...draft,
-          title: suggestion.title,
-          description: suggestion.description,
-          category: suggestion.category,
-          brand: suggestion.brand,
-          condition: suggestion.condition,
-          priceCents: suggestion.priceCents,
+          ...(uploaded ? { photos: [uploaded] } : {}),
+          ...(suggestion
+            ? {
+                title: suggestion.title,
+                description: suggestion.description,
+                category: suggestion.category,
+                brand: suggestion.brand,
+                condition: suggestion.condition,
+                priceCents: suggestion.priceCents,
+              }
+            : {}),
         });
       }
     } finally {

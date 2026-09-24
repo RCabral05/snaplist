@@ -8,7 +8,22 @@ import { Icon } from "@/components/icon";
 import { Screen } from "@/components/screen";
 import { money, useListings, type ListingDraft } from "@/lib/listings";
 import { adapterFor } from "@/lib/marketplaces";
+import { usePhotoUrl } from "@/lib/photos";
 import { colors, radius, spacing, type } from "@/theme";
+
+/**
+ * Its own component because resolving a private Storage object to a signed URL
+ * is a hook, and renderItem is a plain function.
+ */
+function Thumb({ photo }: { photo?: string }) {
+  const url = usePhotoUrl(photo);
+  if (url) return <Image source={{ uri: url }} style={s.thumb} contentFit="cover" />;
+  return (
+    <View style={[s.thumb, s.thumbEmpty]}>
+      <Icon name="photo" size={20} color={colors.inkFaint} weight="light" />
+    </View>
+  );
+}
 
 export default function ListingsScreen() {
   const router = useRouter();
@@ -27,13 +42,7 @@ export default function ListingsScreen() {
         onPress={() => router.push({ pathname: "/draft/[id]", params: { id: item.id } })}
         style={({ pressed }) => [s.card, pressed && s.pressed]}
       >
-        {item.photos[0] ? (
-          <Image source={{ uri: item.photos[0] }} style={s.thumb} contentFit="cover" />
-        ) : (
-          <View style={[s.thumb, s.thumbEmpty]}>
-            <Icon name="photo" size={20} color={colors.inkFaint} weight="light" />
-          </View>
-        )}
+        <Thumb photo={item.photos[0]} />
 
         <View style={s.body}>
           <Text style={s.name} numberOfLines={1}>
