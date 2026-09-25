@@ -32,13 +32,17 @@ export default function ShopScreen() {
   }, [text]);
 
   const { items, isLoading, refresh } = useFeed({ query, category });
-  const featured = useFeatured();
+  const { items: featuredItems, refresh: refreshFeatured } = useFeatured();
 
+  // Depend on the two refresh functions, which are stable, and never on the
+  // objects they came out of. A hook result in a dependency array re-runs the
+  // effect on every render, and when the effect's job is to refetch, that is an
+  // infinite loop rather than a slow screen.
   useFocusEffect(
     useCallback(() => {
       refresh();
-      featured.refresh();
-    }, [refresh, featured]),
+      refreshFeatured();
+    }, [refresh, refreshFeatured]),
   );
 
   const browsing = !query.trim() && !category;
@@ -66,10 +70,10 @@ export default function ShopScreen() {
         ))}
       </ScrollView>
 
-      {browsing && featured.items.length ? (
+      {browsing && featuredItems.length ? (
         <View style={s.section}>
           <SectionLabel style={s.sectionLabel}>Featured</SectionLabel>
-          <FeaturedRail items={featured.items} />
+          <FeaturedRail items={featuredItems} />
         </View>
       ) : null}
 

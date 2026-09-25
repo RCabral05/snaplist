@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Condition } from "./marketplaces";
 import { supabase } from "./supabase";
@@ -51,6 +51,9 @@ type ListingRow = {
 const SELECT =
   "id, brand_id, title, price_cents, currency, condition, photos, category_slug, is_featured, published_at";
 const BRAND_COLUMNS = "id, slug, name, logo_url, bio";
+
+/** Shared identity for "nothing yet", so an empty result is not a new array. */
+const NO_ITEMS: ShopItem[] = [];
 
 /**
  * Brands are fetched separately rather than embedded: public_brands is a view
@@ -173,11 +176,14 @@ function useItems(load: () => Promise<ShopItem[]>) {
 
   const refresh = useCallback(() => setAttempt((n) => n + 1), []);
 
-  return {
-    items: answer?.items ?? [],
-    isLoading: answer === null || answer.attempt !== attempt,
-    refresh,
-  };
+  const items = answer?.items ?? NO_ITEMS;
+  const isLoading = answer === null || answer.attempt !== attempt;
+
+  // Memoised, and the empty case is a shared constant rather than a fresh [].
+  // A caller who puts this result in a dependency array - which is an easy thing
+  // to do - then gets an effect that runs once, not one that runs every render.
+  // When that effect's job is to refetch, the difference is an infinite loop.
+  return useMemo(() => ({ items, isLoading, refresh }), [items, isLoading, refresh]);
 }
 
 export function useFeed({ query = "", category = null }: FeedOptions = {}) {
@@ -199,5 +205,6 @@ export function useBrandShop(slug?: string) {
     return fetchBrandListings(found.id);
   }, [slug]);
 
-  return { brand, ...useItems(load) };
+  const state = useItems(load);
+  return useMemo(() => ({ brand, ...state }), [brand, state]);
 }
