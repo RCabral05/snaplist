@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/avatar";
 import { Field } from "@/components/field";
 import { useAuth, type ProfilePatch } from "@/lib/auth";
-import { clearAvatar, pickAvatar, uploadAvatar, type PickedAvatar } from "@/lib/avatar";
+import { clearAvatar, pickAvatar, uploadAvatar, type PickedImage } from "@/lib/avatar";
 import { useGoBack } from "@/lib/navigation";
 import { colors, spacing, type } from "@/theme";
 
@@ -34,7 +34,7 @@ export default function EditProfileScreen() {
   const goBack = useGoBack("/account");
 
   const [name, setName] = useState(profile?.display_name ?? "");
-  const [picked, setPicked] = useState<PickedAvatar | null>(null);
+  const [picked, setPicked] = useState<PickedImage | null>(null);
   const [cleared, setCleared] = useState(false);
   const [saving, setSaving] = useState(false);
 

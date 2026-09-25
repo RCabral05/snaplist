@@ -129,7 +129,7 @@ export async function fetchFeatured(limit = 8): Promise<ShopItem[]> {
 }
 
 /** One listing, with the description the grid does not need to carry. */
-export type ShopItemDetail = ShopItem & { description: string };
+export type ShopItemDetail = ShopItem & { description: string; photos: string[] };
 
 export async function fetchItem(id: string): Promise<ShopItemDetail | null> {
   const { data, error } = await supabase
@@ -144,7 +144,7 @@ export async function fetchItem(id: string): Promise<ShopItemDetail | null> {
   // cannot infer a row shape from it and falls back to its error type.
   const row = data as unknown as ListingRow & { description: string };
   const [item] = await withBrands([row]);
-  return item ? { ...item, description: row.description ?? "" } : null;
+  return item ? { ...item, description: row.description ?? "", photos: row.photos ?? [] } : null;
 }
 
 export function useItem(id?: string) {

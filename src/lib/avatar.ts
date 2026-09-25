@@ -5,14 +5,14 @@ import { supabase } from "./supabase";
 
 const BUCKET = "avatars";
 
-export type PickedAvatar = { base64: string; mime: string; ext: string };
+export type PickedImage = { base64: string; mime: string; ext: string };
 
 /**
  * Opens the library and returns the chosen image, or null if the seller backed
  * out. Cropping is forced square because every place an avatar appears is a
  * circle, and letting the OS crop is kinder than doing it for them afterwards.
  */
-export async function pickAvatar(): Promise<PickedAvatar | null> {
+export async function pickAvatar(): Promise<PickedImage | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     throw new Error("Snaplist needs access to your photos to set a picture.");
@@ -38,7 +38,7 @@ export async function pickAvatar(): Promise<PickedAvatar | null> {
 }
 
 /** Uploads to <uid>/... - the one prefix the storage policy lets them write. */
-export async function uploadAvatar(uid: string, picked: PickedAvatar): Promise<string> {
+export async function uploadAvatar(uid: string, picked: PickedImage): Promise<string> {
   const name = `avatar-${Date.now()}.${picked.ext}`;
   const path = `${uid}/${name}`;
 

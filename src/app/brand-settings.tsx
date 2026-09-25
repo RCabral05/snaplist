@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/avatar";
 import { Field } from "@/components/field";
 import { useAuth } from "@/lib/auth";
-import { pickAvatar, type PickedAvatar } from "@/lib/avatar";
+import { pickAvatar, type PickedImage } from "@/lib/avatar";
 import { renameBrand, updateBrand, uploadBrandLogo, useBrands, type BrandPatch } from "@/lib/brands";
 import { useGoBack } from "@/lib/navigation";
 import { HANDLE_MAX, handleHint, useHandleCheck } from "@/lib/use-handle-check";
@@ -34,7 +34,7 @@ export default function BrandSettingsScreen() {
   const [name, setName] = useState(active?.name ?? "");
   const [slug, setSlug] = useState(active?.slug ?? "");
   const [bio, setBio] = useState(active?.bio ?? "");
-  const [picked, setPicked] = useState<PickedAvatar | null>(null);
+  const [picked, setPicked] = useState<PickedImage | null>(null);
   const [cleared, setCleared] = useState(false);
   const [saving, setSaving] = useState(false);
 

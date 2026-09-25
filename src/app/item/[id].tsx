@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -42,7 +43,6 @@ export default function ItemScreen() {
   const insets = useSafeAreaInsets();
   const goBack = useGoBack("/");
   const { item, isLoading } = useItem(id);
-  const photo = usePhotoUrl(item?.photo);
 
   const back = (
     <Pressable onPress={goBack} hitSlop={14} style={[s.back, { top: insets.top + spacing.sm }]}>
@@ -79,15 +79,7 @@ export default function ItemScreen() {
         contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[s.hero, { height: HERO }]}>
-          {photo ? (
-            <Image source={{ uri: photo }} style={s.photo} contentFit="cover" transition={180} />
-          ) : (
-            <View style={s.photoEmpty}>
-              <Icon name="photo" size={30} color={colors.ruleStrong} weight="light" />
-            </View>
-          )}
-        </View>
+        <Gallery photos={item.photos} height={HERO} />
 
         <View style={s.sheet}>
           {item.brand?.name || slug ? (
@@ -152,6 +144,59 @@ export default function ItemScreen() {
   );
 }
 
+/**
+ * Every angle, paged. Dots rather than a counter, and no dots at all for a single
+ * photo - a "1 / 1" is a piece of chrome telling you there is nothing to see.
+ */
+function Gallery({ photos, height }: { photos: string[]; height: number }) {
+  const [index, setIndex] = useState(0);
+  const width = Dimensions.get("window").width;
+
+  if (!photos.length) {
+    return (
+      <View style={[s.hero, { height }]}>
+        <View style={s.photoEmpty}>
+          <Icon name="photo" size={30} color={colors.ruleStrong} weight="light" />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[s.hero, { height }]}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) =>
+          setIndex(Math.round(e.nativeEvent.contentOffset.x / width))
+        }
+      >
+        {photos.map((p) => (
+          <Slide key={p} photo={p} width={width} height={height} />
+        ))}
+      </ScrollView>
+
+      {photos.length > 1 ? (
+        <View style={s.dots}>
+          {photos.map((p, i) => (
+            <View key={p} style={[s.dot, i === index && s.dotOn]} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function Slide({ photo, width, height }: { photo: string; width: number; height: number }) {
+  const url = usePhotoUrl(photo);
+  return url ? (
+    <Image source={{ uri: url }} style={{ width, height }} contentFit="cover" transition={180} />
+  ) : (
+    <View style={{ width, height, backgroundColor: colors.paperAlt }} />
+  );
+}
+
 function Tag({ label }: { label: string }) {
   return (
     <View style={s.tag}>
@@ -179,7 +224,22 @@ const s = StyleSheet.create({
   },
 
   hero: { width: "100%", backgroundColor: colors.paperAlt },
-  photo: { width: "100%", height: "100%" },
+  dots: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.45)",
+  },
+  dotOn: { backgroundColor: colors.white },
   photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   // Lifted over the photograph, so the image runs under it rather than stopping

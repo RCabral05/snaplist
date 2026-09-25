@@ -12,7 +12,7 @@ import {
 
 import { useAuth } from "./auth";
 import { toBytes } from "./base64";
-import type { PickedAvatar } from "./avatar";
+import type { PickedImage } from "./avatar";
 import { supabase } from "./supabase";
 
 const LOGO_BUCKET = "brand-logos";
@@ -81,7 +81,7 @@ export async function updateBrand(id: string, patch: BrandPatch): Promise<void> 
 export async function uploadBrandLogo(
   uid: string,
   brandId: string,
-  picked: PickedAvatar,
+  picked: PickedImage,
 ): Promise<string> {
   const path = `${uid}/${brandId}/${Crypto.randomUUID()}.${picked.ext}`;
   const { error } = await supabase.storage

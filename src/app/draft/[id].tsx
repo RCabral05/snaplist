@@ -17,12 +17,20 @@ import { Button } from "@/components/button";
 import { ChannelRow } from "@/components/channel-row";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
+import { PhotoStrip } from "@/components/photo-strip";
 import { SectionLabel } from "@/components/screen";
+import { useAuth } from "@/lib/auth";
 import { CATEGORIES } from "@/lib/categories";
 import { useConnections } from "@/lib/connections";
 import { getDraft, money, parseMoney, publish, putDraft, removeDraft } from "@/lib/listings";
 import { useGoBack } from "@/lib/navigation";
-import { usePhotoUrl } from "@/lib/photos";
+import {
+  MAX_PHOTOS,
+  pickListingPhoto,
+  removeListingPhoto,
+  uploadListingPhoto,
+  usePhotoUrl,
+} from "@/lib/photos";
 import { useIsSuggesting } from "@/lib/suggesting";
 import {
   adapters,
@@ -41,11 +49,13 @@ const UNSURE_BELOW = 0.6;
 export default function DraftScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { isConnected } = useConnections();
 
   const [draft, setDraft] = useState<ListingDraft | null>(null);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const suggesting = useIsSuggesting(id);
   const goBack = useGoBack("/listings");
@@ -115,6 +125,65 @@ export default function DraftScreen() {
     putDraft(next);
   };
 
+  function addPhoto() {
+    Alert.alert("Add a photo", undefined, [
+      { text: "Take one", onPress: () => addFrom("camera") },
+      { text: "Choose from library", onPress: () => addFrom("library") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  async function addFrom(source: "camera" | "library") {
+    if (!draft || !user) return;
+    setAdding(true);
+    try {
+      const picked = await pickListingPhoto(source);
+      if (!picked) return;
+      const path = await uploadListingPhoto(user.id, draft.id, picked.base64, picked.mime);
+      set({ photos: [...draft.photos, path] });
+    } catch (e: any) {
+      Alert.alert("Could not add that photo", e?.message ?? "Something went wrong.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  /**
+   * Tapping a thumbnail. An Alert rather than a long-press menu: two actions do
+   * not justify a gesture nobody discovers.
+   */
+  function photoActions(index: number) {
+    if (!draft) return;
+    const photo = draft.photos[index];
+    const rest = draft.photos.filter((_, i) => i !== index);
+
+    Alert.alert(
+      index === 0 ? "Cover photo" : "Photo " + (index + 1),
+      undefined,
+      [
+        ...(index === 0
+          ? []
+          : [
+              {
+                text: "Make cover",
+                onPress: () => set({ photos: [photo, ...rest] }),
+              },
+            ]),
+        {
+          text: "Remove",
+          style: "destructive" as const,
+          onPress: () => {
+            // The row first: an orphaned object is untidy, a listing pointing at
+            // a deleted object is a broken image.
+            set({ photos: rest });
+            removeListingPhoto(photo).catch(() => {});
+          },
+        },
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  }
+
   const toggleChannel = (channel: ChannelId) => {
     const on = draft.channels.includes(channel);
     set({
@@ -176,6 +245,19 @@ export default function DraftScreen() {
             ) : null}
           </View>
         ) : null}
+
+        <PhotoStrip
+          photos={draft.photos}
+          busy={adding}
+          canAdd={draft.photos.length < MAX_PHOTOS}
+          onAdd={addPhoto}
+          onSelect={photoActions}
+        />
+        <Text style={s.photoHint}>
+          {draft.photos.length === 1
+            ? "One angle is rarely enough. Add a few more."
+            : `${draft.photos.length} of ${MAX_PHOTOS} photos. The cover is what buyers see first.`}
+        </Text>
 
         {unsure ? (
           <View style={s.unsure}>
@@ -355,6 +437,7 @@ const s = StyleSheet.create({
   input: { ...type.body, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 4 },
   inputMulti: { minHeight: 96, textAlignVertical: "top", paddingTop: spacing.sm + 4 },
   currency: { ...type.body, color: colors.inkFaint },
+  photoHint: { ...type.small, fontSize: 13, color: colors.inkFaint, marginTop: -spacing.xs },
   group: { gap: spacing.sm },
   cats: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   cat: {
