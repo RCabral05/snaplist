@@ -88,6 +88,7 @@ export default function SellScreen() {
                 title: suggestion.title,
                 description: suggestion.description,
                 category: suggestion.category,
+                categorySlug: suggestion.categorySlug,
                 brand: suggestion.brand,
                 condition: suggestion.condition,
                 priceCents: suggestion.priceCents,

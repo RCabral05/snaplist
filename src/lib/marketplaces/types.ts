@@ -29,6 +29,8 @@ export type ListingDraft = {
   quantity: number;
   /** Free-text for now; each adapter maps it onto its own taxonomy. */
   category?: string;
+  /** One of the fixed buckets in lib/categories, and what Shop filters on. */
+  categorySlug?: string;
   brand?: string;
   /**
    * How sure the model was about the suggestion that filled this in, 0 to 1.

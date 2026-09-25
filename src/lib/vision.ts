@@ -1,4 +1,5 @@
 import { MOCK, api } from "./api";
+import type { CategorySlug } from "./categories";
 import type { Condition } from "./marketplaces";
 import { supabase } from "./supabase";
 
@@ -15,6 +16,7 @@ export type Suggestion = {
   title: string;
   description: string;
   category?: string;
+  categorySlug?: CategorySlug;
   brand?: string;
   condition: Condition;
   /** What we think it sells for, in cents, with a range to show as a hint. */
@@ -36,6 +38,7 @@ export async function suggestFromPhoto(photoPath: string): Promise<Suggestion> {
       title: "Untitled item",
       description: "",
       condition: "good",
+      categorySlug: "other",
       priceCents: 2500,
       priceLowCents: 1800,
       priceHighCents: 3500,

@@ -30,6 +30,8 @@ export type ShopItem = {
   /** Storage object path; the card signs it for display. */
   photo?: string;
   publishedAt: string;
+  categorySlug?: string;
+  isFeatured: boolean;
   brand: ShopBrand | null;
 };
 
@@ -41,10 +43,13 @@ type ListingRow = {
   currency: string;
   condition: Condition;
   photos: string[] | null;
+  category_slug: string | null;
+  is_featured: boolean;
   published_at: string;
 };
 
-const SELECT = "id, brand_id, title, price_cents, currency, condition, photos, published_at";
+const SELECT =
+  "id, brand_id, title, price_cents, currency, condition, photos, category_slug, is_featured, published_at";
 const BRAND_COLUMNS = "id, slug, name, logo_url, bio";
 
 /**
@@ -69,17 +74,27 @@ async function withBrands(rows: ListingRow[]): Promise<ShopItem[]> {
     condition: r.condition,
     photo: r.photos?.[0],
     publishedAt: r.published_at,
+    categorySlug: r.category_slug ?? undefined,
+    isFeatured: r.is_featured,
     brand: r.brand_id ? (byId.get(r.brand_id) ?? null) : null,
   }));
 }
 
-export async function fetchFeed(query = "", limit = 50): Promise<ShopItem[]> {
+export type FeedOptions = { query?: string; category?: string | null; limit?: number };
+
+export async function fetchFeed({
+  query = "",
+  category = null,
+  limit = 60,
+}: FeedOptions = {}): Promise<ShopItem[]> {
   let q = supabase
     .from("listings")
     .select(SELECT)
     .not("published_at", "is", null)
     .order("published_at", { ascending: false })
     .limit(limit);
+
+  if (category) q = q.eq("category_slug", category);
 
   // Filtered in Postgres, not in the client. A feed small enough to filter on
   // the device today will not stay that way, and the index is already there.
@@ -90,6 +105,22 @@ export async function fetchFeed(query = "", limit = 50): Promise<ShopItem[]> {
   }
 
   const { data, error } = await q;
+  if (error) throw error;
+  return withBrands((data ?? []) as ListingRow[]);
+}
+
+/**
+ * Curated, not derived. Ordering by recency or price would let any seller
+ * feature themselves just by listing again.
+ */
+export async function fetchFeatured(limit = 8): Promise<ShopItem[]> {
+  const { data, error } = await supabase
+    .from("listings")
+    .select(SELECT)
+    .not("published_at", "is", null)
+    .eq("is_featured", true)
+    .order("published_at", { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return withBrands((data ?? []) as ListingRow[]);
 }
@@ -149,8 +180,12 @@ function useItems(load: () => Promise<ShopItem[]>) {
   };
 }
 
-export function useFeed(query = "") {
-  return useItems(useCallback(() => fetchFeed(query), [query]));
+export function useFeed({ query = "", category = null }: FeedOptions = {}) {
+  return useItems(useCallback(() => fetchFeed({ query, category }), [query, category]));
+}
+
+export function useFeatured() {
+  return useItems(useCallback(() => fetchFeatured(), []));
 }
 
 export function useBrandShop(slug?: string) {

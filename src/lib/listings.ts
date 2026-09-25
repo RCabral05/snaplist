@@ -30,6 +30,7 @@ type Row = {
   condition: Condition;
   quantity: number;
   category: string | null;
+  category_slug: string | null;
   brand: string | null;
   suggested_confidence: number | null;
   published_at: string | null;
@@ -60,6 +61,7 @@ const toDraft = (r: Row): ListingDraft => ({
   condition: r.condition,
   quantity: r.quantity,
   category: r.category ?? undefined,
+  categorySlug: r.category_slug ?? undefined,
   brand: r.brand ?? undefined,
   suggestedConfidence: r.suggested_confidence ?? undefined,
   publishedAt: r.published_at ?? undefined,
@@ -79,6 +81,7 @@ const toRow = (d: ListingDraft, userId: string) => ({
   condition: d.condition,
   quantity: d.quantity,
   category: d.category ?? null,
+  category_slug: d.categorySlug ?? null,
   brand: d.brand ?? null,
   suggested_confidence: d.suggestedConfidence ?? null,
   photos: d.photos,

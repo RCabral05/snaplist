@@ -18,6 +18,7 @@ import { ChannelRow } from "@/components/channel-row";
 import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
 import { SectionLabel } from "@/components/screen";
+import { CATEGORIES } from "@/lib/categories";
 import { useConnections } from "@/lib/connections";
 import { getDraft, money, parseMoney, publish, putDraft, removeDraft } from "@/lib/listings";
 import { usePhotoUrl } from "@/lib/photos";
@@ -29,7 +30,7 @@ import {
   type ChannelId,
   type ListingDraft,
 } from "@/lib/marketplaces";
-import { colors, radius, spacing, type } from "@/theme";
+import { colors, fonts, radius, spacing, type } from "@/theme";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
@@ -235,16 +236,26 @@ export default function DraftScreen() {
               />
             </Field>
           </View>
-          <View style={s.rowItem}>
-            <Field label="Category">
-              <TextInput
-                value={draft.category ?? ""}
-                onChangeText={(t) => set({ category: t || undefined })}
-                placeholder="Optional"
-                placeholderTextColor={colors.inkFaint}
-                style={s.input}
-              />
-            </Field>
+        </View>
+
+        {/* A picker, not a text field. Free text gave four listings four
+            different categories and nothing to filter Shop by. */}
+        <View style={s.group}>
+          <SectionLabel>Category</SectionLabel>
+          <View style={s.cats}>
+            {CATEGORIES.map((c) => {
+              const on = draft.categorySlug === c.slug;
+              return (
+                <Pressable
+                  key={c.slug}
+                  onPress={() => set({ categorySlug: on ? undefined : c.slug })}
+                  style={[s.cat, on && s.catOn]}
+                >
+                  <Icon name={c.icon} size={13} color={on ? colors.white : colors.inkDim} />
+                  <Text style={[s.catText, on && s.catTextOn]}>{c.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -342,6 +353,20 @@ const s = StyleSheet.create({
   input: { ...type.body, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 4 },
   inputMulti: { minHeight: 96, textAlignVertical: "top", paddingTop: spacing.sm + 4 },
   currency: { ...type.body, color: colors.inkFaint },
+  group: { gap: spacing.sm },
+  cats: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  cat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  catOn: { backgroundColor: colors.ink },
+  catText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  catTextOn: { color: colors.white },
   unsure: {
     flexDirection: "row",
     alignItems: "flex-start",
