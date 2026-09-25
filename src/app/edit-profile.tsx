@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +17,7 @@ import { Avatar } from "@/components/avatar";
 import { Field } from "@/components/field";
 import { useAuth, type ProfilePatch } from "@/lib/auth";
 import { clearAvatar, pickAvatar, uploadAvatar, type PickedAvatar } from "@/lib/avatar";
+import { useGoBack } from "@/lib/navigation";
 import { colors, spacing, type } from "@/theme";
 
 const DISPLAY_NAME_MAX = 40;
@@ -30,8 +30,8 @@ const DISPLAY_NAME_MAX = 40;
  * orphaned object in the bucket.
  */
 export default function EditProfileScreen() {
-  const router = useRouter();
   const { user, profile, updateProfile } = useAuth();
+  const goBack = useGoBack("/account");
 
   const [name, setName] = useState(profile?.display_name ?? "");
   const [picked, setPicked] = useState<PickedAvatar | null>(null);
@@ -73,7 +73,7 @@ export default function EditProfileScreen() {
       }
       if (Object.keys(patch).length > 0) await updateProfile(patch);
 
-      router.back();
+      goBack();
     } catch (e: any) {
       Alert.alert("Could not save", e?.message ?? "Something went wrong.");
     } finally {
@@ -82,10 +82,10 @@ export default function EditProfileScreen() {
   }
 
   function cancel() {
-    if (!dirty) return router.back();
+    if (!dirty) return goBack();
     Alert.alert("Discard changes?", "Your edits will not be saved.", [
       { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => router.back() },
+      { text: "Discard", style: "destructive", onPress: goBack },
     ]);
   }
 

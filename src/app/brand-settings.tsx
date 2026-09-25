@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +18,7 @@ import { Field } from "@/components/field";
 import { useAuth } from "@/lib/auth";
 import { pickAvatar, type PickedAvatar } from "@/lib/avatar";
 import { renameBrand, updateBrand, uploadBrandLogo, useBrands, type BrandPatch } from "@/lib/brands";
+import { useGoBack } from "@/lib/navigation";
 import { HANDLE_MAX, handleHint, useHandleCheck } from "@/lib/use-handle-check";
 import { colors, spacing, type } from "@/theme";
 
@@ -27,9 +27,9 @@ const BIO_MAX = 160;
 
 /** Everything about the active brand: logo, name, handle, bio. */
 export default function BrandSettingsScreen() {
-  const router = useRouter();
   const { user } = useAuth();
   const { active, refresh } = useBrands();
+  const goBack = useGoBack("/account");
 
   const [name, setName] = useState(active?.name ?? "");
   const [slug, setSlug] = useState(active?.slug ?? "");
@@ -92,7 +92,7 @@ export default function BrandSettingsScreen() {
       if (Object.keys(patch).length > 0) await updateBrand(active.id, patch);
 
       await refresh();
-      router.back();
+      goBack();
     } catch (e: any) {
       const raw = String(e?.message ?? "");
       Alert.alert(
@@ -109,10 +109,10 @@ export default function BrandSettingsScreen() {
   }
 
   function cancel() {
-    if (!dirty) return router.back();
+    if (!dirty) return goBack();
     Alert.alert("Discard changes?", "Your edits will not be saved.", [
       { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => router.back() },
+      { text: "Discard", style: "destructive", onPress: goBack },
     ]);
   }
 

@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +18,7 @@ import { Field } from "@/components/field";
 import { Icon } from "@/components/icon";
 import { useAuth } from "@/lib/auth";
 import { createBrand, useBrands } from "@/lib/brands";
+import { useGoBack } from "@/lib/navigation";
 import { HANDLE_MAX, handleHint, useHandleCheck } from "@/lib/use-handle-check";
 import { colors, spacing, type } from "@/theme";
 
@@ -31,9 +31,9 @@ const NAME_MAX = 40;
  * later, so the handle belongs to the storefront rather than to the person.
  */
 export default function NewBrandScreen() {
-  const router = useRouter();
   const { signOut } = useAuth();
   const { brands, refresh, setActive } = useBrands();
+  const goBack = useGoBack("/account");
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -57,7 +57,7 @@ export default function NewBrandScreen() {
       setActive(brand.id);
       // The first brand lifts the routing guard on its own; a later one is a
       // push from Account and has somewhere to go back to.
-      if (!first) router.back();
+      if (!first) goBack();
     } catch (e: any) {
       const raw = String(e?.message ?? "");
       Alert.alert(
@@ -78,7 +78,7 @@ export default function NewBrandScreen() {
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
           {!first ? (
-            <Pressable onPress={() => router.back()} hitSlop={12} style={s.back}>
+            <Pressable onPress={goBack} hitSlop={12} style={s.back}>
               <Icon name="chevron.left" size={18} color={colors.ink} weight="semibold" />
             </Pressable>
           ) : null}

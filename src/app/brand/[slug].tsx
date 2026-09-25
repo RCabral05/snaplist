@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -6,6 +6,7 @@ import { Avatar } from "@/components/avatar";
 import { EmptyState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import { ShopGrid } from "@/components/shop-grid";
+import { useGoBack } from "@/lib/navigation";
 import { useBrandShop } from "@/lib/shop";
 import { colors, spacing, type } from "@/theme";
 
@@ -16,15 +17,15 @@ import { colors, spacing, type } from "@/theme";
  */
 export default function BrandScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const router = useRouter();
   const { brand, items, isLoading, refresh } = useBrandShop(slug);
+  const goBack = useGoBack("/");
 
   const count = items.length === 1 ? "1 listing" : `${items.length} listings`;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.nav}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={goBack} hitSlop={12}>
           <Icon name="chevron.left" size={18} color={colors.ink} weight="semibold" />
         </Pressable>
       </View>

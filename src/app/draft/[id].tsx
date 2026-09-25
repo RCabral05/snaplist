@@ -21,6 +21,7 @@ import { SectionLabel } from "@/components/screen";
 import { CATEGORIES } from "@/lib/categories";
 import { useConnections } from "@/lib/connections";
 import { getDraft, money, parseMoney, publish, putDraft, removeDraft } from "@/lib/listings";
+import { useGoBack } from "@/lib/navigation";
 import { usePhotoUrl } from "@/lib/photos";
 import { useIsSuggesting } from "@/lib/suggesting";
 import {
@@ -47,6 +48,7 @@ export default function DraftScreen() {
   const [busy, setBusy] = useState(false);
 
   const suggesting = useIsSuggesting(id);
+  const goBack = useGoBack("/listings");
 
   useEffect(() => {
     let alive = true;
@@ -82,7 +84,7 @@ export default function DraftScreen() {
 
   const header = (
     <View style={s.header}>
-      <Pressable onPress={() => router.back()} hitSlop={12} style={s.back}>
+      <Pressable onPress={goBack} hitSlop={12} style={s.back}>
         <Icon name="chevron.left" size={18} color={colors.ink} weight="semibold" />
       </Pressable>
       <Text style={s.headerTitle}>Edit listing</Text>
@@ -151,7 +153,7 @@ export default function DraftScreen() {
         style: "destructive",
         onPress: async () => {
           await removeDraft(draft.id);
-          router.back();
+          goBack();
         },
       },
     ]);
