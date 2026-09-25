@@ -128,6 +128,49 @@ export async function fetchFeatured(limit = 8): Promise<ShopItem[]> {
   return withBrands((data ?? []) as ListingRow[]);
 }
 
+/** One listing, with the description the grid does not need to carry. */
+export type ShopItemDetail = ShopItem & { description: string };
+
+export async function fetchItem(id: string): Promise<ShopItemDetail | null> {
+  const { data, error } = await supabase
+    .from("listings")
+    .select(SELECT + ", description, category")
+    .eq("id", id)
+    .not("published_at", "is", null)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  // Through unknown: the select string is built by concatenation, so supabase-js
+  // cannot infer a row shape from it and falls back to its error type.
+  const row = data as unknown as ListingRow & { description: string };
+  const [item] = await withBrands([row]);
+  return item ? { ...item, description: row.description ?? "" } : null;
+}
+
+export function useItem(id?: string) {
+  const [item, setItem] = useState<ShopItemDetail | null>(null);
+  const [isLoading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    fetchItem(id)
+      .then((found) => {
+        if (!alive) return;
+        setItem(found);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  return { item, isLoading };
+}
+
 export async function fetchBrandBySlug(slug: string): Promise<ShopBrand | null> {
   const { data } = await supabase
     .from("public_brands")

@@ -36,7 +36,10 @@ function Card({ item }: { item: ShopItem }) {
   const slug = item.brand?.slug;
 
   return (
-    <View style={s.card}>
+    <Pressable
+      onPress={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })}
+      style={({ pressed }) => [s.card, pressed && s.cardPressed]}
+    >
       <View style={s.frame}>
         {url ? (
           <Image source={{ uri: url }} style={s.photo} contentFit="cover" transition={120} />
@@ -67,7 +70,7 @@ function Card({ item }: { item: ShopItem }) {
           </Text>
         </Pressable>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -76,6 +79,7 @@ const CARD = 190;
 const s = StyleSheet.create({
   rail: { paddingHorizontal: spacing.lg, gap: spacing.md },
   card: { width: CARD, gap: 4 },
+  cardPressed: { opacity: 0.7 },
   frame: {
     width: CARD,
     height: CARD,

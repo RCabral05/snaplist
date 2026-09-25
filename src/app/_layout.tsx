@@ -41,6 +41,7 @@ function RootNavigator() {
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
         <Stack.Screen name="brand-settings" options={{ presentation: "modal" }} />
         <Stack.Screen name="brand/[slug]" />
+        <Stack.Screen name="item/[id]" />
       </Stack.Protected>
       {/* Reachable in both signed-in states: it is onboarding when there is no
           brand yet, and a push from Account when adding another. */}

@@ -55,7 +55,10 @@ function Card({ item, showBrand }: { item: ShopItem; showBrand: boolean }) {
   const slug = item.brand?.slug;
 
   return (
-    <View style={s.card}>
+    <Pressable
+      onPress={() => router.push({ pathname: "/item/[id]", params: { id: item.id } })}
+      style={({ pressed }) => [s.card, pressed && s.cardPressed]}
+    >
       <View style={s.frame}>
         {url ? (
           <Image source={{ uri: url }} style={s.photo} contentFit="cover" transition={120} />
@@ -83,7 +86,7 @@ function Card({ item, showBrand }: { item: ShopItem; showBrand: boolean }) {
           </Text>
         </Pressable>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -92,6 +95,7 @@ const s = StyleSheet.create({
   listEmpty: { flexGrow: 1 },
   column: { gap: spacing.md },
   card: { flex: 1, gap: 4 },
+  cardPressed: { opacity: 0.7 },
   frame: {
     width: "100%",
     aspectRatio: 1,
