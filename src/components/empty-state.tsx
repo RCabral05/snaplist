@@ -1,18 +1,15 @@
 import type { SFSymbol } from "expo-symbols";
 import { StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing, type } from "@/theme";
+import { colors, spacing, type } from "@/theme";
 
 import { Button } from "./button";
 import { Icon } from "./icon";
 
 /**
- * What a screen shows instead of nothing.
- *
- * The body line is capped in width on purpose: centred text that runs the full
- * width of a phone is hard to read and looks like an error message. A soft disc
- * behind the glyph gives the block something to sit on so it does not read as
- * text stranded in white space.
+ * What a screen shows instead of nothing. The glyph is small and faint and the
+ * sentence is serif - an empty shelf should look like a quiet shop, not an error
+ * dialog, which is what a big centred icon and a grey box always look like.
  */
 export function EmptyState({
   icon,
@@ -29,9 +26,7 @@ export function EmptyState({
 }) {
   return (
     <View style={s.wrap}>
-      <View style={s.disc}>
-        <Icon name={icon} size={30} color={colors.inkFaint} weight="light" />
-      </View>
+      <Icon name={icon} size={24} color={colors.ruleStrong} weight="light" />
       <Text style={s.title}>{title}</Text>
       {body ? <Text style={s.body}>{body}</Text> : null}
       {actionLabel && onAction ? (
@@ -50,25 +45,14 @@ const s = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.sm,
   },
-  disc: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
-  title: { ...type.heading, fontSize: 18, color: colors.ink, textAlign: "center" },
+  title: { ...type.title, color: colors.ink, textAlign: "center", marginTop: spacing.sm },
   body: {
     ...type.small,
+    fontSize: 15,
     color: colors.textMuted,
     textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 260,
+    lineHeight: 22,
+    maxWidth: 300,
   },
-  // alignSelf must not be "stretch" here: it overrides the parent alignItems and
-  // pins the button to the leading edge, where maxWidth then makes it look
-  // deliberately left-aligned rather than centred.
   action: { marginTop: spacing.md, alignSelf: "center", minWidth: 200 },
 });

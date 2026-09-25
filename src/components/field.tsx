@@ -4,9 +4,9 @@ import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * Label, a bordered control, and a line of help underneath. The control is a
- * child rather than a prop because the two fields that use this are not the same
- * shape - one is a plain input, the other carries an "@" and a spinner.
+ * Label above, control below, help underneath. The control is filled rather than
+ * outlined - on warm paper a box of rules reads as a form, a filled well reads as
+ * somewhere to type.
  */
 export function Field({
   label,
@@ -29,17 +29,15 @@ export function Field({
 }
 
 const s = StyleSheet.create({
-  wrap: { gap: spacing.xs },
-  label: { ...type.label, color: colors.textMuted },
+  wrap: { gap: spacing.sm },
+  label: { ...type.label, color: colors.inkFaint },
   control: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.sm,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.paperAlt,
   },
-  hint: { ...type.small, color: colors.textMuted, paddingHorizontal: 2 },
+  hint: { ...type.small, fontSize: 13, color: colors.textMuted, paddingHorizontal: spacing.xs },
 });

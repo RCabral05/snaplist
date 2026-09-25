@@ -12,7 +12,7 @@ import { useConnections } from "@/lib/connections";
 import { money, useListings, type ListingDraft } from "@/lib/listings";
 import { adapterFor, adapters } from "@/lib/marketplaces";
 import { usePhotoUrl } from "@/lib/photos";
-import { colors, fonts, radius, spacing, type } from "@/theme";
+import { colors, radius, spacing, type } from "@/theme";
 
 type Filter = "all" | "live" | "draft";
 
@@ -239,7 +239,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   who: { flex: 1, minWidth: 0, gap: 1 },
-  brandName: { ...type.bodyMedium, fontSize: 15, color: colors.ink },
+  brandName: { ...type.title, fontSize: 20, color: colors.ink },
   brandHandle: { ...type.small, fontSize: 13, color: colors.ember },
   switch: { flexDirection: "row", alignItems: "center", gap: 4 },
   switchText: { ...type.small, fontSize: 12, color: colors.inkDim },
@@ -258,7 +258,7 @@ const s = StyleSheet.create({
   chipOn: { borderColor: colors.live },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.ruleStrong },
   dotOn: { backgroundColor: colors.live },
-  chipText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  chipText: { ...type.label, fontSize: 10, color: colors.inkDim },
   chipTextOn: { color: colors.ink },
 
   // Counts sit on the tabs rather than in a separate stat block: three numbers
@@ -266,12 +266,13 @@ const s = StyleSheet.create({
   filters: { flexDirection: "row", gap: spacing.xs },
   filter: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 7,
+    paddingVertical: 9,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.rule,
   },
-  filterOn: { backgroundColor: colors.ink },
-  filterText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  filterOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  filterText: { ...type.label, fontSize: 10, color: colors.inkDim },
   filterTextOn: { color: colors.white },
 
   card: {

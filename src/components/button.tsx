@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from "react-native";
 
-import { colors, radius, spacing, type } from "@/theme";
+import { colors, fonts, radius, spacing } from "@/theme";
 
 type Props = {
   label: string;
@@ -12,6 +12,7 @@ type Props = {
   style?: ViewStyle;
 };
 
+/** Pill-shaped and tall. A marketplace action should feel like a thing you press. */
 export function Button({ label, onPress, variant = "primary", disabled, loading, style }: Props) {
   const isOff = disabled || loading;
   return (
@@ -43,18 +44,18 @@ export function Button({ label, onPress, variant = "primary", disabled, loading,
 
 const s = StyleSheet.create({
   base: {
-    minHeight: 52,
-    borderRadius: radius.md,
+    minHeight: 54,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
   },
-  primary: { backgroundColor: colors.ember },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  primary: { backgroundColor: colors.ink },
+  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.ruleStrong },
   ghost: { backgroundColor: "transparent" },
-  pressed: { opacity: 0.8 },
-  off: { opacity: 0.4 },
-  label: { ...type.bodyMedium },
+  pressed: { opacity: 0.75 },
+  off: { opacity: 0.35 },
+  label: { fontFamily: fonts.sansMedium, fontSize: 16, letterSpacing: -0.1 },
   labelPrimary: { color: colors.white },
   labelDark: { color: colors.ink },
 });

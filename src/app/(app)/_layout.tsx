@@ -3,7 +3,7 @@ import { Tabs } from "expo-router";
 import { StyleSheet, View, type ColorValue } from "react-native";
 
 import { Icon } from "@/components/icon";
-import { colors, fonts, radius } from "@/theme";
+import { colors, radius, shadow } from "@/theme";
 
 /**
  * The sell tab is the product, so it is drawn as an action rather than a
@@ -33,14 +33,17 @@ export default function AppLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: {
-          backgroundColor: colors.paper,
-          borderTopColor: colors.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.rule,
           borderTopWidth: StyleSheet.hairlineWidth,
+          height: 84,
         },
         // Sentence case at 11pt, not the uppercase label style: four wide
         // letter-spaced words across a phone leaves no air between them.
-        tabBarLabelStyle: { fontFamily: fonts.sansMedium, fontSize: 11, letterSpacing: 0 },
-        tabBarItemStyle: { paddingTop: 6 },
+        // No labels. Four glyphs and one coloured disc is legible on its own, and
+        // dropping the words gives the bar the quiet the rest of the chrome has.
+        tabBarShowLabel: false,
+        tabBarItemStyle: { paddingTop: 10 },
       }}
     >
       <Tabs.Screen
@@ -68,12 +71,13 @@ export default function AppLayout() {
 
 const s = StyleSheet.create({
   sell: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
     borderRadius: radius.pill,
     backgroundColor: colors.ember,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    marginTop: -2,
+    ...shadow.lift,
   },
 });

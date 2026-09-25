@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { colors, fonts } from "@/theme";
 
-/** Up to two letters, from a display name if there is one and the handle if not. */
+/** Up to two letters, from a name if there is one and the handle if not. */
 function initials(name?: string | null, fallback?: string | null): string {
   const source = (name ?? "").trim() || (fallback ?? "").trim();
   if (!source) return "?";
@@ -13,8 +13,9 @@ function initials(name?: string | null, fallback?: string | null): string {
 }
 
 /**
- * The seller, as a circle. Falls back to initials rather than a generic silhouette:
- * a grey person icon looks like a loading failure, initials look deliberate.
+ * A brand or a person, as a circle. The fallback is serif initials on sand
+ * rather than a silhouette: a grey person icon looks like a loading failure,
+ * initials look like a monogram.
  */
 export function Avatar({
   url,
@@ -36,8 +37,6 @@ export function Avatar({
         style={[s.image, box]}
         contentFit="cover"
         transition={120}
-        // The URL changes filename on every upload, so nothing is ever served
-        // stale and the disk cache is safe to use.
         cachePolicy="disk"
       />
     );
@@ -45,7 +44,7 @@ export function Avatar({
 
   return (
     <View style={[s.fallback, box]}>
-      <Text style={[s.initials, { fontSize: size * 0.36 }]}>{initials(name, handle)}</Text>
+      <Text style={[s.initials, { fontSize: size * 0.42 }]}>{initials(name, handle)}</Text>
     </View>
   );
 }
@@ -53,5 +52,5 @@ export function Avatar({
 const s = StyleSheet.create({
   image: { backgroundColor: colors.sand },
   fallback: { backgroundColor: colors.sand, alignItems: "center", justifyContent: "center" },
-  initials: { fontFamily: fonts.sansBold, color: colors.inkDim, letterSpacing: 0.5 },
+  initials: { fontFamily: fonts.serif, color: colors.inkDim },
 });

@@ -31,7 +31,7 @@ import {
   type ChannelId,
   type ListingDraft,
 } from "@/lib/marketplaces";
-import { colors, fonts, radius, spacing, type } from "@/theme";
+import { colors, radius, spacing, type } from "@/theme";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
@@ -362,12 +362,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.rule,
   },
-  catOn: { backgroundColor: colors.ink },
-  catText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  catOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  catText: { ...type.label, fontSize: 10, color: colors.inkDim },
   catTextOn: { color: colors.white },
   unsure: {
     flexDirection: "row",

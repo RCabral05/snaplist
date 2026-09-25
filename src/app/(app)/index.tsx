@@ -9,7 +9,7 @@ import { Screen, SectionLabel } from "@/components/screen";
 import { ShopGrid } from "@/components/shop-grid";
 import { CATEGORIES, categoryLabel, type CategorySlug } from "@/lib/categories";
 import { useFeatured, useFeed } from "@/lib/shop";
-import { colors, fonts, radius, spacing, type } from "@/theme";
+import { colors, radius, spacing, type } from "@/theme";
 
 /**
  * The buyer's home. Search, categories, a curated rail, then everything else.
@@ -176,7 +176,7 @@ const s = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.paperAlt,
   },
   input: { ...type.body, fontSize: 15, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 2 },
 
@@ -189,12 +189,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.rule,
   },
-  catOn: { backgroundColor: colors.ink },
-  catText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkDim },
+  catOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  catText: { ...type.label, fontSize: 10, color: colors.inkDim },
   catTextOn: { color: colors.white },
 
   section: { gap: spacing.sm },

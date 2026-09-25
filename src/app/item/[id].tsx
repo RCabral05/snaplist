@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
@@ -13,7 +13,7 @@ import type { Condition } from "@/lib/marketplaces";
 import { useGoBack } from "@/lib/navigation";
 import { usePhotoUrl } from "@/lib/photos";
 import { useItem } from "@/lib/shop";
-import { colors, fonts, radius, spacing, type } from "@/theme";
+import { colors, radius, shadow, spacing, type } from "@/theme";
 
 const CONDITION: Record<Condition, string> = {
   new: "New",
@@ -23,32 +23,37 @@ const CONDITION: Record<Condition, string> = {
   parts: "For parts",
 };
 
+const HERO = Dimensions.get("window").height * 0.52;
+
 /**
  * One listing, for a buyer.
  *
+ * The photograph runs edge to edge under the status bar and the content sheet
+ * lifts over it - the object is the page, and a picture inside a padded card
+ * with a header above it is a database row with a picture in it. Buying sits in
+ * a bar pinned to the bottom, so it is reachable without scrolling back.
+ *
  * It reads through the same public policy as the feed, so a draft cannot be
- * opened by guessing its id - the row simply is not visible until published_at
- * is set.
+ * opened by guessing an id: the row is invisible until published_at is set.
  */
 export default function ItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const goBack = useGoBack("/");
   const { item, isLoading } = useItem(id);
   const photo = usePhotoUrl(item?.photo);
 
-  const nav = (
-    <View style={s.nav}>
-      <Pressable onPress={goBack} hitSlop={12} style={s.navButton}>
-        <Icon name="chevron.left" size={18} color={colors.ink} weight="semibold" />
-      </Pressable>
-    </View>
+  const back = (
+    <Pressable onPress={goBack} hitSlop={14} style={[s.back, { top: insets.top + spacing.sm }]}>
+      <Icon name="chevron.left" size={17} color={colors.ink} weight="semibold" />
+    </Pressable>
   );
 
   if (!item) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
-        {nav}
+      <View style={s.safe}>
+        {back}
         {isLoading ? (
           <View style={s.center}>
             <Text style={s.muted}>Loading…</Text>
@@ -62,61 +67,78 @@ export default function ItemScreen() {
             onAction={() => router.replace("/")}
           />
         )}
-      </SafeAreaView>
+      </View>
     );
   }
 
   const slug = item.brand?.slug;
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {nav}
-      <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
-        <View style={s.frame}>
+    <View style={s.safe}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[s.hero, { height: HERO }]}>
           {photo ? (
-            <Image source={{ uri: photo }} style={s.photo} contentFit="cover" transition={140} />
+            <Image source={{ uri: photo }} style={s.photo} contentFit="cover" transition={180} />
           ) : (
             <View style={s.photoEmpty}>
-              <Icon name="photo" size={28} color={colors.inkFaint} weight="light" />
+              <Icon name="photo" size={30} color={colors.ruleStrong} weight="light" />
             </View>
           )}
         </View>
 
-        <View style={s.headline}>
-          <Text style={s.price}>{money(item.priceCents, item.currency)}</Text>
+        <View style={s.sheet}>
+          {item.brand?.name || slug ? (
+            <Text style={s.eyebrow}>{item.brand?.name || slug}</Text>
+          ) : null}
           <Text style={s.title}>{item.title || "Untitled item"}</Text>
+          <Text style={s.price}>{money(item.priceCents, item.currency)}</Text>
+
+          <View style={s.tags}>
+            <Tag label={CONDITION[item.condition]} />
+            {item.categorySlug ? <Tag label={categoryLabel(item.categorySlug)} /> : null}
+          </View>
+
+          {item.description ? <Text style={s.description}>{item.description}</Text> : null}
+
+          {slug ? (
+            <Pressable
+              onPress={() => router.push({ pathname: "/brand/[slug]", params: { slug } })}
+              style={({ pressed }) => [s.seller, pressed && s.pressed]}
+            >
+              <Avatar url={item.brand?.logo_url} name={item.brand?.name} handle={slug} size={42} />
+              <View style={s.sellerBody}>
+                <Text style={s.sellerName} numberOfLines={1}>
+                  {item.brand?.name || `@${slug}`}
+                </Text>
+                <Text style={s.sellerHandle} numberOfLines={1}>
+                  Visit @{slug}
+                </Text>
+              </View>
+              <Icon name="chevron.right" size={14} color={colors.inkFaint} weight="semibold" />
+            </Pressable>
+          ) : null}
+
+          <Text style={s.note}>
+            Listed {new Date(item.publishedAt).toLocaleDateString()}
+          </Text>
         </View>
+      </ScrollView>
 
-        <View style={s.tags}>
-          <Tag label={CONDITION[item.condition]} />
-          {item.categorySlug ? <Tag label={categoryLabel(item.categorySlug)} /> : null}
+      {back}
+
+      {/* Pinned, because the price and the decision belong together and the
+          description can run long. */}
+      <View style={[s.bar, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <View style={s.barPrice}>
+          <Text style={s.barLabel}>Price</Text>
+          <Text style={s.barAmount}>{money(item.priceCents, item.currency)}</Text>
         </View>
-
-        {item.description ? <Text style={s.description}>{item.description}</Text> : null}
-
-        {slug ? (
-          <Pressable
-            onPress={() => router.push({ pathname: "/brand/[slug]", params: { slug } })}
-            style={({ pressed }) => [s.seller, pressed && s.pressed]}
-          >
-            <Avatar url={item.brand?.logo_url} name={item.brand?.name} handle={slug} size={40} />
-            <View style={s.sellerBody}>
-              <Text style={s.sellerName} numberOfLines={1}>
-                {item.brand?.name || `@${slug}`}
-              </Text>
-              <Text style={s.sellerHandle} numberOfLines={1}>
-                @{slug}
-              </Text>
-            </View>
-            <Icon name="chevron.right" size={14} color={colors.inkFaint} weight="semibold" />
-          </Pressable>
-        ) : null}
-
-        {/* A real button that says the truth, rather than a checkout that is not
-            there. Same pattern as connecting a channel: the app admits what is
-            missing instead of pretending. */}
         <Button
           label="Buy"
+          style={s.buy}
           onPress={() =>
             Alert.alert(
               "Not available yet",
@@ -124,11 +146,9 @@ export default function ItemScreen() {
                 "For now this page is here so listings can be browsed and shared.",
             )
           }
-          style={s.buy}
         />
-        <Text style={s.note}>Listed {new Date(item.publishedAt).toLocaleDateString()}</Text>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
@@ -142,36 +162,57 @@ function Tag({ label }: { label: string }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  nav: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xs },
-  navButton: { alignSelf: "flex-start" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   muted: { ...type.body, color: colors.textMuted },
 
-  body: { padding: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.md },
-  frame: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-    backgroundColor: colors.surface,
+  back: {
+    position: "absolute",
+    left: spacing.lg,
+    zIndex: 10,
+    width: 38,
+    height: 38,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(251,250,248,0.92)",
+    ...shadow.lift,
   },
+
+  hero: { width: "100%", backgroundColor: colors.paperAlt },
   photo: { width: "100%", height: "100%" },
   photoEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  headline: { gap: 2 },
-  price: { ...type.display, fontSize: 28, color: colors.ink },
-  title: { ...type.body, fontSize: 17, color: colors.ink, lineHeight: 23 },
+  // Lifted over the photograph, so the image runs under it rather than stopping
+  // at a hard edge.
+  sheet: {
+    marginTop: -radius.xl,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    backgroundColor: colors.paper,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  eyebrow: { ...type.label, color: colors.inkFaint },
+  title: { ...type.display, color: colors.ink },
+  price: { ...type.priceBig, color: colors.ink },
 
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
   tag: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.paperAlt,
   },
-  tagText: { ...type.small, fontFamily: fonts.sansMedium, fontSize: 12, color: colors.inkDim },
+  tagText: { ...type.label, fontSize: 9, color: colors.inkDim },
 
-  description: { ...type.body, fontSize: 15, color: colors.textMuted, lineHeight: 22 },
+  description: {
+    ...type.body,
+    fontSize: 16,
+    color: colors.textMuted,
+    lineHeight: 25,
+    marginTop: spacing.sm,
+  },
 
   seller: {
     flexDirection: "row",
@@ -179,14 +220,34 @@ const s = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: radius.md,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.rule,
+    marginTop: spacing.md,
   },
-  pressed: { opacity: 0.6 },
+  pressed: { opacity: 0.7 },
   sellerBody: { flex: 1, minWidth: 0, gap: 1 },
   sellerName: { ...type.bodyMedium, fontSize: 15, color: colors.ink },
   sellerHandle: { ...type.small, fontSize: 13, color: colors.ember },
 
-  buy: { marginTop: spacing.xs },
-  note: { ...type.small, fontSize: 12, color: colors.textFaint, textAlign: "center" },
+  note: { ...type.small, fontSize: 12, color: colors.inkFaint, marginTop: spacing.md },
+
+  bar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.rule,
+  },
+  barPrice: { flex: 1, gap: 1 },
+  barLabel: { ...type.label, fontSize: 9, color: colors.inkFaint },
+  barAmount: { ...type.price, fontSize: 24, color: colors.ink },
+  buy: { minWidth: 150 },
 });

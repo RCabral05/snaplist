@@ -4,6 +4,10 @@ import {
   Archivo_600SemiBold,
   Archivo_700Bold,
 } from "@expo-google-fonts/archivo";
+import {
+  InstrumentSerif_400Regular,
+  InstrumentSerif_400Regular_Italic,
+} from "@expo-google-fonts/instrument-serif";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -61,6 +65,8 @@ export default function RootLayout() {
     Archivo_500Medium,
     Archivo_600SemiBold,
     Archivo_700Bold,
+    InstrumentSerif_400Regular,
+    InstrumentSerif_400Regular_Italic,
   });
 
   if (!fontsReady) return null;
