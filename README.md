@@ -26,12 +26,13 @@ src/
   app/
     (auth)/sign-in.tsx    Apple + Google; shown when there is no session
     (app)/index.tsx       home - the profile, and the way into editing it
-    edit-profile.tsx      modal: photo and display name
+    edit-profile.tsx      modal: photo, display name, username with a live check
   lib/
     auth.tsx              session + profile, Apple/Google, updateProfile
     avatar.ts             pick a photo, upload it, sweep the previous one
     supabase.ts           client; anon key only, RLS does the real work
     navigation.ts         back, or the screen's parent when there is no back
+    use-handle-check.ts   debounced availability, with a stale-answer guard
   theme.ts                Instrument Serif for display, Archivo for controls
 ```
 
@@ -43,11 +44,18 @@ email/password path on purpose. Apple is first because App Review requires it
 once any third-party sign-in is offered. The Google button hides itself until
 both client IDs are set, so the app never shows an option guaranteed to throw.
 
-Routing has two states: signed out, and in.
+Routing has two states: signed out, and in. A username is optional and picked
+whenever - there is no onboarding gate.
+
+Availability needs `username_available()` and `claim_username()` as
+security-definer RPCs because `profiles` is readable only by its owner: a
+client-side "is this taken" query sees no rows and reports every name free.
+Uniqueness is the index on `lower(username)`; case is preserved for display.
 
 | table | who can read it |
 | --- | --- |
 | `profiles` | the owner |
+| `username` | unique case-insensitively; claimed through two security-definer RPCs |
 | `avatars` bucket (Storage) | anyone — public read; writes confined to `<uid>/` |
 
 Avatars are public-read because a profile picture is not a secret and a signed

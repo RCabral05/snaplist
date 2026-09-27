@@ -54,6 +54,8 @@ export const googleConfigured = !!googleWebClientId && !!googleIosClientId && !!
 export type Profile = {
   id: string;
   display_name: string;
+  /** Null until they pick one. Unique case-insensitively; see migration 0013. */
+  username: string | null;
   /** Public Storage URL, or null while they are still the initials. */
   avatar_url: string | null;
   created_at: string;
@@ -74,6 +76,8 @@ type AuthContextValue = {
   refreshProfile: () => Promise<void>;
   /** Writes the patch and refreshes, so every screen sees the new value at once. */
   updateProfile: (patch: ProfilePatch) => Promise<void>;
+  /** Resolves once the name is theirs; throws "username_taken" if it is not. */
+  claimUsername: (username: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -100,7 +104,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadProfile = useCallback((forUid: string) => {
     return supabase
       .from("profiles")
-      .select("id, display_name, avatar_url, created_at")
+      .select("id, display_name, username, avatar_url, created_at")
       .eq("id", forUid)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -185,6 +189,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [uid, loadProfile],
   );
 
+  const claimUsername = useCallback(
+    async (username: string) => {
+      const { error } = await supabase.rpc("claim_username", { candidate: username });
+      // Postgres raises bare codes ("username_taken"); surface them unchanged so
+      // the screen can decide what to say.
+      if (error) throw new Error(error.message);
+      if (uid) await loadProfile(uid);
+    },
+    [uid, loadProfile],
+  );
+
   const value = useMemo(
     () => ({
       session,
@@ -196,6 +211,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut,
       refreshProfile,
       updateProfile,
+      claimUsername,
     }),
     [
       session,
@@ -207,6 +223,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signOut,
       refreshProfile,
       updateProfile,
+      claimUsername,
     ],
   );
 

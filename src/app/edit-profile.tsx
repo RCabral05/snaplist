@@ -18,6 +18,7 @@ import { Field } from "@/components/field";
 import { useAuth, type ProfilePatch } from "@/lib/auth";
 import { clearAvatar, pickAvatar, uploadAvatar, type PickedImage } from "@/lib/avatar";
 import { useGoBack } from "@/lib/navigation";
+import { HANDLE_MAX, handleHint, useHandleCheck } from "@/lib/use-handle-check";
 import { colors, spacing, type } from "@/theme";
 
 const DISPLAY_NAME_MAX = 40;
@@ -29,13 +30,17 @@ const DISPLAY_NAME_MAX = 40;
  * orphaned object in the bucket.
  */
 export default function EditProfileScreen() {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile, updateProfile, claimUsername } = useAuth();
   const goBack = useGoBack("/");
 
   const [name, setName] = useState(profile?.display_name ?? "");
+  const [handle, setHandle] = useState(profile?.username ?? "");
   const [picked, setPicked] = useState<PickedImage | null>(null);
   const [cleared, setCleared] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Before the early return, so hook order stays stable while the profile loads.
+  const status = useHandleCheck(handle, "username_available", profile?.username);
 
   if (!user || !profile) return null;
 
@@ -45,7 +50,21 @@ export default function EditProfileScreen() {
       ? null
       : profile.avatar_url;
 
-  const dirty = name.trim() !== profile.display_name || !!picked || cleared;
+  // "unchanged" counts as fine: username_available sees their own row and would
+  // otherwise report their current name as taken the moment the screen opens.
+  const handleOk = status.kind === "available" || status.kind === "unchanged";
+  const dirty =
+    name.trim() !== profile.display_name ||
+    handle.trim() !== (profile.username ?? "") ||
+    !!picked ||
+    cleared;
+
+  const tone =
+    status.kind === "available"
+      ? colors.success
+      : status.kind === "taken" || status.kind === "invalid" || status.kind === "error"
+        ? colors.danger
+        : colors.textMuted;
 
   async function choosePhoto() {
     try {
@@ -62,6 +81,13 @@ export default function EditProfileScreen() {
     if (!user || !profile) return;
     setSaving(true);
     try {
+      // The username first: it is the only write that can be refused, so a lost
+      // race leaves nothing else half-applied.
+      const wanted = handle.trim();
+      if (wanted && wanted.toLowerCase() !== (profile.username ?? "").toLowerCase()) {
+        await claimUsername(wanted);
+      }
+
       const patch: ProfilePatch = {};
       if (name.trim() !== profile.display_name) patch.display_name = name.trim();
       if (picked) {
@@ -74,7 +100,15 @@ export default function EditProfileScreen() {
 
       goBack();
     } catch (e: any) {
-      Alert.alert("Could not save", e?.message ?? "Something went wrong.");
+      const raw = String(e?.message ?? "");
+      Alert.alert(
+        "Could not save",
+        raw.includes("username_taken")
+          ? "Someone took that name a moment ago. Try another."
+          : raw.includes("invalid_username")
+            ? "That name is not allowed."
+            : raw || "Something went wrong.",
+      );
     } finally {
       setSaving(false);
     }
@@ -98,11 +132,11 @@ export default function EditProfileScreen() {
         </View>
         <Text style={s.headerTitle}>Your profile</Text>
         <View style={[s.side, s.sideRight]}>
-          <Pressable onPress={save} hitSlop={12} disabled={!dirty || saving}>
+          <Pressable onPress={save} hitSlop={12} disabled={!dirty || !handleOk || saving}>
             {saving ? (
               <ActivityIndicator size="small" color={colors.ember} />
             ) : (
-              <Text style={[s.action, s.save, !dirty && s.actionOff]}>Save</Text>
+              <Text style={[s.action, s.save, (!dirty || !handleOk) && s.actionOff]}>Save</Text>
             )}
           </Pressable>
         </View>
@@ -144,6 +178,24 @@ export default function EditProfileScreen() {
               editable={!saving}
             />
           </Field>
+
+          <Field label="Username" hint={handleHint(status, "username")} hintTone={tone}>
+            <Text style={s.at}>@</Text>
+            <TextInput
+              value={handle}
+              onChangeText={setHandle}
+              placeholder="username"
+              placeholderTextColor={colors.inkFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={HANDLE_MAX}
+              style={s.input}
+              editable={!saving}
+            />
+            {status.kind === "checking" ? (
+              <ActivityIndicator size="small" color={colors.textFaint} />
+            ) : null}
+          </Field>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -174,4 +226,5 @@ const s = StyleSheet.create({
   link: { ...type.small, color: colors.ember },
   linkDanger: { color: colors.danger },
   input: { ...type.body, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 4 },
+  at: { ...type.body, color: colors.inkFaint },
 });

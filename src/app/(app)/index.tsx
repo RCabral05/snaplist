@@ -40,6 +40,9 @@ export default function HomeScreen() {
 
         <View style={s.who}>
           <Text style={s.name}>{name || "Add your name"}</Text>
+          {profile?.username ? (
+            <Text style={s.handle}>@{profile.username}</Text>
+          ) : null}
           <Text style={s.email}>{user?.email ?? ""}</Text>
         </View>
 
@@ -64,7 +67,9 @@ export default function HomeScreen() {
       >
         <Icon name="person.crop.circle" size={14} color={colors.inkFaint} />
         <Text style={s.hintText}>
-          {name && profile?.avatar_url ? "Your profile is set up." : "Finish setting up your profile."}
+          {name && profile?.username && profile?.avatar_url
+            ? "Your profile is set up."
+            : "Finish setting up your profile."}
         </Text>
       </Pressable>
     </SafeAreaView>
@@ -86,7 +91,8 @@ const s = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, paddingHorizontal: spacing.lg },
   who: { alignItems: "center", gap: 2 },
   name: { ...type.display, color: colors.ink, textAlign: "center" },
-  email: { ...type.small, fontSize: 15, color: colors.textMuted },
+  handle: { ...type.label, color: colors.ember, marginTop: 2 },
+  email: { ...type.small, fontSize: 15, color: colors.textMuted, marginTop: 2 },
 
   rule: { flexDirection: "row", alignItems: "center", gap: spacing.md, alignSelf: "stretch" },
   line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.ruleStrong },
