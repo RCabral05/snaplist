@@ -58,20 +58,22 @@ Every upload gets a fresh filename. A fixed one is served stale from the CDN and
 the device's image cache, so the owner would change their picture and watch the
 old one persist; the previous objects are swept after each upload.
 
-## Removed, and still in the database
+## Removed
 
-The marketplace — brands, listings, photos, categories, the vision endpoint, the
-eBay and Shopify adapters — was removed from the app. **Its tables are still
-there**: `brands`, `listings`, `listing_channels`, `connections`,
-`channel_credentials`, the `public_brands` view, and the `listing-photos` and
-`brand-logos` buckets. Nothing reads them. They were left rather than dropped
-because dropping is not reversible and the code is only a `git revert` away.
+The marketplace - brands, listings, photos, categories, the vision endpoint, the
+eBay and Shopify adapters - was removed from the app on 2026-09-27, and from the
+database in migrations 0011 and 0012. What is left is `public.profiles`, the
+`handle_new_user` trigger that fills it, and the `avatars` bucket.
 
-`profiles.username` is unused for the same reason — it was the storefront handle
-before brands existed.
+A JSON snapshot of every dropped table was taken first and lives outside the
+repo at `../snaplist-marketplace-snapshot-2026-09-27.json`; it contains seller
+rows, so it is not committed.
 
-`supabase/seeds/demo_marketplace.sql` seeded five fake sellers as real auth
-users. `demo_marketplace_down.sql` removes them.
+Two dead buckets survive the migration: `listing-photos` (6 orphaned objects)
+and `brand-logos` (empty). Supabase refuses direct deletes from storage tables -
+rightly, since a row delete orphans the file rather than removing it - so they
+have to go from the dashboard or the Storage API. Their policies are gone, so
+nothing but the service role can reach them in the meantime.
 
 The backend (`../snaplist-api`, deployed on Vercel) existed only to write
 listings from a photograph. Nothing calls it now.
