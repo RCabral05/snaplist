@@ -1,9 +1,33 @@
-import * as ImagePicker from "expo-image-picker";
 
 import { toBytes } from "./base64";
 import { supabase } from "./supabase";
 
 const BUCKET = "avatars";
+
+/**
+ * Loaded defensively, the same way google-signin is in auth.tsx.
+ *
+ * edit-profile imports this file at module scope and expo-router eagerly loads
+ * every route to validate its exports, so a top-level import of a native module
+ * that is not in the binary takes the whole app down at launch - not the photo
+ * picker, the app. One attempt, cached, and a miss means Add photo says so.
+ */
+type Picker = typeof import("expo-image-picker");
+
+let loaded: Picker | null | undefined;
+function imagePicker(): Picker | null {
+  if (loaded !== undefined) return loaded;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    loaded = require("expo-image-picker") as Picker;
+  } catch {
+    loaded = null; // not built into this binary
+  }
+  return loaded;
+}
+
+/** False when the binary has no picker, so a screen can hide the control. */
+export const canPickImages = () => imagePicker() !== null;
 
 export type PickedImage = { base64: string; mime: string; ext: string };
 
@@ -13,6 +37,11 @@ export type PickedImage = { base64: string; mime: string; ext: string };
  * circle, and letting the OS crop is kinder than doing it for them afterwards.
  */
 export async function pickAvatar(): Promise<PickedImage | null> {
+  const ImagePicker = imagePicker();
+  if (!ImagePicker) {
+    throw new Error("Choosing a photo needs a build that includes expo-image-picker.");
+  }
+
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     throw new Error("Snaplist needs access to your photos to set a picture.");
