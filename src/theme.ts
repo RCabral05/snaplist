@@ -52,7 +52,7 @@ export const colors = {
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 20, xl: 32, xxl: 56 } as const;
 
-/** Softer than before. Sharp corners on a photo read as a document, not a shop. */
+/** Softer than before. Sharp corners read as a document rather than an app. */
 export const radius = { sm: 10, md: 14, lg: 22, xl: 28, pill: 999 } as const;
 
 /** Font family names as registered with expo-font (see src/app/_layout.tsx). */

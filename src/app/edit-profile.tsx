@@ -134,7 +134,7 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          <Field label="Your name" hint="Only you see this. Buyers see your brand.">
+          <Field label="Your name" hint="Shown on your profile.">
             <TextInput
               value={name}
               onChangeText={setName}

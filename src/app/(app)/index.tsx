@@ -1,204 +1,110 @@
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { EmptyState } from "@/components/empty-state";
-import { FeaturedRail } from "@/components/featured-rail";
+import { Avatar } from "@/components/avatar";
+import { Button } from "@/components/button";
 import { Icon } from "@/components/icon";
-import { Screen, SectionLabel } from "@/components/screen";
-import { ShopGrid } from "@/components/shop-grid";
-import { CATEGORIES, categoryLabel, type CategorySlug } from "@/lib/categories";
-import { useFeatured, useFeed } from "@/lib/shop";
+import { useAuth } from "@/lib/auth";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * The buyer's home. Search, categories, a curated rail, then everything else.
+ * Home. Signing in lands here, and here is the profile.
  *
- * The rail and the category row are hidden the moment the buyer searches or
- * picks a category: they came here to browse, and once they know what they want
- * a screen full of suggestions is in the way.
+ * There is one screen behind the door on purpose, so no tab bar - a bar with a
+ * single destination is a bar telling you there is nowhere to go.
  */
-export default function ShopScreen() {
+export default function HomeScreen() {
   const router = useRouter();
-  const [text, setText] = useState("");
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CategorySlug | null>(null);
+  const { user, profile, signOut } = useAuth();
 
-  // Debounced so typing is not a query per keystroke. The field keeps its own
-  // immediate value; only the settled one reaches Postgres.
-  useEffect(() => {
-    const timer = setTimeout(() => setQuery(text), 300);
-    return () => clearTimeout(timer);
-  }, [text]);
-
-  const { items, isLoading, refresh } = useFeed({ query, category });
-  const { items: featuredItems, refresh: refreshFeatured } = useFeatured();
-
-  // Depend on the two refresh functions, which are stable, and never on the
-  // objects they came out of. A hook result in a dependency array re-runs the
-  // effect on every render, and when the effect's job is to refetch, that is an
-  // infinite loop rather than a slow screen.
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-      refreshFeatured();
-    }, [refresh, refreshFeatured]),
-  );
-
-  const browsing = !query.trim() && !category;
-
-  const header = (
-    <View style={s.header}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.cats}
-      >
-        <CategoryChip
-          label="All"
-          on={!category}
-          onPress={() => setCategory(null)}
-        />
-        {CATEGORIES.map((c) => (
-          <CategoryChip
-            key={c.slug}
-            label={c.label}
-            icon={c.slug}
-            on={category === c.slug}
-            onPress={() => setCategory(category === c.slug ? null : c.slug)}
-          />
-        ))}
-      </ScrollView>
-
-      {browsing && featuredItems.length ? (
-        <View style={s.section}>
-          <SectionLabel style={s.sectionLabel}>Featured</SectionLabel>
-          <FeaturedRail items={featuredItems} />
-        </View>
-      ) : null}
-
-      {items.length ? (
-        <SectionLabel style={s.discover}>
-          {category ? categoryLabel(category) : browsing ? "Discover" : "Results"}
-        </SectionLabel>
-      ) : null}
-    </View>
-  );
+  const name = profile?.display_name?.trim();
+  const joined = profile?.created_at
+    ? new Date(profile.created_at).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      })
+    : null;
 
   return (
-    <Screen title="Shop">
-      <View style={s.searchWrap}>
-        <View style={s.search}>
-          <Icon name="magnifyingglass" size={16} color={colors.inkFaint} />
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Search listings and brands"
-            placeholderTextColor={colors.inkFaint}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            style={s.input}
-          />
-          {text ? (
-            <Pressable onPress={() => setText("")} hitSlop={10}>
-              <Icon name="xmark.circle.fill" size={16} color={colors.inkFaint} />
-            </Pressable>
-          ) : null}
-        </View>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      <View style={s.top}>
+        <Text style={s.mark}>Snaplist</Text>
+        <Pressable onPress={() => signOut().catch(() => {})} hitSlop={10}>
+          <Text style={s.signOut}>Sign out</Text>
+        </Pressable>
       </View>
 
-      <ShopGrid
-        items={items}
-        header={header}
-        onRefresh={refresh}
-        refreshing={isLoading && items.length > 0}
-        empty={
-          isLoading ? undefined : browsing ? (
-            <EmptyState
-              icon="bag"
-              title="Nothing listed yet"
-              body="The marketplace opens once the first sellers list something."
-              actionLabel="Sell something"
-              onAction={() => router.push("/sell")}
-            />
-          ) : (
-            <EmptyState
-              icon="magnifyingglass"
-              title="Nothing matches"
-              body={
-                category && query.trim()
-                  ? `No ${categoryLabel(category).toLowerCase()} mentions "${query.trim()}".`
-                  : category
-                    ? `Nothing in ${categoryLabel(category)} yet.`
-                    : `No listing mentions "${query.trim()}". Try a brand, or a plainer word.`
-              }
-              actionLabel="Clear filters"
-              onAction={() => {
-                setText("");
-                setCategory(null);
-              }}
-            />
-          )
-        }
-      />
-    </Screen>
-  );
-}
+      <View style={s.body}>
+        <Avatar url={profile?.avatar_url} name={name} size={104} />
 
-function CategoryChip({
-  label,
-  icon,
-  on,
-  onPress,
-}: {
-  label: string;
-  icon?: CategorySlug;
-  on: boolean;
-  onPress: () => void;
-}) {
-  const found = CATEGORIES.find((c) => c.slug === icon);
-  return (
-    <Pressable onPress={onPress} style={[s.cat, on && s.catOn]}>
-      {found ? (
-        <Icon name={found.icon} size={13} color={on ? colors.white : colors.inkDim} />
-      ) : null}
-      <Text style={[s.catText, on && s.catTextOn]}>{label}</Text>
-    </Pressable>
+        <View style={s.who}>
+          <Text style={s.name}>{name || "Add your name"}</Text>
+          <Text style={s.email}>{user?.email ?? ""}</Text>
+        </View>
+
+        {joined ? (
+          <View style={s.rule}>
+            <View style={s.line} />
+            <Text style={s.since}>Member since {joined}</Text>
+            <View style={s.line} />
+          </View>
+        ) : null}
+
+        <Button
+          label="Edit profile"
+          onPress={() => router.push("/edit-profile")}
+          style={s.edit}
+        />
+      </View>
+
+      <Pressable
+        onPress={() => router.push("/edit-profile")}
+        style={({ pressed }) => [s.hint, pressed && s.pressed]}
+      >
+        <Icon name="person.crop.circle" size={14} color={colors.inkFaint} />
+        <Text style={s.hintText}>
+          {name && profile?.avatar_url ? "Your profile is set up." : "Finish setting up your profile."}
+        </Text>
+      </Pressable>
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  searchWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
-  search: {
+  safe: { flex: 1, backgroundColor: colors.paper },
+  top: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  mark: { ...type.label, color: colors.ember },
+  signOut: { ...type.small, fontSize: 13, color: colors.inkFaint },
+
+  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, paddingHorizontal: spacing.lg },
+  who: { alignItems: "center", gap: 2 },
+  name: { ...type.display, color: colors.ink, textAlign: "center" },
+  email: { ...type.small, fontSize: 15, color: colors.textMuted },
+
+  rule: { flexDirection: "row", alignItems: "center", gap: spacing.md, alignSelf: "stretch" },
+  line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.ruleStrong },
+  since: { ...type.label, fontSize: 9, color: colors.inkFaint },
+
+  edit: { marginTop: spacing.sm, minWidth: 220 },
+
+  hint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
     backgroundColor: colors.paperAlt,
   },
-  input: { ...type.body, fontSize: 15, color: colors.ink, flex: 1, paddingVertical: spacing.sm + 2 },
-
-  // The header lives inside the grid's FlatList, so it scrolls away with the
-  // products instead of pinning a third of the screen in place.
-  header: { marginHorizontal: -spacing.lg, gap: spacing.lg, paddingBottom: spacing.xs },
-  cats: { paddingHorizontal: spacing.lg, gap: spacing.xs },
-  cat: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.rule,
-  },
-  catOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  catText: { ...type.label, fontSize: 10, color: colors.inkDim },
-  catTextOn: { color: colors.white },
-
-  section: { gap: spacing.sm },
-  sectionLabel: { paddingHorizontal: spacing.lg },
-  discover: { paddingHorizontal: spacing.lg },
+  pressed: { opacity: 0.7 },
+  hintText: { ...type.small, fontSize: 13, color: colors.inkDim },
 });

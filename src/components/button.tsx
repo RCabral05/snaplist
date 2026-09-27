@@ -12,7 +12,7 @@ type Props = {
   style?: ViewStyle;
 };
 
-/** Pill-shaped and tall. A marketplace action should feel like a thing you press. */
+/** Pill-shaped and tall - an action should feel like a thing you press. */
 export function Button({ label, onPress, variant = "primary", disabled, loading, style }: Props) {
   const isOff = disabled || loading;
   return (

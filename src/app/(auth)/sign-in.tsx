@@ -46,17 +46,11 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <View style={s.top}>
-        <Text style={s.mark}>Snaplist</Text>
-      </View>
+      <View style={s.top} />
 
       <View style={s.statement}>
-        <Text style={s.headline}>
-          Everything you own{"\n"}is worth something{"\n"}to someone.
-        </Text>
-        <Text style={s.sub}>
-          Photograph it once. We write the listing and put it everywhere you sell.
-        </Text>
+        <Text style={s.headline}>Snaplist</Text>
+        <Text style={s.sub}>Sign in to pick up where you left off.</Text>
       </View>
 
       <View style={s.actions}>
@@ -87,7 +81,7 @@ export default function SignInScreen() {
           </Text>
         ) : null}
 
-        <Text style={s.legal}>Snaplist only ever posts listings you publish yourself.</Text>
+        <Text style={s.legal}>We only use your account to sign you in.</Text>
       </View>
     </SafeAreaView>
   );

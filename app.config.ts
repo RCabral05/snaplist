@@ -26,10 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      NSCameraUsageDescription:
-        "Snaplist uses the camera to photograph the items you list for sale.",
-      NSPhotoLibraryUsageDescription:
-        "Snaplist uses your photo library for listing photos and your profile picture.",
+      NSPhotoLibraryUsageDescription: "Snaplist uses your photo library for your profile picture.",
     },
   },
   android: {
@@ -46,15 +43,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     [
       "expo-image-picker",
-      {
-        photosPermission:
-          "Snaplist uses your photo library for listing photos and your profile picture.",
-      },
+      { photosPermission: "Snaplist uses your photo library for your profile picture." },
     ],
-    [
-      "expo-camera",
-      { cameraPermission: "Snaplist uses the camera to photograph items you list for sale." },
-    ],
+
   ],
   experiments: { typedRoutes: false, reactCompiler: true },
 });

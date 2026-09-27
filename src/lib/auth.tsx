@@ -55,12 +55,14 @@ export type Profile = {
   id: string;
   display_name: string;
   /**
-   * Deprecated. The storefront handle moved to brands.slug; this column is kept
-   * only because 0007 backfilled the first brand from it. Nothing reads it.
+   * Unused. It was the storefront handle before brands, and brands went with the
+   * marketplace. The column stays because dropping one is not free and a handle
+   * may well come back.
    */
   username: string | null;
   /** Public Storage URL, or null while they are still the initials. */
   avatar_url: string | null;
+  created_at: string;
 };
 
 /** The fields a seller may change about themselves. The storefront handle is
@@ -105,7 +107,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadProfile = useCallback((forUid: string) => {
     return supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url")
+      .select("id, display_name, username, avatar_url, created_at")
       .eq("id", forUid)
       .maybeSingle()
       .then(({ data, error }) => {
