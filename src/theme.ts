@@ -1,9 +1,7 @@
 /**
- * Snaplist is light-first on purpose: listings are photographs of physical
- * goods, and dark chrome casts a colour shift over every thumbnail. That has not
- * changed - but the ground is warm paper now rather than clinical white, so a
- * product photo sits *on* something instead of dissolving into the background,
- * and cards can lift off it in true white without needing a shadow.
+ * Light-first, on warm paper rather than clinical white: a photograph sits *on*
+ * something instead of dissolving into the background, and a card can lift off
+ * it in true white without needing a shadow.
  *
  * The other move is typographic. Second-hand goods need to look considered, and
  * nothing does that faster than a serif: Instrument Serif carries every price,
@@ -24,7 +22,7 @@ export const colors = {
   inkDim: "#5C574D",
   inkFaint: "#948C7F",
 
-  // brand - one saturated warm red, and a tint of it for quiet emphasis
+  // accent - one saturated warm red, and a tint of it for quiet emphasis
   ember: "#DE4519",
   emberDark: "#B8350F",
   emberSoft: "#FBEDE7",

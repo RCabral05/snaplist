@@ -13,7 +13,7 @@ function initials(name?: string | null, fallback?: string | null): string {
 }
 
 /**
- * A brand or a person, as a circle. The fallback is serif initials on sand
+ * Someone, as a circle. The fallback is serif initials on sand
  * rather than a silhouette: a grey person icon looks like a loading failure,
  * initials look like a monogram.
  */

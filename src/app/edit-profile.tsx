@@ -23,15 +23,14 @@ import { colors, spacing, type } from "@/theme";
 const DISPLAY_NAME_MAX = 40;
 
 /**
- * The person, not the storefront. Handles, logos and everything a buyer sees
- * live on the brand now; this is the human behind it, and only they see it.
+ * Your photo and your name. Nothing here is public.
  *
  * Nothing is written until Save, so backing out costs neither an upload nor an
  * orphaned object in the bucket.
  */
 export default function EditProfileScreen() {
   const { user, profile, updateProfile } = useAuth();
-  const goBack = useGoBack("/account");
+  const goBack = useGoBack("/");
 
   const [name, setName] = useState(profile?.display_name ?? "");
   const [picked, setPicked] = useState<PickedImage | null>(null);

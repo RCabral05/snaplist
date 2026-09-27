@@ -54,19 +54,12 @@ export const googleConfigured = !!googleWebClientId && !!googleIosClientId && !!
 export type Profile = {
   id: string;
   display_name: string;
-  /**
-   * Unused. It was the storefront handle before brands, and brands went with the
-   * marketplace. The column stays because dropping one is not free and a handle
-   * may well come back.
-   */
-  username: string | null;
   /** Public Storage URL, or null while they are still the initials. */
   avatar_url: string | null;
   created_at: string;
 };
 
-/** The fields a seller may change about themselves. The storefront handle is
- *  not one of them - that lives on the brand. */
+/** The fields someone may change about themselves. */
 export type ProfilePatch = Partial<Pick<Profile, "display_name" | "avatar_url">>;
 
 type AuthContextValue = {
@@ -107,7 +100,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadProfile = useCallback((forUid: string) => {
     return supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, created_at")
+      .select("id, display_name, avatar_url, created_at")
       .eq("id", forUid)
       .maybeSingle()
       .then(({ data, error }) => {

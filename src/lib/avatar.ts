@@ -32,7 +32,7 @@ export const canPickImages = () => imagePicker() !== null;
 export type PickedImage = { base64: string; mime: string; ext: string };
 
 /**
- * Opens the library and returns the chosen image, or null if the seller backed
+ * Opens the library and returns the chosen image, or null if they backed
  * out. Cropping is forced square because every place an avatar appears is a
  * circle, and letting the OS crop is kinder than doing it for them afterwards.
  */
@@ -77,7 +77,7 @@ export async function uploadAvatar(uid: string, picked: PickedImage): Promise<st
   if (error) throw error;
 
   // A fixed filename would be served stale: the bucket is public, so its URL
-  // sits in a CDN and in the phone's image cache, and the seller would change
+  // sits in a CDN and in the phone's image cache, and they would change
   // their picture and watch the old one stay. A fresh name each time is the
   // cheapest cache bust; the previous objects get swept here so the folder does
   // not grow one file per edit forever.
@@ -86,7 +86,7 @@ export async function uploadAvatar(uid: string, picked: PickedImage): Promise<st
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
-/** Drops every object the seller has in the bucket. Used by "Remove photo". */
+/** Drops every object they have in the bucket. Used by "Remove photo". */
 export async function clearAvatar(uid: string): Promise<void> {
   await sweep(uid, null);
 }
@@ -95,6 +95,6 @@ async function sweep(uid: string, keep: string | null): Promise<void> {
   const { data } = await supabase.storage.from(BUCKET).list(uid);
   const stale = (data ?? []).filter((f) => f.name !== keep).map((f) => `${uid}/${f.name}`);
   // A failed sweep leaves an orphan file, which is untidy but harmless - never
-  // worth failing the seller's edit over.
+  // worth failing their edit over.
   if (stale.length) await supabase.storage.from(BUCKET).remove(stale);
 }

@@ -11,7 +11,7 @@ import { colors, radius, spacing, type } from "@/theme";
  * One sentence, set large, and two ways in.
  *
  * A sign-in screen is the only place the app gets to say what it is before
- * anyone has seen a listing, so it says it in the same serif the listings use
+ * anyone has seen it, so it says so in the same serif the app itself uses
  * rather than with a logo and a tagline in grey.
  */
 export default function SignInScreen() {

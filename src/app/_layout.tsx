@@ -20,8 +20,7 @@ import { colors } from "@/theme";
 function RootNavigator() {
   const { user, isLoading } = useAuth();
 
-  // Two states, not three. The brand gate is gone with the marketplace, so
-  // signing in lands straight on home.
+  // Two states: signed out, and in. Signing in lands straight on home.
   if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
