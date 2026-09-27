@@ -12,7 +12,11 @@ type Props = {
   style?: ViewStyle;
 };
 
-/** Pill-shaped and tall - an action should feel like a thing you press. */
+/**
+ * Primary is near-white on near-black. On a dark ground the brightest thing is
+ * the most important thing, and spending the accent on a button would leave
+ * nothing to spend it on anywhere else.
+ */
 export function Button({ label, onPress, variant = "primary", disabled, loading, style }: Props) {
   const isOff = disabled || loading;
   return (
@@ -34,9 +38,11 @@ export function Button({ label, onPress, variant = "primary", disabled, loading,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === "primary" ? colors.white : colors.ink} />
+        <ActivityIndicator color={variant === "primary" ? colors.void : colors.ink} />
       ) : (
-        <Text style={[s.label, variant === "primary" ? s.labelPrimary : s.labelDark]}>{label}</Text>
+        <Text style={[s.label, variant === "primary" ? s.labelPrimary : s.labelDefault]}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );
@@ -45,17 +51,17 @@ export function Button({ label, onPress, variant = "primary", disabled, loading,
 const s = StyleSheet.create({
   base: {
     minHeight: 54,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.xl,
   },
   primary: { backgroundColor: colors.ink },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.ruleStrong },
+  secondary: { backgroundColor: colors.raisedHigh },
   ghost: { backgroundColor: "transparent" },
-  pressed: { opacity: 0.75 },
-  off: { opacity: 0.35 },
-  label: { fontFamily: fonts.sansMedium, fontSize: 16, letterSpacing: -0.1 },
-  labelPrimary: { color: colors.white },
-  labelDark: { color: colors.ink },
+  pressed: { opacity: 0.7 },
+  off: { opacity: 0.3 },
+  label: { fontFamily: fonts.sansMedium, fontSize: 16, letterSpacing: -0.2 },
+  labelPrimary: { color: colors.void },
+  labelDefault: { color: colors.ink },
 });

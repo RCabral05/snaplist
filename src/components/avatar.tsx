@@ -13,9 +13,9 @@ function initials(name?: string | null, fallback?: string | null): string {
 }
 
 /**
- * Someone, as a circle. The fallback is serif initials on sand
- * rather than a silhouette: a grey person icon looks like a loading failure,
- * initials look like a monogram.
+ * The one bright thing on the screen, so it carries a hairline ring to sit it
+ * on the dark rather than float. Initials when there is no photo - a silhouette
+ * icon looks like a failed load, letters look chosen.
  */
 export function Avatar({
   url,
@@ -28,7 +28,12 @@ export function Avatar({
   handle?: string | null;
   size?: number;
 }) {
-  const box = { width: size, height: size, borderRadius: size / 2 };
+  const box = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    borderWidth: size >= 64 ? 1 : StyleSheet.hairlineWidth,
+  };
 
   if (url) {
     return (
@@ -36,7 +41,7 @@ export function Avatar({
         source={{ uri: url }}
         style={[s.image, box]}
         contentFit="cover"
-        transition={120}
+        transition={140}
         cachePolicy="disk"
       />
     );
@@ -44,13 +49,18 @@ export function Avatar({
 
   return (
     <View style={[s.fallback, box]}>
-      <Text style={[s.initials, { fontSize: size * 0.42 }]}>{initials(name, handle)}</Text>
+      <Text style={[s.initials, { fontSize: size * 0.36 }]}>{initials(name, handle)}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  image: { backgroundColor: colors.sand },
-  fallback: { backgroundColor: colors.sand, alignItems: "center", justifyContent: "center" },
-  initials: { fontFamily: fonts.serif, color: colors.inkDim },
+  image: { backgroundColor: colors.raisedHigh, borderColor: colors.lineStrong },
+  fallback: {
+    backgroundColor: colors.raisedHigh,
+    borderColor: colors.lineStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  initials: { fontFamily: fonts.sansSemi, color: colors.inkDim, letterSpacing: 0.5 },
 });

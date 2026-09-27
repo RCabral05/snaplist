@@ -14,8 +14,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "1.0.0",
   orientation: "portrait",
   scheme: "snaplist",
-  userInterfaceStyle: "light",
-  backgroundColor: "#ffffff",
+  userInterfaceStyle: "dark",
+  backgroundColor: "#09090B",
   owner: "buzzybuzz",
   extra: {
     eas: { projectId: "764ba08f-67fe-4639-8f92-643f01c53261" },
@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.rcabral.snaplist",
-    adaptiveIcon: { backgroundColor: "#ffffff" },
+    adaptiveIcon: { backgroundColor: "#09090B" },
   },
   plugins: [
     "expo-router",

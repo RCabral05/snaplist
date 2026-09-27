@@ -89,4 +89,5 @@ listings from a photograph. Nothing calls it now.
 ## Conventions
 
 Matches `Projects/ios-app`: Expo SDK 57, expo-router, strict TypeScript, `@/*` →
-`src/*`, no typed routes. Light theme on purpose.
+`src/*`, no typed routes. Dark theme — the light-first rule existed to protect
+product photographs, and those went with the marketplace.

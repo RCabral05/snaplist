@@ -4,10 +4,6 @@ import {
   Archivo_600SemiBold,
   Archivo_700Bold,
 } from "@expo-google-fonts/archivo";
-import {
-  InstrumentSerif_400Regular,
-  InstrumentSerif_400Regular_Italic,
-} from "@expo-google-fonts/instrument-serif";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -30,7 +26,7 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.void } }}>
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(app)" />
         <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
@@ -48,18 +44,16 @@ export default function RootLayout() {
     Archivo_500Medium,
     Archivo_600SemiBold,
     Archivo_700Bold,
-    InstrumentSerif_400Regular,
-    InstrumentSerif_400Regular_Italic,
   });
 
   if (!fontsReady) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.paper }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.void }}>
       <AuthProvider>
         <RootNavigator />
       </AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
     </GestureHandlerRootView>
   );
 }

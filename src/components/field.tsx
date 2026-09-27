@@ -4,9 +4,8 @@ import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * Label above, control below, help underneath. The control is filled rather than
- * outlined - on warm paper a box of rules reads as a form, a filled well reads as
- * somewhere to type.
+ * A filled well rather than an outlined box. On dark, a 1px border reads as a
+ * seam; a lighter block reads as somewhere to type.
  */
 export function Field({
   label,
@@ -37,7 +36,7 @@ const s = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.paperAlt,
+    backgroundColor: colors.raised,
   },
-  hint: { ...type.small, fontSize: 13, color: colors.textMuted, paddingHorizontal: spacing.xs },
+  hint: { ...type.small, fontSize: 13, color: colors.inkDim, paddingHorizontal: spacing.xs },
 });

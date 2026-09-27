@@ -203,7 +203,7 @@ export default function EditProfileScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
+  safe: { flex: 1, backgroundColor: colors.void },
   flex: { flex: 1 },
   header: {
     flexDirection: "row",

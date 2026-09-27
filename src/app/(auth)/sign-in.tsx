@@ -8,11 +8,11 @@ import { googleConfigured, useAuth } from "@/lib/auth";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * One sentence, set large, and two ways in.
+ * One statement, two ways in, and a lot of black.
  *
- * A sign-in screen is the only place the app gets to say what it is before
- * anyone has seen it, so it says so in the same serif the app itself uses
- * rather than with a logo and a tagline in grey.
+ * The buttons sit at the bottom where a thumb is, and the space above them is
+ * empty on purpose - this is the only screen with nothing to do on it, so
+ * filling it would only be filling it.
  */
 export default function SignInScreen() {
   const { signInWithApple, signInWithGoogle } = useAuth();
@@ -46,19 +46,23 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <View style={s.top} />
+      <View style={s.head}>
+        <View style={s.dot} />
+        <Text style={s.mark}>Snaplist</Text>
+      </View>
 
       <View style={s.statement}>
-        <Text style={s.headline}>Snaplist</Text>
-        <Text style={s.sub}>Sign in to pick up where you left off.</Text>
+        <Text style={s.headline}>Welcome{"\n"}back.</Text>
+        <Text style={s.sub}>Sign in and pick up where you left off.</Text>
       </View>
 
       <View style={s.actions}>
         {appleReady ? (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={radius.pill}
+            // White on a dark screen; the black variant disappears into it.
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            cornerRadius={radius.md}
             style={s.apple}
             onPress={() => run("apple", signInWithApple)}
           />
@@ -88,15 +92,25 @@ export default function SignInScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper, justifyContent: "space-between" },
-  top: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  mark: { ...type.label, color: colors.ember },
+  safe: { flex: 1, backgroundColor: colors.void, justifyContent: "space-between" },
+
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.ember },
+  mark: { ...type.label, color: colors.inkDim },
+
   statement: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  headline: { ...type.hero, fontSize: 42, lineHeight: 46, color: colors.ink },
-  sub: { ...type.body, color: colors.textMuted, lineHeight: 24, maxWidth: 320 },
+  headline: { ...type.hero, fontSize: 52, lineHeight: 52, color: colors.ink },
+  sub: { ...type.body, color: colors.inkDim, lineHeight: 24, maxWidth: 300 },
+
   actions: { padding: spacing.lg, gap: spacing.sm },
   apple: { height: 54, width: "100%" },
-  note: { ...type.small, color: colors.textMuted, lineHeight: 20, marginTop: spacing.sm },
+  note: { ...type.small, color: colors.inkDim, lineHeight: 20, marginTop: spacing.sm },
   legal: {
     ...type.small,
     fontSize: 12,

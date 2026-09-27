@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
@@ -9,10 +9,12 @@ import { useAuth } from "@/lib/auth";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * Home. Signing in lands here, and here is the profile.
+ * Home, which is the profile.
  *
- * There is one screen behind the door on purpose, so no tab bar - a bar with a
- * single destination is a bar telling you there is nowhere to go.
+ * Left-aligned rather than centred. A centred avatar over a centred name is a
+ * business card - fine for a thing you look at, wrong for a thing you use, and
+ * it leaves the eye with nowhere to start. Everything hangs off one left edge,
+ * and the facts sit in a list where they can be scanned instead of read.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,91 +28,125 @@ export default function HomeScreen() {
       })
     : null;
 
+  const complete = !!name && !!profile?.username && !!profile?.avatar_url;
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <View style={s.top}>
+      <View style={s.bar}>
         <Text style={s.mark}>Snaplist</Text>
-        <Pressable onPress={() => signOut().catch(() => {})} hitSlop={10}>
+        <Pressable onPress={() => signOut().catch(() => {})} hitSlop={12}>
           <Text style={s.signOut}>Sign out</Text>
         </Pressable>
       </View>
 
-      <View style={s.body}>
-        <Avatar url={profile?.avatar_url} name={name} size={104} />
+      <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
+        <Avatar url={profile?.avatar_url} name={name} handle={profile?.username} size={92} />
 
         <View style={s.who}>
           <Text style={s.name}>{name || "Add your name"}</Text>
-          {profile?.username ? (
-            <Text style={s.handle}>@{profile.username}</Text>
-          ) : null}
-          <Text style={s.email}>{user?.email ?? ""}</Text>
+          {profile?.username ? <Text style={s.handle}>@{profile.username}</Text> : null}
         </View>
 
-        {joined ? (
-          <View style={s.rule}>
-            <View style={s.line} />
-            <Text style={s.since}>Member since {joined}</Text>
-            <View style={s.line} />
+        <View style={s.card}>
+          <Row label="Email" value={user?.email ?? "—"} />
+          <Row
+            label="Username"
+            value={profile?.username ? `@${profile.username}` : "Not set"}
+            muted={!profile?.username}
+          />
+          {joined ? <Row label="Joined" value={joined} last /> : null}
+        </View>
+
+        <Button label="Edit profile" onPress={() => router.push("/edit-profile")} />
+
+        {!complete ? (
+          <View style={s.nudge}>
+            <Icon name="sparkles" size={13} color={colors.ember} />
+            <Text style={s.nudgeText}>
+              {!profile?.username
+                ? "Pick a username so people can find you."
+                : !profile?.avatar_url
+                  ? "Add a photo to finish your profile."
+                  : "Add your name to finish your profile."}
+            </Text>
           </View>
         ) : null}
-
-        <Button
-          label="Edit profile"
-          onPress={() => router.push("/edit-profile")}
-          style={s.edit}
-        />
-      </View>
-
-      <Pressable
-        onPress={() => router.push("/edit-profile")}
-        style={({ pressed }) => [s.hint, pressed && s.pressed]}
-      >
-        <Icon name="person.crop.circle" size={14} color={colors.inkFaint} />
-        <Text style={s.hintText}>
-          {name && profile?.username && profile?.avatar_url
-            ? "Your profile is set up."
-            : "Finish setting up your profile."}
-        </Text>
-      </Pressable>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+function Row({
+  label,
+  value,
+  muted,
+  last,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <View style={[s.row, !last && s.rowDivided]}>
+      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={[s.rowValue, muted && s.rowValueMuted]} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
-  top: {
+  safe: { flex: 1, backgroundColor: colors.void },
+
+  bar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
   mark: { ...type.label, color: colors.ember },
   signOut: { ...type.small, fontSize: 13, color: colors.inkFaint },
 
-  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, paddingHorizontal: spacing.lg },
-  who: { alignItems: "center", gap: 2 },
-  name: { ...type.display, color: colors.ink, textAlign: "center" },
-  handle: { ...type.label, color: colors.ember, marginTop: 2 },
-  email: { ...type.small, fontSize: 15, color: colors.textMuted, marginTop: 2 },
+  body: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
 
-  rule: { flexDirection: "row", alignItems: "center", gap: spacing.md, alignSelf: "stretch" },
-  line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.ruleStrong },
-  since: { ...type.label, fontSize: 9, color: colors.inkFaint },
+  who: { gap: 4 },
+  name: { ...type.hero, color: colors.ink },
+  handle: { ...type.title, fontSize: 19, color: colors.ember },
 
-  edit: { marginTop: spacing.sm, minWidth: 220 },
-
-  hint: {
+  card: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.raised,
+    paddingHorizontal: spacing.md,
+  },
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  rowDivided: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  rowLabel: { ...type.label, color: colors.inkFaint },
+  rowValue: { ...type.body, fontSize: 15, color: colors.ink, flexShrink: 1, textAlign: "right" },
+  rowValueMuted: { color: colors.inkFaint },
+
+  nudge: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     paddingVertical: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.paperAlt,
+    backgroundColor: colors.emberSoft,
   },
-  pressed: { opacity: 0.7 },
-  hintText: { ...type.small, fontSize: 13, color: colors.inkDim },
+  nudgeText: { ...type.small, fontSize: 13, color: colors.inkDim, flex: 1, lineHeight: 19 },
 });
