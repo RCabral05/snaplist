@@ -2,98 +2,87 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/avatar";
-import { Button } from "@/components/button";
+import { AppMenu } from "@/components/app-menu";
 import { Icon } from "@/components/icon";
 import { useAuth } from "@/lib/auth";
 import { colors, radius, spacing, type } from "@/theme";
 
 /**
- * Home, which is the profile.
+ * Home.
  *
- * Left-aligned rather than centred. A centred avatar over a centred name is a
- * business card - fine for a thing you look at, wrong for a thing you use, and
- * it leaves the eye with nowhere to start. Everything hangs off one left edge,
- * and the facts sit in a list where they can be scanned instead of read.
+ * The profile used to be this screen; it has moved behind the menu, which
+ * leaves home free for whatever the app turns out to be. Until that is decided
+ * the only honest things to put here are who you are, what is still missing
+ * from your account, and a placeholder that admits to being one - a fake chart
+ * or a row of dummy cards would only make the screen harder to replace.
  */
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, profile, signOut } = useAuth();
+  const { profile } = useAuth();
 
   const name = profile?.display_name?.trim();
-  const joined = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString(undefined, {
-        month: "long",
-        year: "numeric",
-      })
-    : null;
+  const first = name ? name.split(/\s+/)[0] : null;
 
-  const complete = !!name && !!profile?.username && !!profile?.avatar_url;
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const today = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  const missing = !name
+    ? { text: "Add your name", hint: "Your profile has no name on it yet." }
+    : !profile?.username
+      ? { text: "Pick a username", hint: "Claim your handle before someone else does." }
+      : !profile?.avatar_url
+        ? { text: "Add a photo", hint: "One picture and your profile is done." }
+        : null;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.bar}>
+        <AppMenu />
         <Text style={s.mark}>Snaplist</Text>
-        <Pressable onPress={() => signOut().catch(() => {})} hitSlop={12}>
-          <Text style={s.signOut}>Sign out</Text>
-        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
-        <Avatar url={profile?.avatar_url} name={name} handle={profile?.username} size={92} />
-
-        <View style={s.who}>
-          <Text style={s.name}>{name || "Add your name"}</Text>
-          {profile?.username ? <Text style={s.handle}>@{profile.username}</Text> : null}
+        <View style={s.hello}>
+          <Text style={s.day}>{today}</Text>
+          <Text style={s.greeting}>
+            {greeting}
+            {first ? "," : "."}
+            {first ? `\n${first}.` : ""}
+          </Text>
         </View>
 
-        <View style={s.card}>
-          <Row label="Email" value={user?.email ?? "—"} />
-          <Row
-            label="Username"
-            value={profile?.username ? `@${profile.username}` : "Not set"}
-            muted={!profile?.username}
-          />
-          {joined ? <Row label="Joined" value={joined} last /> : null}
-        </View>
-
-        <Button label="Edit profile" onPress={() => router.push("/edit-profile")} />
-
-        {!complete ? (
-          <View style={s.nudge}>
-            <Icon name="sparkles" size={13} color={colors.ember} />
-            <Text style={s.nudgeText}>
-              {!profile?.username
-                ? "Pick a username so people can find you."
-                : !profile?.avatar_url
-                  ? "Add a photo to finish your profile."
-                  : "Add your name to finish your profile."}
-            </Text>
-          </View>
+        {missing ? (
+          <Pressable
+            style={({ pressed }) => [s.todo, pressed && s.todoPressed]}
+            onPress={() => router.push("/edit-profile")}
+          >
+            <View style={s.todoIcon}>
+              <Icon name="sparkles" size={15} color={colors.ember} />
+            </View>
+            <View style={s.todoText}>
+              <Text style={s.todoTitle}>{missing.text}</Text>
+              <Text style={s.todoHint}>{missing.hint}</Text>
+            </View>
+            <Icon name="chevron.right" size={14} color={colors.inkFaint} />
+          </Pressable>
         ) : null}
+
+        <View style={s.empty}>
+          <Icon name="square.dashed" size={26} color={colors.inkFaint} />
+          <Text style={s.emptyTitle}>Nothing here yet</Text>
+          <Text style={s.emptyBody}>
+            This is where the app goes. Your account, profile and photo are all set up and waiting
+            underneath it.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Row({
-  label,
-  value,
-  muted,
-  last,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <View style={[s.row, !last && s.rowDivided]}>
-      <Text style={s.rowLabel}>{label}</Text>
-      <Text style={[s.rowValue, muted && s.rowValueMuted]} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -109,7 +98,6 @@ const s = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   mark: { ...type.label, color: colors.ember },
-  signOut: { ...type.small, fontSize: 13, color: colors.inkFaint },
 
   body: {
     paddingHorizontal: spacing.lg,
@@ -118,35 +106,47 @@ const s = StyleSheet.create({
     gap: spacing.lg,
   },
 
-  who: { gap: 4 },
-  name: { ...type.hero, color: colors.ink },
-  handle: { ...type.title, fontSize: 19, color: colors.ember },
+  hello: { gap: spacing.sm },
+  day: { ...type.label, color: colors.inkFaint },
+  greeting: { ...type.hero, color: colors.ink },
 
-  card: {
+  todo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
     borderRadius: radius.lg,
     backgroundColor: colors.raised,
-    paddingHorizontal: spacing.md,
   },
-  row: {
-    flexDirection: "row",
+  todoPressed: { backgroundColor: colors.raisedHigh },
+  todoIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  rowDivided: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  rowLabel: { ...type.label, color: colors.inkFaint },
-  rowValue: { ...type.body, fontSize: 15, color: colors.ink, flexShrink: 1, textAlign: "right" },
-  rowValueMuted: { color: colors.inkFaint },
-
-  nudge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+    justifyContent: "center",
     backgroundColor: colors.emberSoft,
   },
-  nudgeText: { ...type.small, fontSize: 13, color: colors.inkDim, flex: 1, lineHeight: 19 },
+  todoText: { flex: 1, gap: 2 },
+  todoTitle: { ...type.bodyMedium, fontSize: 15, color: colors.ink },
+  todoHint: { ...type.small, fontSize: 13, color: colors.inkFaint },
+
+  empty: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  emptyTitle: { ...type.heading, color: colors.inkDim, marginTop: spacing.xs },
+  emptyBody: {
+    ...type.small,
+    fontSize: 13,
+    color: colors.inkFaint,
+    textAlign: "center",
+    lineHeight: 19,
+    maxWidth: 260,
+  },
 });
