@@ -7,6 +7,8 @@ public struct SearchHit: Hashable, Identifiable, Sendable {
     /// The best-matching page: where tapping the result should land.
     public var pageId: Int64
     public var pagePosition: Int
+    /// From the page text, even when the match was in the title, so the
+    /// result shows something the title row doesn't already say.
     public var snippet: Snippet
     /// How many of the record's pages matched, for "and 3 more pages".
     public var matchingPages: Int
@@ -64,7 +66,7 @@ extension ArchiveStore {
             // headroom so collapsing to one per record still fills `limit`.
             let rows = try Row.fetchAll(db, sql: """
                 SELECT page.id AS pageId, page.recordId AS recordId, page.position AS pagePosition,
-                       snippet(searchIndex, -1, char(1), char(2), '…', 16) AS snippet
+                       snippet(searchIndex, 1, char(1), char(2), '…', 16) AS snippet
                 FROM searchIndex
                 JOIN page ON page.id = searchIndex.rowid
                 JOIN record ON record.id = page.recordId

@@ -1,43 +1,60 @@
 import ArchiveCore
 import SwiftUI
 
-/// "All · Receipts 4 · Warranties 1": one chip per category in use. Narrows
-/// both the list and search.
+/// "All · Receipts 4 · Warranties 1": one chip per category in use, each in
+/// its colour. Narrows both the grid and search.
 struct KindFilterBar: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip("All", count: nil, isSelected: model.kindFilter == nil) {
+                Chip(title: "All", symbol: "square.grid.2x2", count: nil, tint: .accentColor,
+                     isSelected: model.kindFilter == nil) {
                     model.kindFilter = nil
                 }
                 ForEach(model.kindCounts, id: \.kind) { entry in
-                    chip(entry.kind.pluralLabel, count: entry.count, isSelected: model.kindFilter == entry.kind) {
+                    Chip(title: entry.kind.pluralLabel, symbol: entry.kind.symbol, count: entry.count,
+                         tint: entry.kind.tint, isSelected: model.kindFilter == entry.kind) {
                         model.kindFilter = model.kindFilter == entry.kind ? nil : entry.kind
                     }
                 }
             }
             .padding(.horizontal)
-            .padding(.vertical, 6)
+            .padding(.vertical, 2)
         }
-        .background(.bar)
+        .scrollClipDisabled()
+        .sensoryFeedback(.selection, trigger: model.kindFilter)
     }
 
-    @ViewBuilder
-    private func chip(_ title: String, count: Int?, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        let label = Text(count.map { "\(title) \($0)" } ?? title)
-        if isSelected {
-            Button(action: action) { label }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
-                .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(action: action) { label }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .controlSize(.small)
+    private struct Chip: View {
+        let title: String
+        let symbol: String
+        let count: Int?
+        let tint: Color
+        let isSelected: Bool
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: symbol).font(.caption.weight(.semibold))
+                    Text(title)
+                    if let count {
+                        Text("\(count)")
+                            .monospacedDigit()
+                            .foregroundStyle(isSelected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+                    }
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(tint))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(tint.opacity(0.12)), in: .capsule)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .animation(.snappy(duration: 0.2), value: isSelected)
         }
     }
 }

@@ -3,7 +3,8 @@ import PhotosUI
 import SwiftUI
 import VisionKit
 
-/// Home: everything saved, newest first, and a search field over all of it.
+/// Home: everything saved as a grid of previews grouped by date, category
+/// filters above it, and search over all of it.
 struct RecordListView: View {
     @Environment(AppModel.self) private var model
 
@@ -14,44 +15,38 @@ struct RecordListView: View {
     @State private var pendingDelete: Record?
     @State private var isShowingSettings = false
 
-    /// Where a row leads: the record, and for a search hit the page that matched.
+    /// Where a card leads: the record, and for a search hit the page that matched.
     struct Destination: Hashable {
         var record: Record
         var pagePosition: Int?
     }
 
+    private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+
     var body: some View {
         @Bindable var model = model
 
         NavigationStack {
-            List {
-                if model.query.isEmpty {
-                    ForEach(model.visibleRecords) { record in
-                        NavigationLink(value: Destination(record: record)) {
-                            RecordRow(record: record)
-                        }
-                        .swipeActions {
-                            Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
-                        }
-                        .contextMenu { rowActions(record) }
-                        .accessibilityIdentifier("record")
-                    }
+            ScrollView {
+                if model.records.isEmpty {
+                    WelcomeView(canScan: canScan, scan: { isScanning = true },
+                                choosePhotos: { isPickingPhotos = true }, importFiles: { isPickingFiles = true })
                 } else {
-                    ForEach(model.hits) { hit in
-                        NavigationLink(value: Destination(record: hit.record, pagePosition: hit.pagePosition)) {
-                            SearchHitRow(hit: hit)
+                    VStack(alignment: .leading, spacing: 16) {
+                        KindFilterBar()
+                        if model.query.isEmpty {
+                            grid
+                        } else {
+                            searchResults
                         }
-                        .contextMenu { rowActions(hit.record) }
-                        .accessibilityIdentifier("record")
                     }
+                    .padding(.bottom, 24)
                 }
             }
-            .safeAreaInset(edge: .top) {
-                if !model.records.isEmpty { KindFilterBar() }
-            }
-            .overlay { emptyState }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Snaplist")
-            .searchable(text: $model.query, prompt: "Search everything you've saved")
+            .navigationSubtitle(subtitle)
+            .searchable(text: $model.query, prompt: "Stores, amounts, any word")
             .navigationDestination(for: Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
@@ -59,7 +54,7 @@ struct RecordListView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Settings", systemImage: "gearshape") { isShowingSettings = true }
                 }
-                ToolbarItem(placement: .primaryAction) { addMenu }
+                ToolbarItem(placement: .topBarTrailing) { addMenu }
             }
             .sheet(isPresented: $isShowingSettings) { SettingsView() }
             .fullScreenCover(isPresented: $isScanning) {
@@ -96,44 +91,100 @@ struct RecordListView: View {
             } message: {
                 Text(model.errorMessage ?? "")
             }
+            .sensoryFeedback(.success, trigger: model.records.count) { old, new in new > old }
         }
     }
 
-    /// Long-press on a row: recategorise or delete without opening it.
+    // MARK: Grid
+
+    @ViewBuilder private var grid: some View {
+        let groups = DateGroup.grouping(model.visibleRecords)
+        if groups.isEmpty, let kind = model.kindFilter {
+            ContentUnavailableView("No \(kind.pluralLabel.lowercased())", systemImage: kind.symbol,
+                                   description: Text("Nothing is filed under \(kind.pluralLabel) right now."))
+                .padding(.top, 40)
+        }
+        LazyVStack(alignment: .leading, spacing: 28) {
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(group.title)
+                        .font(Theme.display(.title3))
+                        .padding(.horizontal, 4)
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                        ForEach(group.records) { record in
+                            NavigationLink(value: Destination(record: record)) {
+                                RecordCard(record: record)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu { rowActions(record) }
+                            .accessibilityIdentifier("record")
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: Search
+
+    @ViewBuilder private var searchResults: some View {
+        if model.hits.isEmpty {
+            ContentUnavailableView.search(text: model.query)
+                .padding(.top, 40)
+        } else {
+            LazyVStack(spacing: 10) {
+                Text(model.hits.count == 1 ? "1 match" : "\(model.hits.count) matches")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                ForEach(model.hits) { hit in
+                    NavigationLink(value: Destination(record: hit.record, pagePosition: hit.pagePosition)) {
+                        SearchHitCard(hit: hit)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu { rowActions(hit.record) }
+                    .accessibilityIdentifier("record")
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: Actions
+
+    /// Long-press on a card: recategorise or delete without opening it.
     @ViewBuilder private func rowActions(_ record: Record) -> some View {
         CategoryMenu(record: record)
         Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
     }
 
+    /// False on the simulator and on devices without a camera.
+    private var canScan: Bool { VNDocumentCameraViewController.isSupported }
+
     private var addMenu: some View {
         Menu {
-            // False on the simulator and on devices without a camera.
-            if VNDocumentCameraViewController.isSupported {
+            if canScan {
                 Button("Scan Document", systemImage: "doc.viewfinder") { isScanning = true }
             }
             Button("Choose Photos", systemImage: "photo.on.rectangle") { isPickingPhotos = true }
             Button("Import Files", systemImage: "folder") { isPickingFiles = true }
         } label: {
             Label("Add", systemImage: "plus")
+        } primaryAction: {
+            if canScan { isScanning = true } else { isPickingPhotos = true }
         }
+        .buttonStyle(.glassProminent)
+        .accessibilityHint("Tap to scan, or hold for photos and files")
     }
 
-    @ViewBuilder private var emptyState: some View {
-        if !model.query.isEmpty && model.hits.isEmpty {
-            ContentUnavailableView.search(text: model.query)
-        } else if model.query.isEmpty && !model.records.isEmpty && model.visibleRecords.isEmpty,
-                  let kind = model.kindFilter {
-            ContentUnavailableView("No \(kind.pluralLabel.lowercased())", systemImage: kind.symbol,
-                                   description: Text("Nothing is filed under \(kind.pluralLabel) right now."))
-        } else if model.query.isEmpty && model.records.isEmpty {
-            ContentUnavailableView {
-                Label("Nothing saved yet", systemImage: "tray")
-            } description: {
-                Text("Scan a receipt, or add photos and PDFs. Everything stays on this iPhone, and the text in it becomes searchable.")
-            } actions: {
-                addMenu.buttonStyle(.borderedProminent)
-            }
-        }
+    private var subtitle: String {
+        let count = model.records.count
+        guard count > 0 else { return "" }
+        let reading = model.records.count { $0.status == .pending }
+        let base = count == 1 ? "1 document" : "\(count) documents"
+        return reading > 0 ? "\(base) · reading \(reading)" : base
     }
 
     private var isConfirmingDelete: Binding<Bool> {
@@ -145,63 +196,120 @@ struct RecordListView: View {
     }
 }
 
-struct RecordRow: View {
+/// A grid cell: the preview, then the name and where it's filed.
+struct RecordCard: View {
     let record: Record
 
     var body: some View {
-        HStack(spacing: 12) {
-            RecordThumbnail(record: record)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(record.title).lineLimit(1)
-                HStack(spacing: 6) {
-                    Label(record.kind.label, systemImage: record.kind.symbol)
-                        .labelStyle(.titleOnly)
+        VStack(alignment: .leading, spacing: 8) {
+            RecordThumbnail(record: record, style: .card)
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+                .overlay(alignment: .topLeading) {
+                    StatusPill(status: record.status).padding(8)
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(record.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2, reservesSpace: true)
+                    .multilineTextAlignment(.leading)
+                HStack(spacing: 5) {
+                    Circle().fill(record.kind.tint).frame(width: 7, height: 7)
+                    Text(record.kind.label)
                     Text("·")
-                    Text(record.createdAt, format: .dateTime.month().day().year())
-                    IngestBadge(status: record.status)
+                    Text(record.createdAt, format: .dateTime.month(.abbreviated).day())
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 2)
         }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
-struct SearchHitRow: View {
+/// A search result: the page that matched, and the words around the match.
+struct SearchHitCard: View {
     let hit: SearchHit
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // The page that matched, not just the first one.
-            RecordThumbnail(record: hit.record, pagePosition: hit.pagePosition)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(hit.record.title)
-                    .lineLimit(1)
+            RecordThumbnail(record: hit.record, pagePosition: hit.pagePosition, style: .square(64))
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(hit.record.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(hit.record.createdAt, format: .dateTime.month(.abbreviated).day())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(snippet)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
-                if hit.matchingPages > 1 {
-                    Text("Matches on \(hit.matchingPages) pages")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                HStack(spacing: 6) {
+                    KindBadge(kind: hit.record.kind)
+                    if hit.matchingPages > 1 {
+                        Text("\(hit.matchingPages) pages match")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .contentShape(Rectangle())
     }
 
     private var snippet: AttributedString {
         hit.snippet.runs.reduce(into: AttributedString()) { result, run in
             var part = AttributedString(run.text)
             if run.isMatch {
-                part.font = .subheadline.bold()
+                part.font = .footnote.bold()
                 part.foregroundColor = .primary
+                part.backgroundColor = .yellow.opacity(0.35)
             }
             result += part
         }
     }
 }
 
+/// "Reading…" or "Couldn't read" over a preview; nothing once it's ready.
+struct StatusPill: View {
+    let status: IngestStatus
+
+    var body: some View {
+        switch status {
+        case .pending:
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini)
+                Text("Reading")
+            }
+            .pill()
+        case .failed:
+            Label("Couldn't read", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .pill()
+        case .ready:
+            EmptyView()
+        }
+    }
+}
+
+private extension View {
+    func pill() -> some View {
+        font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: .capsule)
+    }
+}
+
+/// Longer form of the status, for the record detail header.
 struct IngestBadge: View {
     let status: IngestStatus
 

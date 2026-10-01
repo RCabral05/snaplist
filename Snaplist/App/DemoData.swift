@@ -9,7 +9,13 @@ import UIKit
 /// The documents are drawn as images (and one PDF) so they go through the real
 /// pipeline: Vision reads the images, PDFKit reads the PDF's text layer.
 enum DemoData {
+    /// A throwaway archive and no lock: `-demoData` fills it, `-demoEmpty`
+    /// leaves it empty to show the welcome screen.
     static var isEnabled: Bool {
+        shouldSeed || ProcessInfo.processInfo.arguments.contains("-demoEmpty")
+    }
+
+    static var shouldSeed: Bool {
         ProcessInfo.processInfo.arguments.contains("-demoData")
     }
 

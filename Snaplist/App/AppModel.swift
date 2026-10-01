@@ -71,7 +71,7 @@ final class AppModel {
             _ = try? archive.files.sweep(keeping: Set(ids), unchangedSince: .now.addingTimeInterval(-3600))
         }
         #if DEBUG
-        if DemoData.isEnabled, (try? archive.store.records().isEmpty) ?? false {
+        if DemoData.shouldSeed, (try? archive.store.records().isEmpty) ?? false {
             DemoData.seed(into: self)
         }
         #endif
@@ -173,13 +173,13 @@ final class AppModel {
 
     /// A small preview of a page, decoded off the main actor and kept in
     /// memory. Originals never change, so a cached preview never goes stale.
-    func thumbnail(for recordId: UUID, pagePosition: Int?) async -> UIImage? {
-        let key = "\(recordId.uuidString)#\(pagePosition ?? 0)" as NSString
+    func thumbnail(for recordId: UUID, pagePosition: Int?, maxPixelSize: Int = 240) async -> UIImage? {
+        let key = "\(recordId.uuidString)#\(pagePosition ?? 0)@\(maxPixelSize)" as NSString
         if let cached = thumbnails.object(forKey: key) { return cached }
         guard let source = thumbnailSource(recordId, pagePosition: pagePosition) else { return nil }
 
         let image = await PageImages.load(archive.url(for: source.asset), type: source.asset.type,
-                                          pageInAsset: source.pageInAsset, maxPixelSize: 240)
+                                          pageInAsset: source.pageInAsset, maxPixelSize: maxPixelSize)
         if let image { thumbnails.setObject(image, forKey: key) }
         return image
     }

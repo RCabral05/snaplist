@@ -110,16 +110,27 @@ struct LockView: View {
     @Environment(AppLock.self) private var lock
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
+            Spacer()
             Image(systemName: "lock.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 84, height: 84)
+                .glassEffect(.regular, in: .circle)
             Text("Snaplist is locked")
-                .font(.title2.weight(.semibold))
-            Button("Unlock with \(AppLock.methodName)") {
+                .font(Theme.display(.title, weight: .bold))
+            Text("Your archive stays private until you unlock it.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
                 Task { await lock.unlock() }
+            } label: {
+                Label("Unlock with \(AppLock.methodName)", systemImage: AppLock.methodName == "Face ID" ? "faceid" : "lock.open")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
             .disabled(lock.isAuthenticating)
 
             if let message = lock.errorMessage {
@@ -129,9 +140,10 @@ struct LockView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .padding()
+        .padding(.horizontal, 32)
+        .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(Color(.systemGroupedBackground))
         .task { await lock.unlock() }
     }
 }
@@ -141,10 +153,10 @@ struct LockView: View {
 struct PrivacyCover: View {
     var body: some View {
         Rectangle()
-            .fill(.background)
+            .fill(Color(.systemGroupedBackground))
             .overlay {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 44))
+                Text("Snaplist")
+                    .font(Theme.display(.largeTitle, weight: .bold))
                     .foregroundStyle(.secondary)
             }
             .ignoresSafeArea()

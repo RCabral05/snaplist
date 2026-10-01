@@ -1,7 +1,8 @@
 import XCTest
 
-/// Walks the main screens with sample data and keeps a screenshot of each.
-/// CI exports them from the result bundle; nothing here asserts on looks.
+/// Walks the main screens with sample data and keeps a screenshot of each,
+/// in light and dark. CI exports them from the result bundle; nothing here
+/// asserts on looks.
 final class ScreenshotTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = true
@@ -12,14 +13,28 @@ final class ScreenshotTests: XCTestCase {
         for appearance in [XCUIDevice.Appearance.light, .dark] {
             XCUIDevice.shared.appearance = appearance
             let suffix = appearance == .dark ? "dark" : "light"
+
+            let empty = XCUIApplication()
+            empty.launchArguments = ["-demoEmpty"]
+            empty.launch()
+            sleep(2)
+            snap("00-welcome-\(suffix)")
+            empty.terminate()
+
             let app = XCUIApplication()
             app.launchArguments = ["-demoData"]
             app.launch()
 
             let firstRecord = app.descendants(matching: .any).matching(identifier: "record").firstMatch
             XCTAssertTrue(firstRecord.waitForExistence(timeout: 30), "no records appeared")
-            waitWhile(app.staticTexts["Reading text…"], timeout: 60)
+            waitWhile(app.staticTexts["Reading"], timeout: 60)
+            sleep(1)
             snap("01-home-\(suffix)")
+            app.swipeUp()
+            sleep(1)
+            snap("01b-home-scrolled-\(suffix)")
+            app.swipeDown()
+            app.swipeDown()
 
             firstRecord.tap()
             sleep(2)
@@ -27,7 +42,23 @@ final class ScreenshotTests: XCTestCase {
             app.swipeUp()
             sleep(1)
             snap("03-detail-scrolled-\(suffix)")
+            app.swipeDown()
+            sleep(1)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+            sleep(2)
+            snap("05-zoom-\(suffix)")
+            if app.buttons["Done"].exists { app.buttons["Done"].tap() }
+            sleep(1)
             app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+
+            let receipts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Receipts'")).firstMatch
+            if receipts.waitForExistence(timeout: 3) {
+                receipts.tap()
+                sleep(1)
+                snap("06-filtered-\(suffix)")
+                receipts.tap()
+            }
 
             let search = app.searchFields.firstMatch
             if !search.waitForExistence(timeout: 3) { app.swipeDown() }
