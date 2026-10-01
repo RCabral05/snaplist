@@ -23,7 +23,10 @@ final class AppLock {
 
     init() {
         // On by default wherever the phone has a passcode to check against.
-        let enabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? Self.isAvailable
+        var enabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? Self.isAvailable
+        #if DEBUG
+        if DemoData.isEnabled { enabled = false }
+        #endif
         isEnabled = enabled
         isLocked = enabled && Self.isAvailable
     }

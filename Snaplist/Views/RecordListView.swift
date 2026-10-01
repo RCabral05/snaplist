@@ -34,6 +34,7 @@ struct RecordListView: View {
                             Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
                         }
                         .contextMenu { rowActions(record) }
+                        .accessibilityIdentifier("record")
                     }
                 } else {
                     ForEach(model.hits) { hit in
@@ -41,6 +42,7 @@ struct RecordListView: View {
                             SearchHitRow(hit: hit)
                         }
                         .contextMenu { rowActions(hit.record) }
+                        .accessibilityIdentifier("record")
                     }
                 }
             }

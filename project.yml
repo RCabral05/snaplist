@@ -23,7 +23,8 @@ targets:
     sources: [Snaplist]
     dependencies:
       - package: ArchiveCore
-    scheme: {}
+    scheme:
+      testTargets: [SnaplistUITests]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist
@@ -44,3 +45,14 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSCameraUsageDescription: Snaplist uses the camera to scan receipts and documents into your archive.
         NSFaceIDUsageDescription: Snaplist uses Face ID to keep your archive private.
+  SnaplistUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SnaplistUITests]
+    dependencies:
+      - target: Snaplist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist.uitests
+        TEST_TARGET_NAME: Snaplist
+        GENERATE_INFOPLIST_FILE: YES

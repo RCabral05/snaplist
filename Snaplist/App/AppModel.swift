@@ -53,7 +53,15 @@ final class AppModel {
 
     /// The archive lives in Application Support, inside the app's sandbox.
     static func live() throws -> AppModel {
-        let directory = URL.applicationSupportDirectory.appending(path: "Archive", directoryHint: .isDirectory)
+        var name = "Archive"
+        #if DEBUG
+        // Screenshots run against a throwaway archive, never the real one.
+        if DemoData.isEnabled {
+            name = "DemoArchive"
+            try? FileManager.default.removeItem(at: URL.applicationSupportDirectory.appending(path: name))
+        }
+        #endif
+        let directory = URL.applicationSupportDirectory.appending(path: name, directoryHint: .isDirectory)
         return AppModel(archive: try Archive.open(at: directory))
     }
 
@@ -62,6 +70,11 @@ final class AppModel {
         if let ids = try? archive.store.records().map(\.id) {
             _ = try? archive.files.sweep(keeping: Set(ids), unchangedSince: .now.addingTimeInterval(-3600))
         }
+        #if DEBUG
+        if DemoData.isEnabled, (try? archive.store.records().isEmpty) ?? false {
+            DemoData.seed(into: self)
+        }
+        #endif
         resumePending()
 
         do {
@@ -131,10 +144,10 @@ final class AppModel {
         }
     }
 
-    /// Everything starts as a plain document until editing exists.
-    private func add(title: String, items: [ImportItem]) {
+    /// Imports start as a plain document; the person files them afterwards.
+    func add(kind: RecordKind = .document, title: String, items: [ImportItem], at date: Date = .now) {
         do {
-            let record = try archive.add(kind: .document, title: title, items: items)
+            let record = try archive.add(kind: kind, title: title, items: items, at: date)
             let ingestor = ingestor
             Task { await ingestor.process(record.id) }
         } catch {
