@@ -55,7 +55,8 @@ extension ArchiveStore {
     /// per record. Words are ANDed and each one matches as a prefix, so
     /// "warrant tv" finds "Warranty ... TV". Whatever the person types is
     /// quoted before it reaches FTS5, so no input is a syntax error.
-    public func search(_ text: String, limit: Int = 50) throws -> [SearchHit] {
+    /// `kind` narrows to one category; nil searches everything.
+    public func search(_ text: String, kind: RecordKind? = nil, limit: Int = 50) throws -> [SearchHit] {
         guard let match = Self.matchExpression(for: text) else { return [] }
 
         return try db.read { db in
@@ -66,10 +67,11 @@ extension ArchiveStore {
                        snippet(searchIndex, -1, char(1), char(2), '…', 16) AS snippet
                 FROM searchIndex
                 JOIN page ON page.id = searchIndex.rowid
-                WHERE searchIndex MATCH ?
+                JOIN record ON record.id = page.recordId
+                WHERE searchIndex MATCH ? AND (? IS NULL OR record.kind = ?)
                 ORDER BY bm25(searchIndex, 4.0, 1.0)
                 LIMIT ?
-                """, arguments: [match, limit * 10])
+                """, arguments: [match, kind?.rawValue, kind?.rawValue, limit * 10])
 
             var order: [UUID] = []
             var best: [UUID: Row] = [:]

@@ -252,6 +252,17 @@ let jpeg = ImportItem(type: .image, source: .data(Data([0xFF, 0xD8, 0xFF])), fil
         #expect(try tmp.archive.store.search("untitled").isEmpty)
     }
 
+    @Test func searchCanBeNarrowedToOneKind() async throws {
+        let tmp = try await archive([("Costco", [page("batteries 12.99")]), ("Remote manual", [page("batteries AA")])])
+        var manual = try #require(try tmp.archive.store.records().first { $0.title == "Remote manual" })
+        manual.kind = .manual
+        try tmp.archive.store.update(manual)
+
+        #expect(try tmp.archive.store.search("batteries").count == 2)
+        #expect(try tmp.archive.store.search("batteries", kind: .manual).map(\.record.title) == ["Remote manual"])
+        #expect(try tmp.archive.store.search("batteries", kind: .warranty).isEmpty)
+    }
+
     @Test func pendingRecordsAreNotSearchableYet() throws {
         let tmp = try TemporaryArchive()
         try tmp.archive.add(kind: .receipt, title: "Pending one", items: [jpeg])

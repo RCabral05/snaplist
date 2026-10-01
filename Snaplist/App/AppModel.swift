@@ -19,7 +19,32 @@ final class AppModel {
     var query = "" {
         didSet { search() }
     }
+    /// The category chip that's selected; nil is "All". Applies to search too.
+    var kindFilter: RecordKind? {
+        didSet { search() }
+    }
     var errorMessage: String?
+
+    private let thumbnails = NSCache<NSString, UIImage>()
+
+    struct KindCount {
+        var kind: RecordKind
+        var count: Int
+    }
+
+    var visibleRecords: [Record] {
+        guard let kindFilter else { return records }
+        return records.filter { $0.kind == kindFilter }
+    }
+
+    /// Categories in use, in the enum's order. The selected one stays even at
+    /// zero, so moving the last record out of it doesn't strand the filter.
+    var kindCounts: [KindCount] {
+        RecordKind.allCases.compactMap { kind in
+            let count = records.count { $0.kind == kind }
+            return count > 0 || kind == kindFilter ? KindCount(kind: kind, count: count) : nil
+        }
+    }
 
     init(archive: Archive) {
         self.archive = archive
@@ -63,7 +88,7 @@ final class AppModel {
             return
         }
         do {
-            hits = try archive.store.search(text)
+            hits = try archive.store.search(text, kind: kindFilter)
         } catch {
             hits = []
             errorMessage = "Search failed: \(error.localizedDescription)"
@@ -118,6 +143,45 @@ final class AppModel {
     }
 
     // MARK: Changing
+
+    func update(_ record: Record) {
+        do {
+            try archive.store.update(record)
+        } catch {
+            errorMessage = "Couldn't save the change: \(error.localizedDescription)"
+        }
+    }
+
+    func setKind(_ kind: RecordKind, for record: Record) {
+        var updated = record
+        updated.kind = kind
+        update(updated)
+    }
+
+    /// A small preview of a page, decoded off the main actor and kept in
+    /// memory. Originals never change, so a cached preview never goes stale.
+    func thumbnail(for recordId: UUID, pagePosition: Int?) async -> UIImage? {
+        let key = "\(recordId.uuidString)#\(pagePosition ?? 0)" as NSString
+        if let cached = thumbnails.object(forKey: key) { return cached }
+        guard let source = thumbnailSource(recordId, pagePosition: pagePosition) else { return nil }
+
+        let image = await PageImages.load(archive.url(for: source.asset), type: source.asset.type,
+                                          pageInAsset: source.pageInAsset, maxPixelSize: 240)
+        if let image { thumbnails.setObject(image, forKey: key) }
+        return image
+    }
+
+    /// The page at `pagePosition` once text has been read; before that (or
+    /// with no position) the first page of the first original.
+    private func thumbnailSource(_ recordId: UUID, pagePosition: Int?) -> (asset: Asset, pageInAsset: Int)? {
+        guard let assets = try? archive.store.assets(of: recordId), let first = assets.first else { return nil }
+        if let pagePosition,
+           let page = try? archive.store.pages(of: recordId).first(where: { $0.position == pagePosition }),
+           let asset = assets.first(where: { $0.id == page.assetId }) {
+            return (asset, page.pageInAsset)
+        }
+        return (first, 0)
+    }
 
     func retry(_ recordId: UUID) {
         do {

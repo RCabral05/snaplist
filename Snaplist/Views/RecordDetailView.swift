@@ -13,6 +13,7 @@ struct RecordDetailView: View {
 
     @State private var pages: [LoadedPage] = []
     @State private var assets: [Asset] = []
+    @State private var isEditing = false
 
     struct LoadedPage: Identifiable {
         var page: Page
@@ -55,6 +56,12 @@ struct RecordDetailView: View {
         }
         .navigationTitle(current.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit") { isEditing = true }
+            }
+        }
+        .sheet(isPresented: $isEditing) { EditRecordView(record: current) }
     }
 
     private var header: some View {

@@ -26,21 +26,26 @@ struct RecordListView: View {
         NavigationStack {
             List {
                 if model.query.isEmpty {
-                    ForEach(model.records) { record in
+                    ForEach(model.visibleRecords) { record in
                         NavigationLink(value: Destination(record: record)) {
                             RecordRow(record: record)
                         }
                         .swipeActions {
                             Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
                         }
+                        .contextMenu { rowActions(record) }
                     }
                 } else {
                     ForEach(model.hits) { hit in
                         NavigationLink(value: Destination(record: hit.record, pagePosition: hit.pagePosition)) {
                             SearchHitRow(hit: hit)
                         }
+                        .contextMenu { rowActions(hit.record) }
                     }
                 }
+            }
+            .safeAreaInset(edge: .top) {
+                if !model.records.isEmpty { KindFilterBar() }
             }
             .overlay { emptyState }
             .navigationTitle("Snaplist")
@@ -92,6 +97,12 @@ struct RecordListView: View {
         }
     }
 
+    /// Long-press on a row: recategorise or delete without opening it.
+    @ViewBuilder private func rowActions(_ record: Record) -> some View {
+        CategoryMenu(record: record)
+        Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
+    }
+
     private var addMenu: some View {
         Menu {
             // False on the simulator and on devices without a camera.
@@ -108,6 +119,10 @@ struct RecordListView: View {
     @ViewBuilder private var emptyState: some View {
         if !model.query.isEmpty && model.hits.isEmpty {
             ContentUnavailableView.search(text: model.query)
+        } else if model.query.isEmpty && !model.records.isEmpty && model.visibleRecords.isEmpty,
+                  let kind = model.kindFilter {
+            ContentUnavailableView("No \(kind.pluralLabel.lowercased())", systemImage: kind.symbol,
+                                   description: Text("Nothing is filed under \(kind.pluralLabel) right now."))
         } else if model.query.isEmpty && model.records.isEmpty {
             ContentUnavailableView {
                 Label("Nothing saved yet", systemImage: "tray")
@@ -133,13 +148,13 @@ struct RecordRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: record.kind.symbol)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
+            RecordThumbnail(record: record)
             VStack(alignment: .leading, spacing: 2) {
                 Text(record.title).lineLimit(1)
                 HStack(spacing: 6) {
+                    Label(record.kind.label, systemImage: record.kind.symbol)
+                        .labelStyle(.titleOnly)
+                    Text("·")
                     Text(record.createdAt, format: .dateTime.month().day().year())
                     IngestBadge(status: record.status)
                 }
@@ -154,17 +169,21 @@ struct SearchHitRow: View {
     let hit: SearchHit
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(hit.record.title, systemImage: hit.record.kind.symbol)
-                .lineLimit(1)
-            Text(snippet)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-            if hit.matchingPages > 1 {
-                Text("Matches on \(hit.matchingPages) pages")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+        HStack(alignment: .top, spacing: 12) {
+            // The page that matched, not just the first one.
+            RecordThumbnail(record: hit.record, pagePosition: hit.pagePosition)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(hit.record.title)
+                    .lineLimit(1)
+                Text(snippet)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                if hit.matchingPages > 1 {
+                    Text("Matches on \(hit.matchingPages) pages")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }
@@ -210,6 +229,19 @@ extension RecordKind {
         case .manual: "Manual"
         case .document: "Document"
         case .item: "Item"
+        case .other: "Other"
+        }
+    }
+
+    var pluralLabel: String {
+        switch self {
+        case .receipt: "Receipts"
+        case .statement: "Statements"
+        case .bill: "Bills"
+        case .warranty: "Warranties"
+        case .manual: "Manuals"
+        case .document: "Documents"
+        case .item: "Items"
         case .other: "Other"
         }
     }
