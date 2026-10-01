@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "1.1.0"
+    MARKETING_VERSION: "1.4.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:
@@ -23,19 +23,37 @@ targets:
     sources: [Snaplist]
     dependencies:
       - package: ArchiveCore
-    scheme: {}
+    scheme:
+      testTargets: [SnaplistUITests]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         # The team comes from CI (APPLE_TEAM_ID) or Xcode's Signing tab.
         CODE_SIGN_STYLE: Automatic
     info:
       path: Snaplist/Info.plist
       properties:
         CFBundleDisplayName: Snaplist
+        # Without these XcodeGen writes fixed values and the build settings
+        # (and CI's build number) never reach the app.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         NSCameraUsageDescription: Snaplist uses the camera to scan receipts and documents into your archive.
+        NSFaceIDUsageDescription: Snaplist uses Face ID to keep your archive private.
+  SnaplistUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SnaplistUITests]
+    dependencies:
+      - target: Snaplist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist.uitests
+        TEST_TARGET_NAME: Snaplist
+        GENERATE_INFOPLIST_FILE: YES

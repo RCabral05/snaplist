@@ -7,6 +7,8 @@ public struct SearchHit: Hashable, Identifiable, Sendable {
     /// The best-matching page: where tapping the result should land.
     public var pageId: Int64
     public var pagePosition: Int
+    /// From the page text, even when the match was in the title, so the
+    /// result shows something the title row doesn't already say.
     public var snippet: Snippet
     /// How many of the record's pages matched, for "and 3 more pages".
     public var matchingPages: Int
@@ -55,7 +57,8 @@ extension ArchiveStore {
     /// per record. Words are ANDed and each one matches as a prefix, so
     /// "warrant tv" finds "Warranty ... TV". Whatever the person types is
     /// quoted before it reaches FTS5, so no input is a syntax error.
-    public func search(_ text: String, limit: Int = 50) throws -> [SearchHit] {
+    /// `kind` narrows to one category; nil searches everything.
+    public func search(_ text: String, kind: RecordKind? = nil, limit: Int = 50) throws -> [SearchHit] {
         guard let match = Self.matchExpression(for: text) else { return [] }
 
         return try db.read { db in
@@ -63,13 +66,14 @@ extension ArchiveStore {
             // headroom so collapsing to one per record still fills `limit`.
             let rows = try Row.fetchAll(db, sql: """
                 SELECT page.id AS pageId, page.recordId AS recordId, page.position AS pagePosition,
-                       snippet(searchIndex, -1, char(1), char(2), '…', 16) AS snippet
+                       snippet(searchIndex, 1, char(1), char(2), '…', 16) AS snippet
                 FROM searchIndex
                 JOIN page ON page.id = searchIndex.rowid
-                WHERE searchIndex MATCH ?
+                JOIN record ON record.id = page.recordId
+                WHERE searchIndex MATCH ? AND (? IS NULL OR record.kind = ?)
                 ORDER BY bm25(searchIndex, 4.0, 1.0)
                 LIMIT ?
-                """, arguments: [match, limit * 10])
+                """, arguments: [match, kind?.rawValue, kind?.rawValue, limit * 10])
 
             var order: [UUID] = []
             var best: [UUID: Row] = [:]

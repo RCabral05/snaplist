@@ -40,3 +40,58 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+
+  # Screenshots of the main screens with sample data, light and dark. Run by
+  # hand (Actions > CI > Run workflow) since simulator time is billed at 10x.
+  screenshots:
+    if: github.event_name == 'workflow_dispatch'
+    needs: core
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use the newest installed release Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_[0-9]*.app | grep -iv beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Pick a simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          ios=[(k,v) for k,v in d.items() if 'iOS' in k]
+          ios.sort(key=lambda kv: [int(x) for x in kv[0].split('iOS-')[1].split('-')])
+          phones=[x for x in ios[-1][1] if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']] or [x for x in ios[-1][1] if x['name'].startswith('iPhone')]
+          print(phones[-1]['udid'])")
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$DEVICE"
+      - name: Run the screenshot tour
+        run: |
+          xcodebuild test \
+            -project Snaplist.xcodeproj -scheme Snaplist \
+            -destination "id=$DEVICE" \
+            -only-testing:SnaplistUITests/ScreenshotTests \
+            -resultBundlePath "$RUNNER_TEMP/tour.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee test.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" || true
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p shots
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/tour.xcresult" --output-path raw
+          python3 - <<'PY'
+          import json, shutil, pathlib
+          manifest = json.load(open("raw/manifest.json"))
+          for test in manifest:
+              for a in test.get("attachments", []):
+                  name = a.get("suggestedHumanReadableName", a["exportedFileName"])
+                  stem = name.split("_")[0]
+                  shutil.copy(pathlib.Path("raw") / a["exportedFileName"], pathlib.Path("shots") / (stem + ".png"))
+          print(sorted(p.name for p in pathlib.Path("shots").iterdir()))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: shots

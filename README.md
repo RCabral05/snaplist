@@ -65,6 +65,7 @@ Packages/ArchiveCore/          plain Swift + SQLite; no Apple-only frameworks
   Ingestor.swift               pending record -> text -> ready (or failed)
 Snaplist/
   App/                         app entry, AppModel (list, search, imports)
+  Security/AppLock             Face ID / passcode lock, app-switcher cover
   Capture/DocumentScanner      VisionKit's document camera
   Extraction/                  Vision OCR, PDF text layer, page rendering
   Views/                       list + search, record detail, page view
@@ -90,7 +91,8 @@ and a retry, never silently dropped.
 
 1. Capture, storage, OCR, search with links to the page. *(this)*
 2. Organise and correct: record types, dates, merchants, people, places;
-   editing; voice notes with on-device transcription; Face ID / passcode lock.
+   editing; voice notes with on-device transcription. (The Face ID / passcode
+   lock from this phase is done.)
 3. Receipt and statement extraction into transactions, with a review screen.
 4. Questions with exact answers: totals computed in SQL from stored
    transactions, each answer citing the records it used. The on-device model
