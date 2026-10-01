@@ -28,6 +28,12 @@ final class AppModel {
     private(set) var totals: [UUID: Money] = [:]
     /// Bumped when amounts change, which the record list doesn't observe.
     private(set) var amountsRevision = 0
+    /// A question from Siri, waiting for the window to show it on Ask.
+    var pendingQuestion: String?
+    /// A record to open, from a Spotlight result.
+    var pendingRecordId: UUID?
+
+    private var spotlightTask: Task<Void, Never>?
 
     private let thumbnails = NSCache<NSString, UIImage>()
 
@@ -95,6 +101,7 @@ final class AppModel {
             for try await list in archive.store.recordUpdates() {
                 records = list
                 refreshTotals()
+                updateSpotlight()
                 // A record that just became ready may now match.
                 search()
             }
@@ -212,6 +219,36 @@ final class AppModel {
         }
     }
 
+    /// How many lines share a merchant, to offer fixing a category for all.
+    func lineCount(merchant: String) -> Int {
+        (try? archive.store.lineCount(merchant: merchant)) ?? 0
+    }
+
+    /// Files every line from a merchant under a category, now and later.
+    func setCategory(_ category: SpendCategory, forMerchant merchant: String) {
+        do {
+            try archive.store.setCategory(category, forMerchant: merchant)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't change the category: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Duplicates
+
+    func possibleDuplicates(involving recordId: UUID) -> [Duplicate] {
+        (try? archive.store.possibleDuplicates(involving: recordId)) ?? []
+    }
+
+    func decide(_ duplicate: Duplicate, isSame: Bool?) {
+        do {
+            try archive.store.decide(duplicate, isSame: isSame)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't save that: \(error.localizedDescription)"
+        }
+    }
+
     func setDocumentDate(_ day: Day, for recordId: UUID) {
         do {
             try archive.store.setDocumentDate(day, for: recordId)
@@ -232,12 +269,23 @@ final class AppModel {
     // MARK: Asking
 
     /// Answered from the archive by ArchiveCore: rules to read the question,
-    /// SQL and integer sums for the numbers.
-    func ask(_ text: String) -> AskResult {
+    /// SQL and integer sums for the numbers. Questions the rules can't read
+    /// go to Apple Intelligence, where it's on, which only says what was
+    /// asked; the answer is worked out the same way.
+    func ask(_ text: String) async -> AskResult {
         let today = Day(.now)
+        var question = QuestionParser.parse(text, today: today)
+        var readByModel = false
+        if case .search = question, let interpretation = await QuestionInterpreter.interpret(text) {
+            question = QuestionParser.question(from: interpretation, original: text, today: today)
+            readByModel = true
+        }
         do {
-            switch QuestionParser.parse(text, today: today) {
-            case .spending(let query):
+            switch question {
+            case .spending(var query):
+                if readByModel {
+                    query.notes.insert("Read with Apple Intelligence as \(Self.describe(query)). Check that's what you meant.", at: 0)
+                }
                 return .spending(try archive.store.answer(query))
             case .whereIs(let terms):
                 return .whereIs(try archive.store.whereIs(terms), terms: terms)
@@ -250,6 +298,14 @@ final class AppModel {
             errorMessage = "Couldn't answer that: \(error.localizedDescription)"
             return .search([], text: text)
         }
+    }
+
+    /// "fuel spending in September 2026"
+    private static func describe(_ query: SpendingQuery) -> String {
+        var parts = [query.categories.isEmpty ? "all spending" : query.categories.map(\.label).sorted().joined(separator: " and ").lowercased()]
+        if !query.merchantTerms.isEmpty { parts.append("at \(query.merchantTerms.joined(separator: " or ").capitalized)") }
+        parts.append(query.rangeLabel.map { $0.hasPrefix("this") ? $0 : "in \($0)" } ?? "at any time")
+        return parts.joined(separator: " ")
     }
 
     /// A spending question re-asked with a different period, from an answer's
@@ -321,6 +377,76 @@ final class AppModel {
             try archive.delete(recordId)
         } catch {
             errorMessage = "Couldn't delete that: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Your data
+
+    /// Every original, its text, and every amount, as a zip of ordinary
+    /// files. Written to a temporary folder that's cleared on the next export.
+    func exportArchive() async throws -> (URL, ArchiveExporter.Summary) {
+        try await Self.writeExport(archive)
+    }
+
+    @concurrent
+    private static func writeExport(_ archive: Archive) async throws -> (URL, ArchiveExporter.Summary) {
+        let parent = FileManager.default.temporaryDirectory.appending(path: "Export", directoryHint: .isDirectory)
+        try? FileManager.default.removeItem(at: parent)
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let (folder, summary) = try ArchiveExporter.export(archive, into: parent)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        return (try zip(folder), summary)
+    }
+
+    /// Asking to read a folder "for uploading" makes the system zip it.
+    private nonisolated static func zip(_ folder: URL) throws -> URL {
+        let destination = folder.deletingLastPathComponent().appending(path: folder.lastPathComponent + ".zip")
+        var coordinationError: NSError?
+        var copyError: (any Error)?
+        NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading, error: &coordinationError) { zipped in
+            do {
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.copyItem(at: zipped, to: destination)
+            } catch {
+                copyError = error
+            }
+        }
+        if let error = coordinationError ?? copyError { throw error }
+        return destination
+    }
+
+    /// Records, originals, text, amounts, category rules and decisions; and
+    /// anything shown in Spotlight. Settings like the lock stay.
+    func deleteEverything() async {
+        do {
+            try archive.deleteEverything()
+            thumbnails.removeAllObjects()
+            query = ""
+            kindFilter = nil
+            amountsChanged()
+            try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appending(path: "Export"))
+            await Spotlight.removeAll()
+        } catch {
+            errorMessage = "Couldn't delete everything: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Spotlight
+
+    /// Keeps Spotlight in step with the records, or empty when it's off.
+    /// Coalesced, so a burst of changes indexes once.
+    func updateSpotlight() {
+        spotlightTask?.cancel()
+        let records = records
+        let totals = totals
+        spotlightTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            if Spotlight.isEnabled {
+                await Spotlight.index(records, totals: totals)
+            } else {
+                await Spotlight.removeAll()
+            }
         }
     }
 }

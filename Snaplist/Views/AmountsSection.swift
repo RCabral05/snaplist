@@ -252,6 +252,9 @@ struct AmountEditor: View {
     @State private var amountText: String
     @State private var hasDate: Bool
     @State private var date: Date
+    /// Asking whether a new category is for this line or the merchant's.
+    @State private var isAskingCategoryScope = false
+    private let originalCategory: SpendCategory
 
     init(transaction: Amount, isNew: Bool) {
         _transaction = State(initialValue: transaction)
@@ -259,6 +262,7 @@ struct AmountEditor: View {
         _amountText = State(initialValue: transaction.amountCents == 0 ? "" : Self.text(for: transaction.amountCents))
         _hasDate = State(initialValue: transaction.date != nil)
         _date = State(initialValue: transaction.date?.date() ?? .now)
+        originalCategory = transaction.category
     }
 
     var body: some View {
@@ -275,8 +279,11 @@ struct AmountEditor: View {
                 }
                 .listRowBackground(Theme.surface)
 
-                Section("Details") {
+                Section {
                     TextField("Merchant", text: $transaction.merchant)
+                    Picker("Spending", selection: $transaction.category) {
+                        ForEach(SpendCategory.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
                     Toggle("Date", isOn: $hasDate.animation())
                     if hasDate {
                         DatePicker("Date", selection: $date, displayedComponents: .date)
@@ -286,6 +293,10 @@ struct AmountEditor: View {
                             Text(transaction.memo).font(.footnote.monospaced()).multilineTextAlignment(.trailing)
                         }
                     }
+                } header: {
+                    Text("Details")
+                } footer: {
+                    Text("Spending decides which questions count it: “gas” counts Fuel, “eating out” counts Eating out.")
                 }
                 .listRowBackground(Theme.surface)
 
@@ -310,17 +321,49 @@ struct AmountEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let cents = Self.cents(from: amountText) else { return }
-                        var updated = transaction
-                        updated.amountCents = cents
-                        updated.date = hasDate ? Day(date) : nil
-                        model.save(updated)
-                        dismiss()
+                        if transaction.category != originalCategory, !merchant.isEmpty, otherLines > 0 {
+                            isAskingCategoryScope = true
+                        } else {
+                            save(forMerchant: false)
+                        }
                     }
                     .disabled(Self.cents(from: amountText) == nil)
                 }
             }
+            .confirmationDialog("Use \(transaction.category.label) for \(merchant)?", isPresented: $isAskingCategoryScope,
+                                titleVisibility: .visible) {
+                Button("All \(otherLines + 1) from \(merchant)") { save(forMerchant: true) }
+                Button("Just This One") { save(forMerchant: false) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("\(otherLines) other \(otherLines == 1 ? "amount is" : "amounts are") from \(merchant). Choosing all also files future ones there.")
+            }
         }
+    }
+
+    private var merchant: String {
+        transaction.merchant.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Other saved amounts with the same merchant.
+    private var otherLines: Int {
+        max(0, model.lineCount(merchant: merchant) - (isNew ? 0 : 1))
+    }
+
+    private func save(forMerchant: Bool) {
+        guard let cents = Self.cents(from: amountText) else { return }
+        var updated = transaction
+        updated.amountCents = cents
+        updated.date = hasDate ? Day(date) : nil
+        if forMerchant {
+            // The rule sets this line too, without pinning it to one category.
+            updated.category = originalCategory
+            model.save(updated)
+            model.setCategory(transaction.category, forMerchant: merchant)
+        } else {
+            model.save(updated)
+        }
+        dismiss()
     }
 
     static func text(for cents: Int64) -> String {

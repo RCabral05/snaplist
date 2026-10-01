@@ -51,6 +51,7 @@ struct RecordDetailView: View {
                     statusBanner
                     details
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
+                    DuplicatesSection(record: current)
                     textSection
                 }
                 .padding(.bottom, 32)

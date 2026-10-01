@@ -1,9 +1,11 @@
+import CoreSpotlight
 import SwiftUI
 import UIKit
 
 @main
 struct SnaplistApp: App {
-    @State private var opened: Result<AppModel, any Error> = Result { try AppModel.live() }
+    // Shared with Siri and Shortcuts, which can start the app without a window.
+    @State private var opened = SharedModel.opened
     @State private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -43,6 +45,9 @@ struct SnaplistApp: App {
                 .preferredColorScheme(DemoData.forcedColorScheme)
                 // On the container, so locking and unlocking doesn't restart it.
                 .task { await model.start() }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    model.pendingRecordId = Spotlight.recordId(from: activity)
+                }
                 .onChange(of: scenePhase) { _, phase in
                     lock.sceneChanged(to: phase)
                     if phase == .active { model.resumePending() }

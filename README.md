@@ -97,8 +97,16 @@ iPhone and the same words always mean the same thing. Spending totals are sums
 of stored integer cents (`ArchiveStore.answer`), never a language model's
 arithmetic, and every amount counted is listed with the record it came from.
 A receipt and its statement line (same amount, a few days apart, same kind of
-merchant) count once. When no statement covers the period asked about, the
-answer says so; when nothing matches, it says that instead of guessing.
+merchant) count once, unless the person says they're different purchases;
+those decisions are kept by position and amount, so they survive re-reading.
+When no statement covers the period asked about, the answer says so; when
+nothing matches, it says that instead of guessing.
+
+Where Apple Intelligence is on, a question the rules can't read goes to the
+on-device model (`QuestionInterpreter`), which only fills in fixed fields
+(kind of question, categories, merchants, period). `QuestionParser.question(from:)`
+turns those into the same query typed words make, and the answer says it was
+read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 
 ## Plan
 
@@ -106,11 +114,11 @@ answer says so; when nothing matches, it says that instead of guessing.
 2. ~~Organise and correct; voice notes; Face ID lock.~~
 3. ~~Receipt and statement extraction, with correction.~~
 4. ~~Questions with exact, cited answers.~~
-5. Duplicates: today they're counted once in answers; next, show them on the
-   records and let the person merge or keep both.
-6. Privacy and system: export, delete everything, App Intents and Spotlight.
-7. Optional: Foundation Models (where Apple Intelligence is available) to read
-   unusual phrasings into the same structured question. It would never add up
-   amounts.
+5. ~~Duplicates shown on both records, with Same Purchase / Different Purchases.~~
+6. ~~Export (zip of originals, text and CSVs), delete everything, Siri and
+   Shortcuts (App Intents), opt-in Spotlight.~~
+7. ~~Apple Intelligence (Foundation Models) reads questions the rules don't,
+   into the same structured question. It never adds up amounts.~~
+8. ~~Category fixes per line or per merchant ("DoorDash is eating out").~~
 
 Later: iCloud sync, household sharing, a paid tier.

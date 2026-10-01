@@ -22,13 +22,18 @@ final class AppLock {
     private var backgroundedAt: Date?
 
     init() {
-        // On by default wherever the phone has a passcode to check against.
-        var enabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? Self.isAvailable
-        #if DEBUG
-        if DemoData.isEnabled { enabled = false }
-        #endif
+        let enabled = Self.isEnabledSetting
         isEnabled = enabled
         isLocked = enabled && Self.isAvailable
+    }
+
+    /// Whether the lock is on, for code that runs without a window, like
+    /// Siri. On by default wherever the phone has a passcode to check against.
+    static var isEnabledSetting: Bool {
+        #if DEBUG
+        if DemoData.isEnabled { return false }
+        #endif
+        return UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? isAvailable
     }
 
     /// False when the iPhone has no passcode: there is nothing to verify, and
@@ -100,6 +105,17 @@ final class AppLock {
         }
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
+    }
+
+    /// Asks for Face ID or the passcode before something that can't be
+    /// undone. True when there's no passcode to ask for.
+    static func confirmOwner(_ reason: String) async -> Bool {
+        guard isAvailable else { return true }
+        do {
+            return try await LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
+        } catch {
+            return false
+        }
     }
 
     private static let quietCodes: Set<LAError.Code> = [.userCancel, .systemCancel, .appCancel, .notInteractive]

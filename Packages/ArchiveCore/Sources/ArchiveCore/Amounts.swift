@@ -162,7 +162,7 @@ extension ArchiveStore {
     }
 
     /// Files every line from `merchant` under `category`, now and whenever a
-    /// record is read again. Lines given their own category keep it.
+    /// record is read again, including lines given a category of their own.
     public func setCategory(_ category: SpendCategory, forMerchant merchant: String) throws {
         let name = merchant.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
@@ -171,7 +171,7 @@ extension ArchiveStore {
                 INSERT INTO merchantCategory (merchant, category) VALUES (?, ?)
                 ON CONFLICT(merchant) DO UPDATE SET category = excluded.category
                 """, arguments: [name, category.rawValue])
-            try db.execute(sql: "UPDATE txn SET category = ? WHERE merchant = ? COLLATE NOCASE AND NOT categoryEdited",
+            try db.execute(sql: "UPDATE txn SET category = ?, categoryEdited = 0 WHERE merchant = ? COLLATE NOCASE",
                            arguments: [category.rawValue, name])
         }
     }

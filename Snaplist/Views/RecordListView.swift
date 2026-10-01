@@ -15,6 +15,9 @@ struct RecordListView: View {
     @State private var pendingDelete: Record?
     @State private var isShowingSettings = false
     @State private var isAsking = false
+    /// A question Siri handed over, asked as Ask opens.
+    @State private var handedQuestion = ""
+    @State private var path: [Destination] = []
     @State private var isRecordingNote = false
 
     /// Where a card leads: the record, and for a search hit the page that matched.
@@ -28,7 +31,7 @@ struct RecordListView: View {
     var body: some View {
         @Bindable var model = model
 
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 if model.records.isEmpty {
                     WelcomeView(canScan: canScan, scan: { isScanning = true },
@@ -67,7 +70,33 @@ struct RecordListView: View {
                 }
             }
             .sheet(isPresented: $isShowingSettings) { SettingsView() }
-            .sheet(isPresented: $isAsking) { AskView() }
+            .sheet(isPresented: $isAsking, onDismiss: { handedQuestion = "" }) { AskView(question: handedQuestion) }
+            // From Siri, when the lock meant the answer had to be shown here.
+            .task(id: model.pendingQuestion) {
+                guard let question = model.pendingQuestion else { return }
+                model.pendingQuestion = nil
+                isShowingSettings = false
+                handedQuestion = question
+                isAsking = true
+            }
+            // From a Spotlight result.
+            .task(id: model.pendingRecordId) {
+                guard let id = model.pendingRecordId else { return }
+                guard let record = model.records.first(where: { $0.id == id }) else {
+                    // The list may not be loaded yet; try again when it is.
+                    return
+                }
+                model.pendingRecordId = nil
+                isAsking = false
+                isShowingSettings = false
+                path = [Destination(record: record)]
+            }
+            .onChange(of: model.records) {
+                if let id = model.pendingRecordId, let record = model.records.first(where: { $0.id == id }) {
+                    model.pendingRecordId = nil
+                    path = [Destination(record: record)]
+                }
+            }
             .sheet(isPresented: $isRecordingNote) {
                 VoiceNoteRecorder { url in model.importVoiceNote(url) }
             }

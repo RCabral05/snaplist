@@ -8,9 +8,15 @@ struct AskView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    @State private var question = ""
+    @State private var question: String
     @State private var answer: AskResult?
+    @State private var isAnswering = false
     @FocusState private var isFocused: Bool
+
+    /// Starts with `question` asked, e.g. one handed over by Siri.
+    init(question: String = "") {
+        _question = State(initialValue: question)
+    }
 
     static let examples = [
         "How much did I spend on gas last month?",
@@ -25,10 +31,12 @@ struct AskView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     questionField
-                    if let answer {
-                        AnswerView(result: answer) { query in
+                    if isAnswering {
+                        ProgressView().frame(maxWidth: .infinity).padding(.top, 24)
+                    } else if let answer {
+                        AnswerView(result: answer, reask: { query in
                             self.answer = model.answer(query)
-                        }
+                        }, decided: ask)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     } else {
                         examples
@@ -46,7 +54,9 @@ struct AskView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
-            .onAppear { isFocused = true }
+            .onAppear {
+                if question.isEmpty { isFocused = true } else { ask() }
+            }
         }
     }
 
@@ -99,7 +109,14 @@ struct AskView: View {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         isFocused = false
-        answer = model.ask(text)
+        Task {
+            // Rules answer at once; a spinner only if Apple Intelligence is reading it.
+            let slow = Task { try await Task.sleep(for: .milliseconds(150)); isAnswering = true }
+            let result = await model.ask(text)
+            slow.cancel()
+            isAnswering = false
+            answer = result
+        }
     }
 }
 
@@ -125,10 +142,12 @@ private struct AnswerView: View {
     let result: AskResult
     /// Re-asks a spending question for another period.
     var reask: (SpendingQuery) -> Void
+    /// Asks again after a duplicate was decided, since the total changes.
+    var decided: () -> Void
 
     var body: some View {
         switch result {
-        case .spending(let answer): SpendingAnswerView(answer: answer, reask: reask)
+        case .spending(let answer): SpendingAnswerView(answer: answer, reask: reask, decided: decided)
         case .whereIs(let hits, let terms): WhereAnswerView(hits: hits, terms: terms)
         case .expiry(let found, let terms): ExpiryAnswerView(found: found, terms: terms)
         case .search(let hits, let text):
@@ -150,16 +169,18 @@ private struct AnswerView: View {
 }
 
 private struct SpendingAnswerView: View {
+    @Environment(AppModel.self) private var model
     let answer: SpendingAnswer
     var reask: (SpendingQuery) -> Void
+    var decided: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if answer.counted.isEmpty {
-                NotFound(text: "I couldn't find any \(scope) in your archive.")
+                NotFound(text: "I couldn't find any \(answer.scope) in your archive.")
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scope.prefix(1).uppercased() + scope.dropFirst())
+                    Text(answer.scope.prefix(1).uppercased() + answer.scope.dropFirst())
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     ForEach(answer.totals, id: \.currency) { total in
@@ -176,7 +197,7 @@ private struct SpendingAnswerView: View {
 
             if answer.counted.isEmpty, !answer.otherMonths.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Your archive does have \(subject) in")
+                    Text("Your archive does have \(answer.subject) in")
                         .font(.subheadline.weight(.semibold))
                     ForEach(answer.otherMonths, id: \.label) { month in
                         Button {
@@ -235,11 +256,12 @@ private struct SpendingAnswerView: View {
 
             if !answer.duplicates.isEmpty {
                 DisclosureGroup("Counted once (\(answer.duplicates.count))") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(answer.duplicates, id: \.dropped.id) { pair in
-                            Text("\(pair.kept.transaction.money.formatted) at \(pair.kept.transaction.merchant) is on “\(pair.kept.record.title)” and on the statement “\(pair.dropped.record.title)” (\(pair.dropped.day.date().formatted(.dateTime.month(.abbreviated).day()))). The statement line wasn't added again.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(answer.duplicates) { pair in
+                            DuplicateCard(duplicate: pair) { isSame in
+                                model.decide(pair, isSame: isSame)
+                                decided()
+                            }
                         }
                     }
                     .padding(.top, 6)
@@ -249,29 +271,6 @@ private struct SpendingAnswerView: View {
         }
     }
 
-    /// "fuel spending at Shell", without the period.
-    private var subject: String {
-        let query = answer.query
-        var subject = query.categories.isEmpty ? "spending" : query.categories.map(\.label).sorted().joined(separator: " and ").lowercased() + " spending"
-        if !query.merchantTerms.isEmpty {
-            subject += " at \(query.merchantTerms.joined(separator: " or ").capitalized)"
-        }
-        return subject
-    }
-
-    /// "fuel purchases in September 2026", "spending at costco this year".
-    private var scope: String {
-        let query = answer.query
-        var subject = query.categories.isEmpty ? "spending" : query.categories.map(\.label).sorted().joined(separator: " and ").lowercased() + " spending"
-        if !query.merchantTerms.isEmpty {
-            subject += " at \(query.merchantTerms.joined(separator: " or ").capitalized)"
-        }
-        if let label = query.rangeLabel {
-            subject += label.hasPrefix("this") || label.hasPrefix("the") || label == "today" || label == "yesterday"
-                ? " \(label)" : " in \(label)"
-        }
-        return subject
-    }
 }
 
 private struct CountedRow: View {
