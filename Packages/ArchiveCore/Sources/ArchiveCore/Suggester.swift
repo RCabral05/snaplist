@@ -107,7 +107,14 @@ enum Suggester {
         ("wells fargo", "Wells Fargo"), ("pg&e", "PG&E"), ("national grid", "National Grid"),
         ("eversource", "Eversource"), ("con edison", "Con Edison"), ("xfinity", "Xfinity"),
         ("comcast", "Comcast"), ("verizon", "Verizon"), ("at&t", "AT&T"), ("t-mobile", "T-Mobile"),
-        ("netflix", "Netflix"), ("samsung", "Samsung"), ("sony", "Sony"), ("uber", "Uber"), ("lyft", "Lyft"),
+        ("netflix", "Netflix"), ("samsung", "Samsung"), ("sony", "Sony"), ("uber eats", "Uber Eats"), ("uber", "Uber"),
+        ("lyft", "Lyft"), ("doordash", "DoorDash"), ("grubhub", "Grubhub"), ("instacart", "Instacart"),
+        ("prime video", "Prime Video"), ("google cloud", "Google Cloud"), ("google", "Google"), ("microsoft", "Microsoft"),
+        ("apple.com/bill", "Apple"), ("spotify", "Spotify"), ("hulu", "Hulu"), ("steam", "Steam"), ("discord", "Discord"),
+        ("patreon", "Patreon"), ("replit", "Replit"), ("vercel", "Vercel"), ("anthropic", "Anthropic"),
+        ("supabase", "Supabase"), ("github", "GitHub"), ("wendys", "Wendy's"), ("wendy's", "Wendy's"),
+        ("mcdonalds", "McDonald's"), ("burger king", "Burger King"), ("taco bell", "Taco Bell"),
+        ("cumberland farms", "Cumberland Farms"), ("exxonmobil", "ExxonMobil"),
     ]
 
     /// How far down a known name still counts as the document's own.
@@ -115,25 +122,41 @@ enum Suggester {
 
     static func knownName(in page: RecognizedPage) -> String? {
         for line in page.lines.prefix(headerLines) {
-            let words = line.text.lowercased()
-            for (fragment, name) in knownNames where contains(words, word: fragment) {
-                return name
-            }
+            if let name = knownName(inText: line.text) { return name }
         }
         return nil
     }
 
-    /// `fragment` at word boundaries, so "shell" doesn't match "eggshell".
-    private static func contains(_ text: String, word fragment: String) -> Bool {
+    /// The known name that appears first, so "DD *DOORDASH CVS" is DoorDash
+    /// (the order went through DoorDash) rather than CVS. At the same spot the
+    /// longer name wins: "uber eats" over "uber".
+    static func knownName(inText text: String) -> String? {
+        let lower = text.lowercased()
+        var best: (position: Int, length: Int, name: String)?
+        for (fragment, name) in knownNames {
+            guard let position = position(of: fragment, in: lower) else { continue }
+            if best == nil || position < best!.position || (position == best!.position && fragment.count > best!.length) {
+                best = (position, fragment.count, name)
+            }
+        }
+        return best?.name
+    }
+
+    /// Where `fragment` starts as a word: never mid-word ("eggshell"), and for
+    /// short names never followed by more letters either. Longer names may
+    /// run on, as card statements print them: "DOORDASHDASHPASS".
+    private static func position(of fragment: String, in text: String) -> Int? {
         var searchRange = text.startIndex..<text.endIndex
         while let range = text.range(of: fragment, range: searchRange) {
             let before = range.lowerBound == text.startIndex ? nil : text[text.index(before: range.lowerBound)]
             let after = range.upperBound == text.endIndex ? nil : text[range.upperBound]
             let isBoundary = { (c: Character?) in c.map { !$0.isLetter } ?? true }
-            if isBoundary(before) && isBoundary(after) { return true }
+            if isBoundary(before) && (fragment.count > 5 || isBoundary(after)) {
+                return text.distance(from: text.startIndex, to: range.lowerBound)
+            }
             searchRange = range.upperBound..<text.endIndex
         }
-        return false
+        return nil
     }
 
     // MARK: Prominent line
@@ -176,7 +199,7 @@ enum Suggester {
 
     /// Short words that are words, not initials.
     static let shortWords: Set<String> = ["the", "and", "for", "you", "our", "of", "to", "at", "in", "on", "by",
-                                          "its", "new", "old", "inc", "llc", "co", "a", "an", "&"]
+                                          "its", "new", "old", "inc", "llc", "co", "a", "an", "&", "be", "it", "is", "my"]
 
     /// "TRADER JOE'S" → "Trader Joe's", but short all-caps initials stay: "CVS".
     static func titleCased(_ text: String) -> String {

@@ -188,11 +188,13 @@ enum Extractor {
             }
             guard let date = Day(year: year, month: leading.month, day: leading.day) else { continue }
 
+            let kind = statementKind(description, amount: amount)
             transactions.append(Amount(
                 recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
                 merchant: merchantName(description), memo: description, amountCents: amount.cents,
-                currency: amount.currency ?? "USD", kind: statementKind(description, amount: amount),
-                source: .statement))
+                currency: amount.currency ?? "USD", kind: kind,
+                // A payment isn't spending, so it has no spending category.
+                category: kind == .payment ? .other : nil, source: .statement))
         }
         return ExtractedFacts(documentDate: closing, transactions: transactions)
     }
@@ -207,14 +209,16 @@ enum Extractor {
                 return latest
             }
         }
-        // "Jul 1 — Jul 31, 2026": the year is only printed once.
+        // "Jun 1 — Jun 30, 2026", anywhere on a line: the year is printed once.
+        let period = DayParser.regex("\\b([a-z]{3,9})\\.?\\s+\\d{1,2}\\s*[—–-]\\s*([a-z]{3,9})\\.?\\s+(\\d{1,2}),?\\s+(\\d{4})")
         for row in rows {
-            let text = row.text
-            if let full = DayParser.days(in: text).first?.day,
-               let range = text.range(of: "^\\s*([A-Za-z]{3,9})\\s+\\d{1,2}\\s*[—–-]", options: .regularExpression),
-               DayParser.month(named: String(text[range]).trimmingCharacters(in: .letters.inverted)) != nil {
-                return full
-            }
+            let ns = row.text as NSString
+            guard let m = period.firstMatch(in: row.text, range: NSRange(location: 0, length: ns.length)),
+                  DayParser.month(named: ns.substring(with: m.range(at: 1))) != nil,
+                  let month = DayParser.month(named: ns.substring(with: m.range(at: 2))),
+                  let day = Int(ns.substring(with: m.range(at: 3))), let year = Int(ns.substring(with: m.range(at: 4))),
+                  let end = Day(year: year, month: month, day: day) else { continue }
+            return end
         }
         return rows.flatMap { DayParser.days(in: $0.text).map(\.day) }.max()
     }
@@ -227,7 +231,11 @@ enum Extractor {
 
     static func statementKind(_ description: String, amount: ParsedAmount) -> AmountKind {
         let lower = description.lowercased()
-        if lower.contains("payment") && (amount.isCredit || ["thank", "autopay", "received", "ach"].contains { lower.contains($0) }) {
+        let paymentWords = ["payment", "ach deposit", "internet transfer", "transfer from", "autopay", "thank you"]
+        if amount.isCredit, paymentWords.contains(where: { lower.contains($0) }) {
+            return .payment
+        }
+        if lower.contains("payment"), ["thank", "autopay", "received", "ach"].contains(where: { lower.contains($0) }) {
             return .payment
         }
         if lower.contains("interest charge") || lower.contains(" fee") || lower.hasPrefix("fee") {
@@ -239,14 +247,21 @@ enum Extractor {
     /// "SHELL OIL 57442" → "Shell"; "TRADER JOE'S #231" → "Trader Joe's";
     /// otherwise the description without store numbers, title-cased.
     static func merchantName(_ description: String) -> String {
-        let page = RecognizedPage(lines: [RecognizedLine(text: description)], source: .pdfText)
-        if let known = Suggester.knownName(in: page) {
+        if let known = Suggester.knownName(inText: description) {
             return known
         }
-        let words = description.split(separator: " ").filter { word in
-            !word.hasPrefix("#") && word.count(where: \.isNumber) * 2 < word.count
+        // The name, before the store number or street address starts.
+        var words: [Substring] = []
+        for word in description.split(separator: " ") {
+            if word.hasPrefix("#") { continue }
+            let mostlyDigits = word.count(where: \.isNumber) * 2 >= word.count
+            if mostlyDigits {
+                if words.isEmpty { continue } else { break }
+            }
+            words.append(word)
+            if words.count == 4 { break }
         }
-        let cleaned = words.prefix(4).joined(separator: " ")
+        let cleaned = words.joined(separator: " ")
         return cleaned.isEmpty ? description : Suggester.titleCased(cleaned)
     }
 }

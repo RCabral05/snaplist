@@ -98,17 +98,22 @@ enum SpendCategories {
         (.groceries, ["costco", "trader joe", "whole foods", "safeway", "kroger", "publix", "aldi", "stop & shop",
                       "wegmans", "market basket", "h-e-b", "sam's club", "grocery", "supermarket", "foods"]),
         (.dining, ["starbucks", "dunkin", "mcdonald", "chipotle", "panera", "chick-fil-a", "doordash",
-                   "uber eats", "grubhub", "restaurant", "cafe", "coffee", "pizza", "grill", "bar ", "kitchen"]),
-        (.subscriptions, ["netflix", "spotify", "hulu", "disney", "apple.com/bill", "youtube", "subscription"]),
+                   "uber eats", "grubhub", "instacart", "wendy", "burger", "taco bell", "restaurant", "cafe", "coffee",
+                   "pizza", "grill", "bar ", "kitchen"]),
+        (.subscriptions, ["netflix", "spotify", "hulu", "disney", "apple.com/bill", "youtube", "subscription",
+                          "prime video", "game pass", "patreon", "membership", "dashpass", "apple"]),
         (.travel, ["uber", "lyft", "airline", "airlines", "hotel", "airbnb", "delta", "united", "jetblue"]),
         (.shopping, ["amazon", "amzn", "target", "walmart", "best buy", "home depot", "lowe's", "ikea",
                      "apple store", "etsy", "ebay"]),
     ]
 
+    /// By the merchant first, then the printed line: a DoorDash order from
+    /// CVS is eating out, not pharmacy.
     static func classify(merchant: String, memo: String) -> SpendCategory {
-        let text = "\(merchant) \(memo)".lowercased()
-        for (category, words) in keywords where words.contains(where: { text.contains($0) }) {
-            return category
+        for text in [merchant.lowercased(), memo.lowercased()] {
+            for (category, words) in keywords where words.contains(where: { text.contains($0) }) {
+                return category
+            }
         }
         return .other
     }

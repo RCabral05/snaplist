@@ -164,7 +164,8 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         let facts = Extractor.extract(kind: .statement, pages: [page], recordId: id, merchant: "Apple Card")
         #expect(facts.documentDate == Day(year: 2026, month: 7, day: 31))
         #expect(facts.transactions.map(\.amountCents) == [299, 1820, 50000])
-        #expect(facts.transactions.map(\.kind) == [.purchase, .purchase, .refund])
+        // Money moved in from a bank account is paying the card, not a refund.
+        #expect(facts.transactions.map(\.kind) == [.purchase, .purchase, .payment])
         #expect(facts.transactions[0].category == .subscriptions)
         #expect(facts.transactions[1].merchant == "Uber")
     }
@@ -185,7 +186,7 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
             cell("$41.90", 0.85, 0), cell("$2.99", 0.85, 1), cell("$18.20", 0.85, 2),
         ], source: .pdfText)
         let facts = Extractor.extract(kind: .statement, pages: [page], recordId: id, merchant: "Apple Card")
-        #expect(facts.transactions.map(\.merchant) == ["Shell", "Apple.com/bill", "Uber"])
+        #expect(facts.transactions.map(\.merchant) == ["Shell", "Apple", "Uber"])
         #expect(facts.transactions.map(\.amountCents) == [4190, 299, 1820])
         #expect(facts.transactions.first?.category == .fuel)
         #expect(facts.documentDate == Day(year: 2026, month: 7, day: 31))
@@ -289,5 +290,30 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         try tmp.archive.store.saveText([ExtractedAsset(assetId: asset.id, pages: [pdf(["SHELL", "TOTAL $39.82"])])],
                                        for: record.id)
         #expect(try tmp.archive.store.recordTotals()[record.id] == Money(cents: 3982))
+    }
+}
+
+@Suite struct CardStatementQuirks {
+    private func statement(_ lines: [String]) -> ExtractedFacts {
+        Extractor.extract(kind: .statement, pages: [RecognizedPage(lines: lines.map { RecognizedLine(text: $0) }, source: .pdfText)],
+                          recordId: UUID(), merchant: "Apple Card")
+    }
+
+    @Test func deliveryPlatformsAndMessyDescriptions() {
+        let facts = statement([
+            "Card Customer Jun 1 — Jun 30, 2026",
+            "06/02/2026 DD *DOORDASH WISEGUYSD303 2ND STREET 8559731040 94107 CA USA 2% $1.49 $74.36",
+            "06/06/2026 DD *DOORDASHDASHPASS 303 2nd Street Suite 800 SAN FRANCISCO94107 CA USA 2% $0.20 $9.99",
+            "06/22/2026 DD *DOORDASH CVS 303 2ND STREET 8559731040 94107 CA USA 2% $0.52 $26.19",
+            "06/18/2026 SHELL OIL13058000012 2050 PLAINFIELD PIKE CRANSTON 02921 RI USA 2% $0.58 $29.12",
+            "06/11/2026 650 INDUSTRIES (EXPO) 624 University Ave Fl 1 PALO ALTO 94301 CA USA 1% $0.19 $19.00",
+            "06/30/2026 ACH Deposit Internet transfer from account ending in 1234 -$4,295.06",
+        ])
+        #expect(facts.documentDate == Day(year: 2026, month: 6, day: 30))
+        let t = facts.transactions
+        #expect(t.map(\.merchant) == ["DoorDash", "DoorDash", "DoorDash", "Shell", "Industries (expo)", "ACH Deposit Internet Transfer"])
+        #expect(t.map(\.category) == [.dining, .dining, .dining, .fuel, .other, .other])
+        #expect(t.last?.kind == .payment)
+        #expect(t.dropLast().allSatisfy { $0.kind == .purchase })
     }
 }
