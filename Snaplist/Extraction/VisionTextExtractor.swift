@@ -42,13 +42,17 @@ struct VisionTextExtractor: TextExtractor {
 
         var pages: [RecognizedPage] = []
         for index in 0..<document.pageCount {
-            let text = document.page(at: index)?.string ?? ""
+            guard let page = document.page(at: index) else { continue }
+            let text = page.string ?? ""
             if text.count(where: { !$0.isWhitespace }) >= Self.minimumTextLayer {
-                let lines = text
-                    .split(whereSeparator: \.isNewline)
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-                    .map { RecognizedLine(text: $0) }
+                var lines = Self.positionedLines(of: page)
+                if lines.isEmpty {
+                    lines = text
+                        .split(whereSeparator: \.isNewline)
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                        .map { RecognizedLine(text: $0) }
+                }
                 pages.append(RecognizedPage(lines: lines, source: .pdfText))
             } else {
                 let image = try PageImages.cgImage(of: url, type: .pdf, pageInAsset: index,
@@ -57,6 +61,27 @@ struct VisionTextExtractor: TextExtractor {
             }
         }
         return pages
+    }
+
+    /// The text layer line by line, each with where it sits on the page.
+    /// Positions matter: many PDFs store a table column by column, and only
+    /// positions turn that back into rows. They also let "Show on Page"
+    /// highlight a PDF's lines.
+    static func positionedLines(of page: PDFPage) -> [RecognizedLine] {
+        let bounds = page.bounds(for: .cropBox)
+        guard bounds.width > 0, bounds.height > 0,
+              let all = page.selection(for: bounds) else { return [] }
+        return all.selectionsByLine().compactMap { selection in
+            guard let text = selection.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+            else { return nil }
+            let rect = selection.bounds(for: page)
+            // PDF space has its origin bottom-left; ours is top-left.
+            return RecognizedLine(text: text, box: PageRect(
+                x: (rect.minX - bounds.minX) / bounds.width,
+                y: 1 - (rect.maxY - bounds.minY) / bounds.height,
+                width: rect.width / bounds.width,
+                height: rect.height / bounds.height))
+        }
     }
 
     private func recognize(_ image: CGImage) async throws -> RecognizedPage {

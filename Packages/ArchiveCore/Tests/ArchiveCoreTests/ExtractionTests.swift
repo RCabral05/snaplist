@@ -169,6 +169,28 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         #expect(facts.transactions[1].merchant == "Uber")
     }
 
+    @Test func aTableStoredColumnByColumn() {
+        // How many PDFs store a statement: each column's cells in turn, each
+        // with its position. Only positions put the rows back together.
+        func cell(_ text: String, _ x: Double, _ row: Int) -> RecognizedLine {
+            RecognizedLine(text: text, box: PageRect(x: x, y: 0.3 + Double(row) * 0.03, width: 0.15, height: 0.015))
+        }
+        let page = RecognizedPage(lines: [
+            RecognizedLine(text: "Apple Card", box: PageRect(x: 0.05, y: 0.05, width: 0.2, height: 0.02)),
+            RecognizedLine(text: "Statement Jul 1 — Jul 31, 2026", box: PageRect(x: 0.05, y: 0.1, width: 0.5, height: 0.02)),
+            cell("07/02/2026", 0.05, 0), cell("07/09/2026", 0.05, 1), cell("07/14/2026", 0.05, 2),
+            cell("SHELL OIL 57442 SAN JOSE CA", 0.2, 0), cell("APPLE.COM/BILL", 0.2, 1), cell("UBER *TRIP", 0.2, 2),
+            cell("2%", 0.6, 0), cell("3%", 0.6, 1), cell("2%", 0.6, 2),
+            cell("$0.84", 0.7, 0), cell("$0.09", 0.7, 1), cell("$0.36", 0.7, 2),
+            cell("$41.90", 0.85, 0), cell("$2.99", 0.85, 1), cell("$18.20", 0.85, 2),
+        ], source: .pdfText)
+        let facts = Extractor.extract(kind: .statement, pages: [page], recordId: id, merchant: "Apple Card")
+        #expect(facts.transactions.map(\.merchant) == ["Shell", "Apple.com/bill", "Uber"])
+        #expect(facts.transactions.map(\.amountCents) == [4190, 299, 1820])
+        #expect(facts.transactions.first?.category == .fuel)
+        #expect(facts.documentDate == Day(year: 2026, month: 7, day: 31))
+    }
+
     @Test func decemberLinesOnAJanuaryStatement() {
         let page = pdf(["Closing Date 01/05/2027", "12/28  NETFLIX.COM  15.49", "01/02  SHELL OIL  40.00"])
         let facts = Extractor.extract(kind: .statement, pages: [page], recordId: id, merchant: "Card")
@@ -238,6 +260,15 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         let august = pdf(["COSTCO", "08/05/2026", "TOTAL 10.00", "VISA"])
         let costcoId = try ingest(tmp, page: august, at: Date(timeIntervalSince1970: 1_790_100_000))
         #expect(try tmp.archive.store.records().map(\.id) == [shellId, costcoId])
+    }
+
+    @Test func pdfsReadWithoutPositionsAreQueuedOnce() throws {
+        let tmp = try TemporaryArchive()
+        let old = try ingest(tmp, page: pdf(["CHASE", "Statement", "09/02 SHELL 40.00"]))
+        let positioned = try ingest(tmp, page: shell)
+        #expect(try tmp.archive.store.queuePDFsWithoutPositions() == 1)
+        #expect(try tmp.archive.store.pendingRecordIds() == [old])
+        #expect(try tmp.archive.store.record(positioned)?.status == .ready)
     }
 
     @Test func handSetDatesStay() throws {

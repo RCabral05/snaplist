@@ -239,6 +239,21 @@ public struct ArchiveStore: Sendable {
         }
     }
 
+    /// Queues PDFs whose text was read without positions, so they're read
+    /// again with them. Returns how many were queued.
+    @discardableResult
+    public func queuePDFsWithoutPositions() throws -> Int {
+        try db.write { db in
+            try db.execute(sql: """
+                UPDATE record SET status = ? WHERE status = ? AND id IN (
+                    SELECT page.recordId FROM page
+                    WHERE page.textSource = ?
+                    AND NOT EXISTS (SELECT 1 FROM textLine WHERE textLine.pageId = page.id AND textLine.x IS NOT NULL))
+                """, arguments: [IngestStatus.pending.rawValue, IngestStatus.ready.rawValue, TextSource.pdfText.rawValue])
+            return db.changesCount
+        }
+    }
+
     /// Puts a failed record back in the queue.
     public func markPending(_ recordId: UUID) throws {
         try db.write { db in

@@ -79,6 +79,12 @@ final class AppModel {
             DemoData.seed(into: self)
         }
         #endif
+        // Once: PDFs read before their text kept positions are read again, so
+        // statements stored column by column come out as rows.
+        if !UserDefaults.standard.bool(forKey: "rereadPDFsWithPositions") {
+            _ = try? archive.store.queuePDFsWithoutPositions()
+            UserDefaults.standard.set(true, forKey: "rereadPDFsWithPositions")
+        }
         // Names records read before naming existed, e.g. "Scan Sep 30…".
         _ = try? archive.store.refreshSuggestions()
         resumePending()

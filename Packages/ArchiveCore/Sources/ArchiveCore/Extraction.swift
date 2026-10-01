@@ -37,26 +37,42 @@ enum Extractor {
     }
 
     /// Joins lines whose boxes share most of their height into one row, left
-    /// to right. Lines without boxes (a PDF's text layer) are rows already.
+    /// to right, and puts rows in reading order. The lines can come in any
+    /// order: a PDF often stores a table column by column (every date, then
+    /// every description, then every amount), which only reads as rows once
+    /// it's put back together by position. Lines without boxes are rows
+    /// already, in the order given.
     static func rows(of page: RecognizedPage, pagePosition: Int) -> [TextRow] {
-        var rows: [(text: String, line: Int, midY: Double, height: Double, minX: Double)] = []
+        struct Row {
+            var fragments: [(x: Double, text: String)]
+            var line: Int
+            var midY: Double
+            var height: Double
+        }
+        var rows: [Row] = []
         for (index, line) in page.lines.enumerated() {
             guard let box = line.box else {
-                rows.append((line.text, index, Double(index), 0, 0))
+                rows.append(Row(fragments: [(0, line.text)], line: index, midY: Double(index), height: 0))
                 continue
             }
             let midY = box.y + box.height / 2
-            if let last = rows.indices.last, rows[last].height > 0,
-               abs(rows[last].midY - midY) < min(rows[last].height, box.height) * 0.6 {
-                let joined = box.x >= rows[last].minX
-                    ? "\(rows[last].text) \(line.text)" : "\(line.text) \(rows[last].text)"
-                rows[last] = (joined, rows[last].line, rows[last].midY, max(rows[last].height, box.height),
-                              min(rows[last].minX, box.x))
+            if let match = rows.firstIndex(where: {
+                $0.height > 0 && abs($0.midY - midY) < min($0.height, box.height) * 0.6
+            }) {
+                rows[match].fragments.append((box.x, line.text))
+                rows[match].height = max(rows[match].height, box.height)
+                rows[match].line = min(rows[match].line, index)
             } else {
-                rows.append((line.text, index, midY, box.height, box.x))
+                rows.append(Row(fragments: [(box.x, line.text)], line: index, midY: midY, height: box.height))
             }
         }
-        return rows.map { TextRow(text: $0.text, pagePosition: pagePosition, linePosition: $0.line) }
+        if rows.allSatisfy({ $0.height > 0 }) {
+            rows.sort { $0.midY < $1.midY }
+        }
+        return rows.map { row in
+            let text = row.fragments.sorted { $0.x < $1.x }.map(\.text).joined(separator: " ")
+            return TextRow(text: text, pagePosition: pagePosition, linePosition: row.line)
+        }
     }
 
     // MARK: Receipts and bills
