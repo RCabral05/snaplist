@@ -302,8 +302,10 @@ let jpeg = ImportItem(type: .image, source: .data(Data([0xFF, 0xD8, 0xFF])), fil
         let orphan = tmp.archive.files.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: orphan, withIntermediateDirectories: true)
 
-        let removed = try tmp.archive.files.sweep(keeping: Set(try tmp.archive.store.records().map(\.id)))
+        let keep = Set(try tmp.archive.store.records().map(\.id))
 
+        #expect(try tmp.archive.files.sweep(keeping: keep, unchangedSince: Date().addingTimeInterval(-3600)) == 0)
+        let removed = try tmp.archive.files.sweep(keeping: keep, unchangedSince: Date().addingTimeInterval(60))
         #expect(removed == 1)
         #expect(try tmp.folderCount() == 1)
         #expect(try tmp.archive.store.assets(of: record.id).count == 1)

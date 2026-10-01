@@ -2,7 +2,7 @@ import Foundation
 
 /// The originals on disk: `root/<record id>/<asset id>.<ext>`. One folder per
 /// record makes deleting a record one call, and a sweep can tell an orphan
-/// folder by its name alone.
+/// folder by its name.
 public struct ArchiveFiles: Sendable {
     public let root: URL
 
@@ -50,11 +50,15 @@ public struct ArchiveFiles: Sendable {
     }
 
     /// Removes folders whose record is gone. Returns how many it removed.
+    /// Only folders untouched since `cutoff` count: an import writes its files
+    /// before its rows, so a brand-new folder with no record yet is not an orphan.
     @discardableResult
-    public func sweep(keeping recordIds: Set<UUID>) throws -> Int {
+    public func sweep(keeping recordIds: Set<UUID>, unchangedSince cutoff: Date) throws -> Int {
         var removed = 0
         for item in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
             guard let id = UUID(uuidString: item.lastPathComponent), !recordIds.contains(id) else { continue }
+            let modified = try FileManager.default.attributesOfItem(atPath: item.path)[.modificationDate] as? Date
+            guard let modified, modified < cutoff else { continue }
             try FileManager.default.removeItem(at: item)
             removed += 1
         }

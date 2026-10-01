@@ -43,7 +43,7 @@ public struct Archive: Sendable {
     }
 
     /// Rows first, then files. If the file removal fails the person no longer
-    /// sees the record; the folder is an orphan `ArchiveFiles.sweep` collects.
+    /// sees the record; the folder is an orphan that `ArchiveFiles.sweep` collects.
     public func delete(_ recordId: UUID) throws {
         try store.delete(recordId)
         try files.removeRecord(recordId)

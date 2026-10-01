@@ -29,7 +29,8 @@ public struct Ingestor: Sendable {
             }
             try archive.store.saveText(extracted, for: recordId)
         } catch {
-            try? archive.store.markFailed(recordId, reason: String(describing: error))
+            let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            try? archive.store.markFailed(recordId, reason: reason)
         }
     }
 
