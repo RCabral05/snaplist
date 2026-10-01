@@ -12,6 +12,7 @@ struct RecordListView: View {
     @State private var isPickingFiles = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var pendingDelete: Record?
+    @State private var isShowingSettings = false
 
     /// Where a row leads: the record, and for a search hit the page that matched.
     struct Destination: Hashable {
@@ -48,8 +49,12 @@ struct RecordListView: View {
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Settings", systemImage: "gearshape") { isShowingSettings = true }
+                }
                 ToolbarItem(placement: .primaryAction) { addMenu }
             }
+            .sheet(isPresented: $isShowingSettings) { SettingsView() }
             .fullScreenCover(isPresented: $isScanning) {
                 DocumentScanner { images in
                     isScanning = false
