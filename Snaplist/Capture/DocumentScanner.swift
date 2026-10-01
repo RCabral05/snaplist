@@ -19,8 +19,10 @@ struct DocumentScanner: UIViewControllerRepresentable {
         Coordinator(onFinish: onFinish, onCancel: onCancel)
     }
 
+    /// VisionKit calls these on the main thread but its protocol isn't marked
+    /// main-actor; @preconcurrency checks that at runtime instead.
     @MainActor
-    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+    final class Coordinator: NSObject, @preconcurrency VNDocumentCameraViewControllerDelegate {
         let onFinish: ([UIImage]) -> Void
         let onCancel: () -> Void
 
