@@ -11,10 +11,8 @@ Everything stays on the phone. There is no account and no server.
 Phase 1 of the plan below: capture, local storage, on-device text recognition,
 and search that leads back to the page a match was found on.
 
-The previous Expo app (sign-in and a profile, backed by Supabase) is still in
-this branch under `src/`, `supabase/` and the npm files, untouched. It is due
-to be removed; until then it builds and runs as before and nothing here
-depends on it.
+The previous Expo app (sign-in and a profile, backed by Supabase) was removed
+on 2026-10-01 and is in git history before that.
 
 ## Building
 
@@ -38,6 +36,22 @@ The core package also builds and tests anywhere Swift 6 runs:
 ```
 swift test --package-path Packages/ArchiveCore
 ```
+
+## TestFlight
+
+`.github/workflows/testflight.yml`, run by hand from the Actions tab, archives,
+signs (automatic, cloud-managed) and uploads a build. Build numbers are
+`1000 + run number`. It needs four repository secrets:
+
+| Secret | What |
+| --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | the API key's ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | the issuer ID shown above the keys list |
+| `APP_STORE_CONNECT_KEY` | the whole `.p8` file, including the BEGIN/END lines |
+| `APPLE_TEAM_ID` | the 10-character team ID |
+
+The key needs the Admin role (or App Manager with access to cloud-managed
+distribution certificates) so Xcode can create the signing certificate.
 
 ## How it is put together
 
