@@ -8,3 +8,9 @@ ios/
 android/
 .env
 .env.local
+
+# Swift / Xcode
+.build/
+*.xcodeproj
+DerivedData/
+xcuserdata/
