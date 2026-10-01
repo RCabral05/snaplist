@@ -1,0 +1,85 @@
+import ArchiveCore
+import Foundation
+import UserNotifications
+
+/// Notifications a few days before a bill is due and a month before a
+/// warranty ends, when turned on in Settings. Scheduled on this iPhone from
+/// the dates read off saved records; nothing is sent anywhere.
+enum Reminders {
+    static let settingKey = "remindersEnabled"
+    private static let prefix = "snaplist.reminder."
+
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: settingKey)
+    }
+
+    /// Asks iOS for permission. False if the person said no.
+    static func requestPermission() async -> Bool {
+        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+    }
+
+    /// Replaces every scheduled reminder with ones for `dates`; with
+    /// reminders off, just removes them.
+    static func schedule(_ dates: [UpcomingDate], now: Date = .now) async {
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) }
+        center.removePendingNotificationRequests(withIdentifiers: pending)
+        guard isEnabled else { return }
+
+        let calendar = Calendar.current
+        var added = 0
+        for date in dates {
+            // iOS keeps 64 per app; leave room.
+            guard added < 50 else { break }
+            let daysBefore = date.kind == .billDue ? 3 : 30
+            guard var fire = calendar.date(byAdding: .day, value: -daysBefore, to: date.day.date(calendar: calendar)),
+                  let nineAM = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: fire) else { continue }
+            fire = nineAM
+            if fire <= now {
+                // Too late for the usual notice: the morning of, if that's still ahead.
+                guard let morningOf = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: date.day.date(calendar: calendar)),
+                      morningOf > now else { continue }
+                fire = morningOf
+            }
+
+            let content = UNMutableNotificationContent()
+            let when = date.day.date(calendar: calendar).formatted(.dateTime.month(.abbreviated).day())
+            switch date.kind {
+            case .billDue:
+                content.title = "\(date.record.title) is due \(when)"
+                content.body = date.amount.map { "\($0.formatted) is due. Tap to see the bill." } ?? "Tap to see it in Snaplist."
+            case .warrantyEnds:
+                content.title = "A warranty ends \(when)"
+                content.body = "“\(date.record.title)” stops covering you then. Tap to see it."
+            }
+            content.sound = .default
+            content.userInfo = ["recordId": date.record.id.uuidString]
+
+            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+            let request = UNNotificationRequest(identifier: prefix + date.id, content: content,
+                                                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false))
+            try? await center.add(request)
+            added += 1
+        }
+    }
+}
+
+/// Opens the record a reminder is about when it's tapped, and shows
+/// reminders that arrive while Snaplist is open.
+final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate, Sendable {
+    static let shared = NotificationRouter()
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        let id = (response.notification.request.content.userInfo["recordId"] as? String).flatMap(UUID.init(uuidString:))
+        guard let id else { return }
+        await MainActor.run {
+            (try? SharedModel.model())?.pendingRecordId = id
+        }
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+}

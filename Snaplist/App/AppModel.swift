@@ -34,6 +34,9 @@ final class AppModel {
     var pendingRecordId: UUID?
 
     private var spotlightTask: Task<Void, Never>?
+    private var remindersTask: Task<Void, Never>?
+    /// "Added 2 files", shown briefly after something arrives from another app.
+    var notice: String?
 
     private let thumbnails = NSCache<NSString, UIImage>()
 
@@ -102,6 +105,7 @@ final class AppModel {
                 records = list
                 refreshTotals()
                 updateSpotlight()
+                updateReminders()
                 // A record that just became ready may now match.
                 search()
             }
@@ -437,9 +441,49 @@ final class AppModel {
             amountsChanged()
             try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appending(path: "Export"))
             await Spotlight.removeAll()
+            await Reminders.schedule([])
         } catch {
             errorMessage = "Couldn't delete everything: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: Overview
+
+    func spendingOverview() -> SpendingOverview? {
+        (try? archive.store.spendingOverview())
+    }
+
+    func recurringCharges() -> [RecurringCharge] {
+        (try? archive.store.recurringCharges()) ?? []
+    }
+
+    func upcomingDates() -> [UpcomingDate] {
+        (try? archive.store.upcomingDates(from: Day(.now))) ?? []
+    }
+
+    /// Keeps scheduled reminders in step with the records. Coalesced.
+    func updateReminders() {
+        remindersTask?.cancel()
+        let dates = upcomingDates()
+        remindersTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            await Reminders.schedule(dates)
+        }
+    }
+
+    // MARK: From other apps
+
+    /// A PDF or image shared to Snaplist from Mail, Files, Safari or any app
+    /// with a share button. iOS hands over a copy, which is removed once
+    /// it's in the archive.
+    func importShared(_ url: URL) {
+        guard url.isFileURL else { return }
+        importFiles([url])
+        if url.path.contains("/Inbox/") {
+            try? FileManager.default.removeItem(at: url)
+        }
+        notice = "Added \(url.deletingPathExtension().lastPathComponent)"
     }
 
     // MARK: Spotlight

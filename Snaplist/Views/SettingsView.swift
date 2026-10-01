@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     @AppStorage(QuestionInterpreter.settingKey) private var useAppleIntelligence = true
     @AppStorage(Spotlight.settingKey) private var showInSpotlight = false
+    @AppStorage(Reminders.settingKey) private var remindersEnabled = false
+    @State private var remindersDenied = false
 
     @State private var export: ExportState = .idle
     @State private var isConfirmingDelete = false
@@ -63,6 +65,26 @@ struct SettingsView: View {
                     Text(lock.isEnabled
                          ? "With the lock on, Siri opens Snaplist to show answers after you unlock it. Spotlight shows record names, dates and totals, but never what's written on a page, and doesn't ask for \(AppLock.methodName)."
                          : "Siri answers out loud while your iPhone is unlocked. Spotlight shows record names, dates and totals, but never what's written on a page.")
+                }
+                .listRowBackground(Theme.surface)
+
+                Section {
+                    Toggle("Bills and Warranties", isOn: $remindersEnabled)
+                        .onChange(of: remindersEnabled) { _, enabled in
+                            Task {
+                                if enabled, !(await Reminders.requestPermission()) {
+                                    remindersEnabled = false
+                                    remindersDenied = true
+                                }
+                                model.updateReminders()
+                            }
+                        }
+                } header: {
+                    Text("Reminders")
+                } footer: {
+                    Text(remindersDenied
+                         ? "Notifications are off for Snaplist. Turn them on in the Settings app under Notifications, then try again."
+                         : "A notification 3 days before a bill is due and 30 days before a warranty ends, using dates read from what you've saved. The bill's name and amount show in the notification.")
                 }
                 .listRowBackground(Theme.surface)
 

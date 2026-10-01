@@ -14,7 +14,7 @@ public enum Question: Equatable, Sendable {
     case search(String)
 }
 
-public struct SpendingQuery: Equatable, Sendable {
+public struct SpendingQuery: Hashable, Sendable {
     public var categories: Set<SpendCategory> = []
     /// Words that must appear in the merchant, the printed line or the
     /// record's name: "costco", "amazon".

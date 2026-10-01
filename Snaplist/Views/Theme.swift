@@ -103,3 +103,34 @@ struct DateGroup: Identifiable {
         return date.formatted(.dateTime.month(.wide).year())
     }
 }
+
+extension SpendCategory {
+    /// Earthy like the record colours, distinct enough to stack in a chart.
+    var tint: Color {
+        switch self {
+        case .fuel: Color(light: 0xB45309, dark: 0xF5B942)          // amber
+        case .groceries: Color(light: 0x4F7A5C, dark: 0x8FBF9C)     // sage
+        case .dining: Color(light: 0xA65A33, dark: 0xE09A72)        // clay
+        case .pharmacy: Color(light: 0x3F7F86, dark: 0x86C3C9)      // teal
+        case .utilities: Color(light: 0x56657A, dark: 0x9FB0C6)     // slate
+        case .subscriptions: Color(light: 0x77588A, dark: 0xBBA0CB) // plum
+        case .shopping: Color(light: 0xA2505F, dark: 0xDC93A1)      // rose
+        case .travel: Color(light: 0x7D6142, dark: 0xC7A57F)        // walnut
+        case .other: Color(light: 0x8A857B, dark: 0x8F8A80)         // ash
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .fuel: "fuelpump"
+        case .groceries: "cart"
+        case .dining: "fork.knife"
+        case .pharmacy: "cross.case"
+        case .utilities: "bolt"
+        case .subscriptions: "repeat"
+        case .shopping: "bag"
+        case .travel: "airplane"
+        case .other: "square.grid.2x2"
+        }
+    }
+}

@@ -138,7 +138,7 @@ enum AskResult {
     }
 }
 
-private struct AnswerView: View {
+struct AnswerView: View {
     let result: AskResult
     /// Re-asks a spending question for another period.
     var reask: (SpendingQuery) -> Void
@@ -273,7 +273,7 @@ private struct SpendingAnswerView: View {
 
 }
 
-private struct CountedRow: View {
+struct CountedRow: View {
     let item: Counted
 
     var body: some View {

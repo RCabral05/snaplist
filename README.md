@@ -121,4 +121,9 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
    into the same structured question. It never adds up amounts.~~
 8. ~~Category fixes per line or per merchant ("DoorDash is eating out").~~
 
+9. ~~Spending overview by month and category, repeating charges, bill and
+   warranty reminders (local notifications), Open in Snaplist from the share
+   sheet for PDFs and images.~~
+10. People and places on records.
+
 Later: iCloud sync, household sharing, a paid tier.

@@ -18,6 +18,7 @@ struct RecordListView: View {
     /// A question Siri handed over, asked as Ask opens.
     @State private var handedQuestion = ""
     @State private var path: [Destination] = []
+    @State private var isShowingOverview = false
     @State private var isRecordingNote = false
 
     /// Where a card leads: the record, and for a search hit the page that matched.
@@ -63,6 +64,8 @@ struct RecordListView: View {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if !model.records.isEmpty {
+                        Button("Spending", systemImage: "chart.bar.xaxis") { isShowingOverview = true }
+                            .accessibilityIdentifier("spending")
                         Button("Ask", systemImage: "sparkle.magnifyingglass") { isAsking = true }
                             .accessibilityIdentifier("ask")
                     }
@@ -70,6 +73,23 @@ struct RecordListView: View {
                 }
             }
             .sheet(isPresented: $isShowingSettings) { SettingsView() }
+            .sheet(isPresented: $isShowingOverview) { OverviewView() }
+            .overlay(alignment: .bottom) {
+                if let notice = model.notice {
+                    Label(notice, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .task(id: notice) {
+                            try? await Task.sleep(for: .seconds(2.5))
+                            withAnimation { model.notice = nil }
+                        }
+                }
+            }
+            .animation(.snappy, value: model.notice)
             .sheet(isPresented: $isAsking, onDismiss: { handedQuestion = "" }) { AskView(question: handedQuestion) }
             // From Siri, when the lock meant the answer had to be shown here.
             .task(id: model.pendingQuestion) {
@@ -89,6 +109,7 @@ struct RecordListView: View {
                 model.pendingRecordId = nil
                 isAsking = false
                 isShowingSettings = false
+                isShowingOverview = false
                 path = [Destination(record: record)]
             }
             .onChange(of: model.records) {

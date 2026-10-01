@@ -1,6 +1,7 @@
 import CoreSpotlight
 import SwiftUI
 import UIKit
+import UserNotifications
 
 @main
 struct SnaplistApp: App {
@@ -10,6 +11,7 @@ struct SnaplistApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        UNUserNotificationCenter.current().delegate = NotificationRouter.shared
         // New York for navigation titles, to match the headings.
         let appearance = UINavigationBar.appearance()
         if let large = UIFont.preferredFont(forTextStyle: .largeTitle).fontDescriptor
@@ -45,6 +47,9 @@ struct SnaplistApp: App {
                 .preferredColorScheme(DemoData.forcedColorScheme)
                 // On the container, so locking and unlocking doesn't restart it.
                 .task { await model.start() }
+                // Shared from another app; imported even while locked, since
+                // adding a file reveals nothing.
+                .onOpenURL { url in model.importShared(url) }
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     model.pendingRecordId = Spotlight.recordId(from: activity)
                 }
