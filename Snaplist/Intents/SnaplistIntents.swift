@@ -9,7 +9,7 @@ import Foundation
 struct AskSnaplistIntent: AppIntent, ForegroundContinuableIntent {
     static let title: LocalizedStringResource = "Ask Snaplist"
     static let description = IntentDescription(
-        "Answers a question from the receipts, statements, bills and notes saved in Snaplist. Worked out on this iPhone.")
+        "Answers a question from the receipts, statements, bills and notes saved in Snaplist, worked out on your device.")
     static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @Parameter(title: "Question", requestValueDialog: "What would you like to know?")
