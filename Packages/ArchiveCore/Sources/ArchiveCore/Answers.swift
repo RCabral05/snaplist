@@ -54,6 +54,12 @@ extension ArchiveStore {
     /// cents done here, never by a language model; every amount in it is in
     /// `counted` with the record it came from.
     public func answer(_ query: SpendingQuery) throws -> SpendingAnswer {
+        let unreadStatements = try db.read { db in
+            try Int.fetchOne(db, sql: """
+                SELECT COUNT(*) FROM record WHERE kind = ? AND status = ?
+                AND NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id)
+                """, arguments: [RecordKind.statement.rawValue, IngestStatus.ready.rawValue]) ?? 0
+        }
         let all = try db.read { db -> [Counted] in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT txn.* FROM txn JOIN record ON record.id = txn.recordId
@@ -84,6 +90,11 @@ extension ArchiveStore {
             notes.append(duplicates.count == 1
                 ? "1 purchase appears on both a receipt and a statement; it's counted once."
                 : "\(duplicates.count) purchases appear on both a receipt and a statement; each is counted once.")
+        }
+        if unreadStatements > 0 {
+            notes.append(unreadStatements == 1
+                ? "1 statement in your archive has no transactions read from it yet, so it isn't counted. Open it to check or add them."
+                : "\(unreadStatements) statements in your archive have no transactions read from them yet, so they aren't counted. Open them to check or add them.")
         }
         var otherMonths: [MonthTotal] = []
         if let range = query.range, let label = query.rangeLabel {

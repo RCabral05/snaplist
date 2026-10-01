@@ -144,6 +144,13 @@ private let today = Day(year: 2026, month: 10, day: 1)!
         #expect(answer.notes.contains { $0.contains("Your statements cover September 2026") })
     }
 
+    @Test func statementsWithNothingReadAreMentioned() throws {
+        let tmp = try archive([("Scan", nil, october1, [pdf("Card Statement", "Balance $10.00", "nothing on this page")])])
+        let answer = try tmp.archive.store.answer(SpendingQuery(categories: [.fuel]))
+        #expect(answer.counted.isEmpty)
+        #expect(answer.notes.contains { $0.contains("no transactions read") })
+    }
+
     @Test func nothingFoundIsEmptyNotZeroGuessing() throws {
         let tmp = try archive(sample)
         let answer = try tmp.archive.store.answer(SpendingQuery(merchantTerms: ["starbucks"]))

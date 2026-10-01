@@ -85,6 +85,8 @@ final class AppModel {
             _ = try? archive.store.queuePDFsWithoutPositions()
             UserDefaults.standard.set(true, forKey: "rereadPDFsWithPositions")
         }
+        // Statements whose transactions couldn't be read: read again, as images.
+        _ = try? archive.store.queueStatementsNeedingImageReading()
         // Names records read before naming existed, e.g. "Scan Sep 30…".
         _ = try? archive.store.refreshSuggestions()
         resumePending()

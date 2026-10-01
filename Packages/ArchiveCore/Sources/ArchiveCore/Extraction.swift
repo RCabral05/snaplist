@@ -56,8 +56,12 @@ enum Extractor {
                 continue
             }
             let midY = box.y + box.height / 2
-            if let match = rows.firstIndex(where: {
-                $0.height > 0 && abs($0.midY - midY) < min($0.height, box.height) * 0.6
+            // Same row when the two overlap for at least half the shorter
+            // one's height: a date cell and an amount cell rarely match exactly.
+            if let match = rows.firstIndex(where: { row in
+                guard row.height > 0 else { return false }
+                let overlap = min(row.midY + row.height / 2, box.y + box.height) - max(row.midY - row.height / 2, box.y)
+                return overlap >= min(row.height, box.height) * 0.5
             }) {
                 rows[match].fragments.append((box.x, line.text))
                 rows[match].height = max(rows[match].height, box.height)

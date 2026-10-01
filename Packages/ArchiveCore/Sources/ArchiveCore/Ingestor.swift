@@ -5,6 +5,15 @@ import Foundation
 /// a fake. Throwing marks the record failed with the error as its reason.
 public protocol TextExtractor: Sendable {
     func pages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage]
+
+    /// The pages read as images, ignoring any text layer: for PDFs whose
+    /// text layer comes out in an order that can't be read as rows. Nil if
+    /// this extractor can't.
+    func recognizedPages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage]?
+}
+
+extension TextExtractor {
+    public func recognizedPages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage]? { nil }
 }
 
 /// Turns pending records into searchable ones.
@@ -28,6 +37,21 @@ public struct Ingestor: Sendable {
                 extracted.append(ExtractedAsset(assetId: asset.id, pages: pages))
             }
             try archive.store.saveText(extracted, for: recordId)
+
+            // A statement whose text layer gave no transactions: read the
+            // pages as images instead, which always gives each line a place.
+            if try archive.store.needsImageReading(recordId) {
+                var reread: [ExtractedAsset] = []
+                for (asset, original) in zip(try archive.store.assets(of: recordId), extracted) {
+                    if asset.type == .pdf,
+                       let pages = try await extractor.recognizedPages(of: archive.url(for: asset), type: asset.type) {
+                        reread.append(ExtractedAsset(assetId: asset.id, pages: pages))
+                    } else {
+                        reread.append(original)
+                    }
+                }
+                try archive.store.saveText(reread, for: recordId)
+            }
         } catch {
             let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
             try? archive.store.markFailed(recordId, reason: reason)

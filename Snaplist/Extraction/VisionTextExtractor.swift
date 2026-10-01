@@ -63,6 +63,19 @@ struct VisionTextExtractor: TextExtractor {
         return pages
     }
 
+    /// Every page rendered and read with Vision, ignoring the text layer:
+    /// the fallback for statements whose text layer can't be read as rows.
+    @concurrent
+    func recognizedPages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage]? {
+        guard type == .pdf, let document = PDFDocument(url: fileURL) else { return nil }
+        var pages: [RecognizedPage] = []
+        for index in 0..<document.pageCount {
+            let image = try PageImages.cgImage(of: fileURL, type: .pdf, pageInAsset: index, maxPixelSize: Self.ocrPixelSize)
+            pages.append(try await recognize(image))
+        }
+        return pages
+    }
+
     /// The text layer line by line, each with where it sits on the page.
     /// Positions matter: many PDFs store a table column by column, and only
     /// positions turn that back into rows. They also let "Show on Page"

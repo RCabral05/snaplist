@@ -254,6 +254,33 @@ public struct ArchiveStore: Sendable {
         }
     }
 
+    /// Queues every statement that `needsImageReading`, so it's read again
+    /// (and then read as images). Safe at every launch: once read as images
+    /// a statement no longer qualifies.
+    @discardableResult
+    public func queueStatementsNeedingImageReading() throws -> Int {
+        try db.write { db in
+            try db.execute(sql: """
+                UPDATE record SET status = ? WHERE status = ? AND kind = ?
+                AND NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id)
+                AND EXISTS (SELECT 1 FROM page WHERE page.recordId = record.id AND page.textSource = ?)
+                """, arguments: [IngestStatus.pending.rawValue, IngestStatus.ready.rawValue,
+                                 RecordKind.statement.rawValue, TextSource.pdfText.rawValue])
+            return db.changesCount
+        }
+    }
+
+    /// A statement read from a PDF's text layer that produced no transactions.
+    public func needsImageReading(_ recordId: UUID) throws -> Bool {
+        try db.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS (SELECT 1 FROM record WHERE id = ? AND kind = ?)
+                   AND NOT EXISTS (SELECT 1 FROM txn WHERE recordId = ?)
+                   AND EXISTS (SELECT 1 FROM page WHERE recordId = ? AND textSource = ?)
+                """, arguments: [recordId, RecordKind.statement.rawValue, recordId, recordId, TextSource.pdfText.rawValue]) ?? false
+        }
+    }
+
     /// Puts a failed record back in the queue.
     public func markPending(_ recordId: UUID) throws {
         try db.write { db in

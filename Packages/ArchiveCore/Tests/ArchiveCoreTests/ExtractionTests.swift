@@ -317,3 +317,40 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         #expect(t.dropLast().allSatisfy { $0.kind == .purchase })
     }
 }
+
+@Suite struct ImageReadingFallback {
+    /// A text layer in an unreadable order, and the same page read as an image.
+    struct Extractor: TextExtractor {
+        func pages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage] {
+            [RecognizedPage(lines: ["Card", "Statement", "Balance", "06/18/2026", "06/21/2026", "SHELL OIL", "SHELL OIL", "$29.12", "$13.28"]
+                .map { RecognizedLine(text: $0) }, source: .pdfText)]
+        }
+
+        func recognizedPages(of fileURL: URL, type: AssetType) async throws -> [RecognizedPage]? {
+            [RecognizedPage(lines: [
+                RecognizedLine(text: "Card Statement Jun 1 — Jun 30, 2026", box: PageRect(x: 0.1, y: 0.05, width: 0.6, height: 0.02)),
+                RecognizedLine(text: "Balance $42.40", box: PageRect(x: 0.1, y: 0.1, width: 0.3, height: 0.02)),
+                RecognizedLine(text: "06/18/2026", box: PageRect(x: 0.05, y: 0.3, width: 0.1, height: 0.018)),
+                RecognizedLine(text: "SHELL OIL 2050 PLAINFIELD", box: PageRect(x: 0.2, y: 0.302, width: 0.4, height: 0.014)),
+                RecognizedLine(text: "$29.12", box: PageRect(x: 0.85, y: 0.299, width: 0.1, height: 0.02)),
+                RecognizedLine(text: "06/21/2026", box: PageRect(x: 0.05, y: 0.33, width: 0.1, height: 0.018)),
+                RecognizedLine(text: "SHELL OIL 2050 PLAINFIELD", box: PageRect(x: 0.2, y: 0.332, width: 0.4, height: 0.014)),
+                RecognizedLine(text: "$13.28", box: PageRect(x: 0.85, y: 0.329, width: 0.1, height: 0.02)),
+            ], source: .ocr)]
+        }
+    }
+
+    @Test func statementsWithUnreadableTextLayersAreReadAsImages() async throws {
+        let tmp = try TemporaryArchive()
+        let record = try tmp.archive.add(kind: .statement, title: "Card", nameSource: .file,
+                                         items: [ImportItem(type: .pdf, source: .data(Data([1])), fileExtension: "pdf")])
+        await Ingestor(archive: tmp.archive, extractor: Extractor()).process(record.id)
+
+        let amounts = try tmp.archive.store.transactions(of: record.id)
+        #expect(amounts.map(\.amountCents) == [2912, 1328])
+        #expect(amounts.allSatisfy { $0.category == .fuel })
+        #expect(try tmp.archive.store.pages(of: record.id).first?.textSource == .ocr)
+        #expect(try tmp.archive.store.needsImageReading(record.id) == false)
+        #expect(try tmp.archive.store.queueStatementsNeedingImageReading() == 0)
+    }
+}
