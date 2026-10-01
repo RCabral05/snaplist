@@ -169,7 +169,6 @@ enum DemoData {
         return UIGraphicsImageRenderer(size: size, format: format).image(actions: draw)
     }
 }
-#endif
 #else
 /// Release builds: no demo data, the system's appearance.
 enum DemoData {
