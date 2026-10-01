@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, native-archive]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # The archive's logic: storage, search, ingestion. Cheap, so it runs first.
+  core:
+    runs-on: ubuntu-24.04
+    container: swift:6.4.0-noble
+    steps:
+      - uses: actions/checkout@v5
+      - run: apt-get update -q && apt-get install -yq libsqlite3-dev
+      - run: swift test --package-path Packages/ArchiveCore
+
+  # The iPhone app. macOS minutes are billed at 10x on private repos, so this
+  # waits for the core to pass and only builds; it does not run the simulator.
+  ios:
+    needs: core
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use the newest installed release Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_[0-9]*.app | grep -iv beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build for the simulator
+        run: |
+          xcodebuild build \
+            -project Snaplist.xcodeproj -scheme Snaplist \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
