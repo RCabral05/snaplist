@@ -159,6 +159,7 @@ enum Extractor {
     /// own closing date, stepping back a year for December lines on a
     /// January statement.
     static func statement(_ rows: [TextRow], recordId: UUID) -> ExtractedFacts {
+        let rows = joiningAmountLines(rows)
         let closing = statementClosingDate(rows)
         var transactions: [Amount] = []
 
@@ -201,6 +202,60 @@ enum Extractor {
                 category: kind == .payment ? .other : nil, source: .statement))
         }
         return ExtractedFacts(documentDate: closing, transactions: transactions)
+    }
+
+    /// A line that starts with a date but has no amount takes the lines
+    /// after it that are only amounts or percentages, and, if the date was
+    /// alone, the description line before them. The iPhone's PDF text for an
+    /// Apple Card statement puts "06/29/2026 DD *DOORDASH … 2%" on one line
+    /// and "$0.68" and "$34.18" on the next two; other readers put even the
+    /// date on its own line.
+    static func joiningAmountLines(_ rows: [TextRow]) -> [TextRow] {
+        var joined: [TextRow] = []
+        var index = 0
+        while index < rows.count {
+            var row = rows[index]
+            index += 1
+            guard DayParser.leadingDate(in: row.text) != nil, MoneyParser.amounts(in: row.text).isEmpty else {
+                joined.append(row)
+                continue
+            }
+            let dateLength = DayParser.leadingDate(in: row.text)?.length ?? 0
+            let afterDate = (row.text as NSString).substring(from: min(dateLength, (row.text as NSString).length))
+            if afterDate.count(where: \.isLetter) < 2, index < rows.count,
+               DayParser.leadingDate(in: rows[index].text) == nil, !isOnlyAmounts(rows[index].text),
+               MoneyParser.amounts(in: rows[index].text).isEmpty {
+                row.text += " " + rows[index].text
+                index += 1
+            }
+            while index < rows.count {
+                let next = rows[index].text.trimmingCharacters(in: .whitespaces)
+                // Amounts, and cash-back notes like "3% Daily Cash at Exxon Mobil".
+                if isOnlyAmounts(next) || next.range(of: "^\\d{1,2}% ", options: .regularExpression) != nil {
+                    row.text += " " + next
+                    index += 1
+                } else if columnHeaders.contains(next.lowercased()), MoneyParser.amounts(in: row.text).isEmpty {
+                    // A column heading read in between: "Amount".
+                    index += 1
+                } else {
+                    break
+                }
+            }
+            joined.append(row)
+        }
+        return joined
+    }
+
+    static let columnHeaders: Set<String> = ["amount", "daily cash", "date", "description", "debit", "credit",
+                                             "balance", "transaction date", "post date"]
+
+    /// "$0.68", "-$2,316.54", "1%", "$0.09 $8.55": numbers and nothing else.
+    static func isOnlyAmounts(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !trimmed.contains(where: \.isLetter) || trimmed.hasSuffix("CR") else { return false }
+        let leftover = trimmed.replacingOccurrences(of: "CR", with: "")
+            .filter { !"0123456789$€£.,%-−() ".contains($0) }
+        return leftover.isEmpty && (!MoneyParser.amounts(in: trimmed).isEmpty || trimmed.hasSuffix("%"))
     }
 
     /// The end of the statement period: the later date on a "period" or
@@ -254,6 +309,11 @@ enum Extractor {
         if let known = Suggester.knownName(inText: description) {
             return known
         }
+        // Card-terminal prefixes ("TST*", "SQ *") aren't part of the name, and
+        // anything after " - " is usually the location.
+        var description = description.replacingOccurrences(
+            of: "^(tst|sq|sp|py|pp|wl|in|ck|pos)\\s?\\*\\s*", with: "", options: [.regularExpression, .caseInsensitive])
+        if let dash = description.range(of: " - ") { description = String(description[..<dash.lowerBound]) }
         // The name, before the store number or street address starts.
         var words: [Substring] = []
         for word in description.split(separator: " ") {

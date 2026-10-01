@@ -354,3 +354,85 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         #expect(try tmp.archive.store.queueStatementsNeedingImageReading() == 0)
     }
 }
+
+@Suite struct IPhonePDFText {
+    /// The text the iPhone's PDF reader gave for page 2 of an Apple Card
+    /// statement (personal details replaced): amounts on their own lines.
+    static let page2 = """
+        Apple Card Customer
+        Card Holder, holder@example.com
+        Statement
+        Jul 1 — Jul 31, 2026
+        Payments
+        Date
+        Description
+        Amount
+        07/31/2026
+        ACH Deposit Internet transfer from account ending in 0000
+        -$2,316.54
+        Total payments for this period
+        -$2,316.54
+        Transactions
+        Date
+        Description
+        Daily Cash
+        Amount
+        06/29/2026 DD *DOORDASH CHIPOTLEM303 2ND STREET 8559731040 94107 CA USA 2%
+        $0.68
+        $34.18
+        06/30/2026 Prime Video Channels 440 Terry Ave N SEATTLE 98109 WA USA
+        1%
+        $0.09
+        $8.55
+        07/01/2026 RMC BUILT 200 Centerville Rd #8 WARWICK 02886 RI USA
+        1%
+        $0.01
+        $1.00
+        07/03/2026 TST*KAFFEOLOGY - CRANS50 Hillside Rd Cranston 02920 RI USA 2%
+        $2.27
+        $113.41
+        07/04/2026 SHELL OIL13058000012 2050 PLAINFIELD PIKE CRANSTON 02921 RI USA 2%
+        $0.55
+        $27.67
+        07/06/2026 DD *DOORDASHDASHPASS 303 2nd Street Suite 800 SAN FRANCISCO94107 CA USA 2%
+        $0.20
+        $9.99
+        Apple Card is issued by Goldman Sachs Bank USA, Salt Lake City Branch.
+        Page 2 /7
+        """
+
+    @Test func amountsOnTheLinesAfterTheDate() {
+        let page = RecognizedPage(lines: Self.page2.split(separator: "\n").map { RecognizedLine(text: String($0)) }, source: .pdfText)
+        let facts = Extractor.extract(kind: .statement, pages: [page], recordId: UUID(), merchant: "Apple Card")
+        let t = facts.transactions
+        #expect(facts.documentDate == Day(year: 2026, month: 7, day: 31))
+        #expect(t.map(\.amountCents) == [231654, 3418, 855, 100, 11341, 2767, 999])
+        #expect(t.map(\.merchant) == ["ACH Deposit Internet Transfer", "DoorDash", "Prime Video", "RMC Built", "Kaffeology", "Shell", "DoorDash"])
+        #expect(t.first { $0.merchant == "Shell" }?.category == .fuel)
+        #expect(t.first?.kind == .payment)
+        #expect(t.dropFirst().allSatisfy { $0.kind == .purchase })
+    }
+
+    @Test func everyCellOnItsOwnLine() {
+        // Another reader's version: date, description, a cash-back note,
+        // percentages and amounts all separate, with column headings mixed in.
+        let lines = ["Payments", "Date", "Description", "06/30/2026", "ACH Deposit Internet transfer from account ending in 0000",
+                     "Amount", "-$4,295.06", "Total payments for this period", "-$4,295.06", "Transactions",
+                     "06/22/2026", "EXXON RTE 117 MOBIL 2291 FLAT RIVER RD COVENTRY 02816 RI USA",
+                     "3% Daily Cash at Exxon Mobil", "2%", "1%", "$1.16", "$0.58", "$57.92",
+                     "06/22/2026", "CHIPOTLE 0978 969 BALD HILL RD WARWICK 02886 RI USA", "2%", "$0.22", "$10.75"]
+        let page = RecognizedPage(lines: (["Statement Jun 1 — Jun 30, 2026"] + lines).map { RecognizedLine(text: $0) }, source: .pdfText)
+        let t = Extractor.extract(kind: .statement, pages: [page], recordId: UUID(), merchant: "Apple Card").transactions
+        #expect(t.map(\.amountCents) == [429506, 5792, 1075])
+        #expect(t.map(\.kind) == [.payment, .purchase, .purchase])
+        #expect(t.map(\.category) == [.other, .fuel, .dining])
+    }
+
+    @Test func thePaymentWithItsDateOnItsOwnLine() {
+        // "07/31/2026" alone, then the description, then the amount.
+        let rows = Extractor.joiningAmountLines(["07/31/2026", "ACH Deposit transfer", "-$2,316.54"].enumerated().map {
+            TextRow(text: $0.element, pagePosition: 0, linePosition: $0.offset)
+        })
+        #expect(rows.map(\.text) == ["07/31/2026 ACH Deposit transfer -$2,316.54"])
+    }
+}
