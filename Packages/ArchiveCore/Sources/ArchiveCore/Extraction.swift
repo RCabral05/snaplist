@@ -12,7 +12,7 @@ struct TextRow: Equatable {
 /// What's read from a record's text, beyond its name.
 struct ExtractedFacts: Equatable {
     var documentDate: Day?
-    var transactions: [Transaction] = []
+    var transactions: [Amount] = []
 }
 
 /// Reads dates and amounts from receipts, bills and statements with plain
@@ -74,7 +74,7 @@ enum Extractor {
         guard let (amount, row) = labelledAmount(in: rows, labels: receiptTotals) else {
             return ExtractedFacts(documentDate: date)
         }
-        let transaction = Transaction(
+        let transaction = Amount(
             recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
             merchant: merchant, memo: row.text, amountCents: amount.cents, currency: amount.currency ?? "USD",
             kind: amount.isCredit ? .refund : .purchase, source: .receipt)
@@ -87,7 +87,7 @@ enum Extractor {
         guard let (amount, row) = labelledAmount(in: rows, labels: billTotals), !amount.isCredit else {
             return ExtractedFacts(documentDate: date)
         }
-        let transaction = Transaction(
+        let transaction = Amount(
             recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
             merchant: merchant, memo: row.text, amountCents: amount.cents, currency: amount.currency ?? "USD",
             kind: .bill, category: SpendCategories.classify(merchant: merchant, memo: "utility"), source: .bill)
@@ -140,7 +140,7 @@ enum Extractor {
     /// January statement.
     static func statement(_ rows: [TextRow], recordId: UUID) -> ExtractedFacts {
         let closing = statementClosingDate(rows)
-        var transactions: [Transaction] = []
+        var transactions: [Amount] = []
 
         for row in rows {
             guard let leading = DayParser.leadingDate(in: row.text),
@@ -172,7 +172,7 @@ enum Extractor {
             }
             guard let date = Day(year: year, month: leading.month, day: leading.day) else { continue }
 
-            transactions.append(Transaction(
+            transactions.append(Amount(
                 recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
                 merchant: merchantName(description), memo: description, amountCents: amount.cents,
                 currency: amount.currency ?? "USD", kind: statementKind(description, amount: amount),
@@ -209,7 +209,7 @@ enum Extractor {
                 "total", "statement", "page "].contains { lower.hasPrefix($0) || lower == $0 }
     }
 
-    static func statementKind(_ description: String, amount: ParsedAmount) -> TransactionKind {
+    static func statementKind(_ description: String, amount: ParsedAmount) -> AmountKind {
         let lower = description.lowercased()
         if lower.contains("payment") && (amount.isCredit || ["thank", "autopay", "received", "ach"].contains { lower.contains($0) }) {
             return .payment

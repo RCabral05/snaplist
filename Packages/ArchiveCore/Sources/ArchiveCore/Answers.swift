@@ -3,7 +3,7 @@ import GRDB
 
 /// One amount that went into an answer, with the record it was read from.
 public struct Counted: Hashable, Identifiable, Sendable {
-    public var transaction: Transaction
+    public var transaction: Amount
     public var record: Record
     public var id: Int64 { transaction.id ?? -1 }
 
@@ -52,7 +52,7 @@ extension ArchiveStore {
             let records = try Record.fetchAll(db, keys: Array(recordIds))
             let byId = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
             return try rows.compactMap { row in
-                let transaction = try Transaction(row: row)
+                let transaction = try Amount(row: row)
                 return byId[transaction.recordId].map { Counted(transaction: transaction, record: $0) }
             }
         }
@@ -125,9 +125,9 @@ extension ArchiveStore {
         return found
     }
 
-    static func sameMerchant(_ a: Transaction, _ b: Transaction) -> Bool {
+    static func sameMerchant(_ a: Amount, _ b: Amount) -> Bool {
         if a.category == b.category, a.category != .other { return true }
-        let words = { (t: Transaction) in
+        let words = { (t: Amount) in
             Set(t.merchant.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 })
         }
         return !words(a).isDisjoint(with: words(b))

@@ -182,11 +182,11 @@ final class AppModel {
 
     // MARK: Amounts
 
-    func transactions(of recordId: UUID) -> [Transaction] {
+    func transactions(of recordId: UUID) -> [Amount] {
         (try? archive.store.transactions(of: recordId)) ?? []
     }
 
-    func save(_ transaction: Transaction) {
+    func save(_ transaction: Amount) {
         do {
             try archive.store.save(transaction)
             amountsChanged()

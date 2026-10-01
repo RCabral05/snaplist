@@ -8,11 +8,11 @@ struct AmountsSection: View {
     @Environment(AppModel.self) private var model
 
     let record: Record
-    let transactions: [Transaction]
+    let transactions: [Amount]
     /// Jumps the page viewer to where an amount was printed.
-    var showOnPage: (Transaction) -> Void
+    var showOnPage: (Amount) -> Void
 
-    @State private var editing: Transaction?
+    @State private var editing: Amount?
     @State private var isEditingDate = false
     @State private var isShowingAllLines = false
 
@@ -25,7 +25,7 @@ struct AmountsSection: View {
             }
         }
         .sheet(item: $editing) { transaction in
-            TransactionEditor(transaction: transaction, isNew: transaction.id == nil)
+            AmountEditor(transaction: transaction, isNew: transaction.id == nil)
         }
         .sheet(isPresented: $isEditingDate) {
             DocumentDateEditor(record: record)
@@ -35,7 +35,7 @@ struct AmountsSection: View {
 
     // MARK: Receipts and bills
 
-    private var total: Transaction? { transactions.first }
+    private var total: Amount? { transactions.first }
 
     private var totalCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -56,7 +56,7 @@ struct AmountsSection: View {
                         }
                     } else {
                         Button("Add Total") {
-                            editing = Transaction(recordId: record.id, date: record.documentDate, merchant: record.title,
+                            editing = Amount(recordId: record.id, date: record.documentDate, merchant: record.title,
                                                   amountCents: 0, kind: record.kind == .bill ? .bill : .purchase,
                                                   source: .person)
                         }
@@ -108,7 +108,7 @@ struct AmountsSection: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Add", systemImage: "plus") {
-                    editing = Transaction(recordId: record.id, date: record.documentDate, merchant: "",
+                    editing = Amount(recordId: record.id, date: record.documentDate, merchant: "",
                                           amountCents: 0, kind: .purchase, source: .person)
                 }
                 .labelStyle(.iconOnly)
@@ -127,7 +127,7 @@ struct AmountsSection: View {
                 VStack(spacing: 0) {
                     ForEach(Array(visibleLines.enumerated()), id: \.element.id) { index, transaction in
                         if index > 0 { Divider().padding(.leading) }
-                        TransactionRow(transaction: transaction)
+                        AmountRow(transaction: transaction)
                             .contentShape(Rectangle())
                             .onTapGesture { editing = transaction }
                             .contextMenu {
@@ -158,14 +158,14 @@ struct AmountsSection: View {
         .padding(.horizontal)
     }
 
-    private var visibleLines: [Transaction] {
+    private var visibleLines: [Amount] {
         isShowingAllLines ? transactions : Array(transactions.prefix(8))
     }
 
     /// Exact sums of the stored lines, by what they were.
     private var summary: some View {
         let currency = transactions.first?.currency ?? "USD"
-        func sum(_ kinds: Set<TransactionKind>) -> Money {
+        func sum(_ kinds: Set<AmountKind>) -> Money {
             Money(cents: transactions.filter { kinds.contains($0.kind) && $0.currency == currency }.reduce(0) { $0 + $1.amountCents },
                   currency: currency)
         }
@@ -201,8 +201,8 @@ struct AmountsSection: View {
 }
 
 /// A statement line: date, who, how much.
-struct TransactionRow: View {
-    let transaction: Transaction
+struct AmountRow: View {
+    let transaction: Amount
 
     var body: some View {
         HStack(spacing: 12) {
@@ -242,18 +242,18 @@ struct TransactionRow: View {
 }
 
 /// Correct an amount, or add one that wasn't found.
-struct TransactionEditor: View {
+struct AmountEditor: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    @State var transaction: Transaction
+    @State var transaction: Amount
     let isNew: Bool
 
     @State private var amountText: String
     @State private var hasDate: Bool
     @State private var date: Date
 
-    init(transaction: Transaction, isNew: Bool) {
+    init(transaction: Amount, isNew: Bool) {
         _transaction = State(initialValue: transaction)
         self.isNew = isNew
         _amountText = State(initialValue: transaction.amountCents == 0 ? "" : Self.text(for: transaction.amountCents))
@@ -270,7 +270,7 @@ struct TransactionEditor: View {
                         .font(.title2.weight(.semibold))
                         .monospacedDigit()
                     Picker("Type", selection: $transaction.kind) {
-                        ForEach(TransactionKind.allCases, id: \.self) { Text($0.label).tag($0) }
+                        ForEach(AmountKind.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                 }
                 .listRowBackground(Theme.surface)
@@ -387,7 +387,7 @@ extension Money {
     }
 }
 
-extension TransactionKind {
+extension AmountKind {
     var label: String {
         switch self {
         case .purchase: "Purchase"

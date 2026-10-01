@@ -278,10 +278,10 @@ public struct ArchiveStore: Sendable {
             for var record in records {
                 let recognized = try Self.storedPages(of: record.id, in: db)
                 let before = record
-                let transactionsBefore = try Transaction.filter(Column("recordId") == record.id).fetchCount(db)
+                let transactionsBefore = try Amount.filter(Column("recordId") == record.id).fetchCount(db)
                 Self.applySuggestion(Suggester.suggest(recognized), to: &record)
                 try Self.applyExtraction(to: &record, pages: recognized, in: db)
-                let transactionsAfter = try Transaction.filter(Column("recordId") == record.id).fetchCount(db)
+                let transactionsAfter = try Amount.filter(Column("recordId") == record.id).fetchCount(db)
                 guard record != before || transactionsBefore != transactionsAfter else { continue }
                 try record.update(db, columns: ["kind", "title", "documentDate"])
                 try db.execute(

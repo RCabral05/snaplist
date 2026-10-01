@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public enum TransactionKind: String, Codable, CaseIterable, Sendable {
+public enum AmountKind: String, Codable, CaseIterable, Sendable {
     /// Money out: a receipt's total or a card purchase.
     case purchase
     /// A bill's amount due.
@@ -14,7 +14,7 @@ public enum TransactionKind: String, Codable, CaseIterable, Sendable {
     case payment
 }
 
-public enum TransactionSource: String, Codable, Sendable {
+public enum AmountSource: String, Codable, Sendable {
     case receipt, bill, statement, person
 }
 
@@ -26,7 +26,7 @@ public enum SpendCategory: String, Codable, CaseIterable, Sendable {
 /// One amount read from a record: a receipt's total, a bill's amount due, or
 /// a line on a statement. It remembers where on the record it was printed,
 /// so every answer that uses it can point back to the original.
-public struct Transaction: Codable, Hashable, Identifiable, Sendable, FetchableRecord, MutablePersistableRecord {
+public struct Amount: Codable, Hashable, Identifiable, Sendable, FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "txn"
 
     public var id: Int64?
@@ -43,15 +43,15 @@ public struct Transaction: Codable, Hashable, Identifiable, Sendable, FetchableR
     /// Always positive; `kind` says which way the money went.
     public var amountCents: Int64
     public var currency: String
-    public var kind: TransactionKind
+    public var kind: AmountKind
     public var category: SpendCategory
-    public var source: TransactionSource
+    public var source: AmountSource
     /// Corrected by a person: kept when the record's text is read again.
     public var isEdited: Bool
 
     public init(id: Int64? = nil, recordId: UUID, pagePosition: Int? = nil, linePosition: Int? = nil,
                 date: Day?, merchant: String, memo: String = "", amountCents: Int64, currency: String = "USD",
-                kind: TransactionKind, category: SpendCategory? = nil, source: TransactionSource,
+                kind: AmountKind, category: SpendCategory? = nil, source: AmountSource,
                 isEdited: Bool = false) {
         self.id = id
         self.recordId = recordId
@@ -115,9 +115,9 @@ enum SpendCategories {
 }
 
 extension ArchiveStore {
-    public func transactions(of recordId: UUID) throws -> [Transaction] {
+    public func transactions(of recordId: UUID) throws -> [Amount] {
         try db.read {
-            try Transaction.filter(Column("recordId") == recordId)
+            try Amount.filter(Column("recordId") == recordId)
                 .order(Column("pagePosition"), Column("linePosition"), Column("id"))
                 .fetchAll($0)
         }
@@ -125,7 +125,7 @@ extension ArchiveStore {
 
     /// Saves a correction, or a new amount typed by a person, and marks it as
     /// theirs so re-reading the record won't overwrite it.
-    public func save(_ transaction: Transaction) throws {
+    public func save(_ transaction: Amount) throws {
         var transaction = transaction
         transaction.isEdited = true
         if transaction.source != .person {
@@ -139,7 +139,7 @@ extension ArchiveStore {
 
     public func delete(transaction id: Int64, of recordId: UUID) throws {
         try db.write { db in
-            _ = try Transaction.deleteOne(db, key: id)
+            _ = try Amount.deleteOne(db, key: id)
             try Self.markExtractionEdited(recordId, in: db)
         }
     }

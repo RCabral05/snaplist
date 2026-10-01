@@ -20,7 +20,7 @@ struct RecordDetailView: View {
     @State private var isConfirmingDelete = false
     @State private var isShowingAllText = false
     @State private var copied = false
-    @State private var transactions: [Transaction] = []
+    @State private var transactions: [Amount] = []
     /// A printed amount being pointed at: its page and line.
     @State private var focusedLine: (page: Int, line: Int)?
     /// Changes on every "Show on Page", even for the same line twice.
@@ -314,7 +314,7 @@ struct RecordDetailView: View {
         return boxes
     }
 
-    private func showOnPage(_ transaction: Transaction) {
+    private func showOnPage(_ transaction: Amount) {
         guard let page = transaction.pagePosition else { return }
         withAnimation(.snappy) {
             selection = page
