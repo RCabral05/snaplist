@@ -48,11 +48,14 @@ public struct Amount: Codable, Hashable, Identifiable, Sendable, FetchableRecord
     public var source: AmountSource
     /// Corrected by a person: kept when the record's text is read again.
     public var isEdited: Bool
+    /// The category was picked by a person for this line alone, so neither
+    /// the word lists nor a merchant rule change it.
+    public var categoryEdited: Bool
 
     public init(id: Int64? = nil, recordId: UUID, pagePosition: Int? = nil, linePosition: Int? = nil,
                 date: Day?, merchant: String, memo: String = "", amountCents: Int64, currency: String = "USD",
                 kind: AmountKind, category: SpendCategory? = nil, source: AmountSource,
-                isEdited: Bool = false) {
+                isEdited: Bool = false, categoryEdited: Bool = false) {
         self.id = id
         self.recordId = recordId
         self.pagePosition = pagePosition
@@ -66,6 +69,7 @@ public struct Amount: Codable, Hashable, Identifiable, Sendable, FetchableRecord
         self.category = category ?? SpendCategories.classify(merchant: merchant, memo: memo)
         self.source = source
         self.isEdited = isEdited
+        self.categoryEdited = categoryEdited
     }
 
     /// What it adds to "how much did I spend": purchases, bills and fees
@@ -129,17 +133,67 @@ extension ArchiveStore {
     }
 
     /// Saves a correction, or a new amount typed by a person, and marks it as
-    /// theirs so re-reading the record won't overwrite it.
+    /// theirs so re-reading the record won't overwrite it. A changed category
+    /// sticks to this line; otherwise the category follows the merchant.
     public func save(_ transaction: Amount) throws {
         var transaction = transaction
         transaction.isEdited = true
-        if transaction.source != .person {
-            transaction.category = SpendCategories.classify(merchant: transaction.merchant, memo: transaction.memo)
-        }
         try db.write { db in
+            let stored = try transaction.id.flatMap { try Amount.fetchOne(db, key: $0) }
+            if let stored, stored.category != transaction.category {
+                transaction.categoryEdited = true
+            } else if stored == nil, transaction.source == .person, transaction.category != .other {
+                transaction.categoryEdited = true
+            }
+            if !transaction.categoryEdited {
+                transaction.category = try Self.category(merchant: transaction.merchant, memo: transaction.memo, in: db)
+            }
             try transaction.save(db)
             try Self.markExtractionEdited(transaction.recordId, in: db)
         }
+    }
+
+    /// How many lines, across every record, have this merchant. Lets a
+    /// category fix offer to cover all of them.
+    public func lineCount(merchant: String) throws -> Int {
+        try db.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM txn WHERE merchant = ? COLLATE NOCASE", arguments: [merchant]) ?? 0
+        }
+    }
+
+    /// Files every line from `merchant` under `category`, now and whenever a
+    /// record is read again. Lines given their own category keep it.
+    public func setCategory(_ category: SpendCategory, forMerchant merchant: String) throws {
+        let name = merchant.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        try db.write { db in
+            try db.execute(sql: """
+                INSERT INTO merchantCategory (merchant, category) VALUES (?, ?)
+                ON CONFLICT(merchant) DO UPDATE SET category = excluded.category
+                """, arguments: [name, category.rawValue])
+            try db.execute(sql: "UPDATE txn SET category = ? WHERE merchant = ? COLLATE NOCASE AND NOT categoryEdited",
+                           arguments: [category.rawValue, name])
+        }
+    }
+
+    /// Category rules a person made, by merchant.
+    public func merchantCategories() throws -> [String: SpendCategory] {
+        try db.read { try Self.merchantRules(in: $0) }
+    }
+
+    static func merchantRules(in db: Database) throws -> [String: SpendCategory] {
+        var rules: [String: SpendCategory] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT merchant, category FROM merchantCategory") {
+            if let category = SpendCategory(rawValue: row["category"]) {
+                rules[(row["merchant"] as String).lowercased()] = category
+            }
+        }
+        return rules
+    }
+
+    /// A person's rule for the merchant if there is one, else the word lists.
+    static func category(merchant: String, memo: String, in db: Database) throws -> SpendCategory {
+        try merchantRules(in: db)[merchant.lowercased()] ?? SpendCategories.classify(merchant: merchant, memo: memo)
     }
 
     public func delete(transaction id: Int64, of recordId: UUID) throws {

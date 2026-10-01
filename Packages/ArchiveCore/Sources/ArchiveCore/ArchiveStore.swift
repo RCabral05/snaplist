@@ -113,6 +113,30 @@ public struct ArchiveStore: Sendable {
         migrator.registerMigration("v4-uncategorised-files") { db in
             try db.execute(sql: "UPDATE record SET nameSource = 'file' WHERE nameSource = 'person' AND kind = 'document'")
         }
+        migrator.registerMigration("v5-decisions") { db in
+            try db.execute(sql: """
+                -- A category picked for one line.
+                ALTER TABLE txn ADD COLUMN categoryEdited BOOLEAN NOT NULL DEFAULT 0;
+
+                -- "DoorDash is eating out": applied to every line from the merchant.
+                CREATE TABLE merchantCategory (
+                    merchant TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+                    category TEXT NOT NULL
+                );
+
+                -- Whether a receipt or bill and a statement line are the same
+                -- purchase, as the person said. Amounts are named by position
+                -- and value (`Amount.decisionKey`), which survive re-reading.
+                CREATE TABLE duplicateDecision (
+                    originalRecordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    originalKey TEXT NOT NULL,
+                    lineRecordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    lineKey TEXT NOT NULL,
+                    isSame BOOLEAN NOT NULL,
+                    PRIMARY KEY (originalRecordId, originalKey, lineRecordId, lineKey)
+                );
+                """)
+        }
         return migrator
     }
 
@@ -307,6 +331,7 @@ public struct ArchiveStore: Sendable {
     public func deleteAll() throws {
         try db.write { db in
             try db.execute(sql: "DELETE FROM searchIndex")
+            try db.execute(sql: "DELETE FROM merchantCategory")
             _ = try Record.deleteAll(db)
         }
     }
@@ -367,7 +392,9 @@ public struct ArchiveStore: Sendable {
             db, sql: "SELECT EXISTS (SELECT 1 FROM txn WHERE recordId = ? AND isEdited)", arguments: [record.id]) ?? false
         guard !hasEdits else { return }
         try db.execute(sql: "DELETE FROM txn WHERE recordId = ?", arguments: [record.id])
+        let rules = try merchantRules(in: db)
         for var transaction in facts.transactions {
+            if let category = rules[transaction.merchant.lowercased()] { transaction.category = category }
             try transaction.insert(db)
         }
     }

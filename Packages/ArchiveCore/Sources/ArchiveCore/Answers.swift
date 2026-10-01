@@ -13,9 +13,36 @@ public struct Counted: Hashable, Identifiable, Sendable {
 
 /// The same purchase seen twice: a receipt and its line on a statement.
 /// Only `kept` is counted.
-public struct Duplicate: Hashable, Sendable {
+public struct Duplicate: Hashable, Identifiable, Sendable {
     public var kept: Counted
     public var dropped: Counted
+    /// What the person said: true for the same purchase, false for two
+    /// different ones, nil while it's only a guess.
+    public var decision: Bool?
+
+    public var id: String { "\(kept.id)-\(dropped.id)" }
+}
+
+extension Amount {
+    /// Names an amount in a way that survives its record being read again,
+    /// which replaces row ids: where it was printed, and how much.
+    var decisionKey: String {
+        if let pagePosition, let linePosition { return "p\(pagePosition):\(linePosition):\(amountCents)" }
+        return "id\(id ?? -1):\(amountCents)"
+    }
+}
+
+/// The decisions a person made about possible duplicates.
+struct DuplicateDecisions {
+    var byPair: [String: Bool] = [:]
+
+    static func key(_ original: Amount, _ line: Amount) -> String {
+        "\(original.recordId.uuidString)|\(original.decisionKey)|\(line.recordId.uuidString)|\(line.decisionKey)"
+    }
+
+    func decision(_ original: Amount, _ line: Amount) -> Bool? {
+        byPair[Self.key(original, line)]
+    }
 }
 
 public struct SpendingAnswer: Sendable {
@@ -73,9 +100,10 @@ extension ArchiveStore {
                 return byId[transaction.recordId].map { Counted(transaction: transaction, record: $0) }
             }
         }
+        let decisions = try duplicateDecisions()
 
         var matching = all.filter { matches($0, query) }
-        let duplicates = Self.duplicates(in: matching)
+        let duplicates = Self.duplicates(in: matching, decisions: decisions)
         let droppedIds = Set(duplicates.map(\.dropped.id))
         matching.removeAll { droppedIds.contains($0.id) }
         matching.sort { ($0.day, $0.id) > ($1.day, $1.id) }
@@ -85,6 +113,12 @@ extension ArchiveStore {
         let refunds = matching.filter { $0.transaction.kind == .refund }
         if !refunds.isEmpty {
             notes.append(refunds.count == 1 ? "Includes 1 refund, subtracted." : "Includes \(refunds.count) refunds, subtracted.")
+        }
+        let rejected = try possibleDuplicates().filter { $0.decision == false && matches($0.dropped, query) }
+        if !rejected.isEmpty {
+            notes.append(rejected.count == 1
+                ? "1 statement line looks like a saved receipt, but you said they're different purchases, so both count."
+                : "\(rejected.count) statement lines look like saved receipts, but you said they're different purchases, so both count.")
         }
         if !duplicates.isEmpty {
             notes.append(duplicates.count == 1
@@ -104,7 +138,7 @@ extension ArchiveStore {
                 let which = covered.isEmpty ? "" : " Your statements cover \(Self.list(covered))."
                 notes.append("No card or bank statement in your archive covers \(label), so this only counts receipts and bills you've saved.\(which)")
             }
-            otherMonths = otherMonthsWithSpending(all, query: query, excluding: range)
+            otherMonths = otherMonthsWithSpending(all, query: query, excluding: range, decisions: decisions)
         }
         return SpendingAnswer(query: query, totals: totals, counted: matching, duplicates: duplicates, notes: notes,
                               otherMonths: otherMonths)
@@ -112,11 +146,12 @@ extension ArchiveStore {
 
     /// The same question without the date, month by month, deduplicated the
     /// same way. Newest four.
-    private func otherMonthsWithSpending(_ all: [Counted], query: SpendingQuery, excluding range: DayRange) -> [MonthTotal] {
+    private func otherMonthsWithSpending(_ all: [Counted], query: SpendingQuery, excluding range: DayRange,
+                                         decisions: DuplicateDecisions) -> [MonthTotal] {
         var anyTime = query
         anyTime.range = nil
         var items = all.filter { matches($0, anyTime) && !range.contains($0.day) }
-        let dropped = Set(Self.duplicates(in: items).map(\.dropped.id))
+        let dropped = Set(Self.duplicates(in: items, decisions: decisions).map(\.dropped.id))
         items.removeAll { dropped.contains($0.id) }
         return Self.months(of: items).prefix(4).map { month in
             let inMonth = items.filter { month.range.contains($0.day) }
@@ -161,8 +196,10 @@ extension ArchiveStore {
     /// A statement line duplicates a receipt or bill when the amount is the
     /// same to the cent, it posted within a few days of the purchase (bills
     /// within six weeks, since they're paid later), and the merchant looks
-    /// the same. The receipt is kept: it has more detail.
-    static func duplicates(in items: [Counted]) -> [Duplicate] {
+    /// the same. The receipt is kept: it has more detail. A pair the person
+    /// called different is never matched; one they called the same always is.
+    static func duplicates(in items: [Counted], decisions: DuplicateDecisions = DuplicateDecisions(),
+                           honoringRejections: Bool = true) -> [Duplicate] {
         let originals = items.filter { $0.transaction.source != .statement }
         var used = Set<Int64>()
         var found: [Duplicate] = []
@@ -170,8 +207,13 @@ extension ArchiveStore {
             let match = originals.first { original in
                 guard !used.contains(original.id),
                       original.transaction.amountCents == line.transaction.amountCents,
-                      original.transaction.currency == line.transaction.currency,
-                      (original.transaction.kind == .refund) == (line.transaction.kind == .refund) else { return false }
+                      original.transaction.currency == line.transaction.currency else { return false }
+                switch decisions.decision(original.transaction, line.transaction) {
+                case true?: return true
+                case false?: if honoringRejections { return false }
+                case nil: break
+                }
+                guard (original.transaction.kind == .refund) == (line.transaction.kind == .refund) else { return false }
                 let gap = original.day.days(to: line.day)
                 let window = original.transaction.source == .bill ? -3...45 : -2...7
                 guard window.contains(gap) else { return false }
@@ -179,10 +221,59 @@ extension ArchiveStore {
             }
             if let match {
                 used.insert(match.id)
-                found.append(Duplicate(kept: match, dropped: line))
+                found.append(Duplicate(kept: match, dropped: line,
+                                       decision: decisions.decision(match.transaction, line.transaction)))
             }
         }
         return found
+    }
+
+    func duplicateDecisions() throws -> DuplicateDecisions {
+        try db.read { db in
+            var decisions = DuplicateDecisions()
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM duplicateDecision") {
+                let key = "\((row["originalRecordId"] as UUID).uuidString)|\(row["originalKey"] as String)|"
+                    + "\((row["lineRecordId"] as UUID).uuidString)|\(row["lineKey"] as String)"
+                decisions.byPair[key] = row["isSame"]
+            }
+            return decisions
+        }
+    }
+
+    /// Possible duplicates that involve a record (or every one, for nil),
+    /// including those already decided, so a decision can be changed.
+    public func possibleDuplicates(involving recordId: UUID? = nil) throws -> [Duplicate] {
+        let all = try db.read { db -> [Counted] in
+            let amounts = try Amount.filter(Column("kind") != AmountKind.payment.rawValue).fetchAll(db)
+            let records = try Record.fetchAll(db, keys: Array(Set(amounts.map(\.recordId))))
+            let byId = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            return amounts.compactMap { amount in byId[amount.recordId].map { Counted(transaction: amount, record: $0) } }
+        }
+        return Self.duplicates(in: all, decisions: try duplicateDecisions(), honoringRejections: false)
+            .filter { recordId == nil || $0.kept.record.id == recordId || $0.dropped.record.id == recordId }
+            .sorted { $0.kept.day > $1.kept.day }
+    }
+
+    /// Records whether two amounts are the same purchase; nil forgets it,
+    /// so the guess applies again.
+    public func decide(_ duplicate: Duplicate, isSame: Bool?) throws {
+        let original = duplicate.kept.transaction
+        let line = duplicate.dropped.transaction
+        try db.write { db in
+            let arguments: StatementArguments = [original.recordId, original.decisionKey, line.recordId, line.decisionKey]
+            if let isSame {
+                try db.execute(sql: """
+                    INSERT INTO duplicateDecision (originalRecordId, originalKey, lineRecordId, lineKey, isSame)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(originalRecordId, originalKey, lineRecordId, lineKey) DO UPDATE SET isSame = excluded.isSame
+                    """, arguments: arguments + [isSame])
+            } else {
+                try db.execute(sql: """
+                    DELETE FROM duplicateDecision
+                    WHERE originalRecordId = ? AND originalKey = ? AND lineRecordId = ? AND lineKey = ?
+                    """, arguments: arguments)
+            }
+        }
     }
 
     static func sameMerchant(_ a: Amount, _ b: Amount) -> Bool {

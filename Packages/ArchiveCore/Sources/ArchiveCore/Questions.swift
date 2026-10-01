@@ -24,6 +24,15 @@ public struct SpendingQuery: Equatable, Sendable {
     public var rangeLabel: String?
     /// Caveats about how the words were read, shown with the answer.
     public var notes: [String] = []
+
+    public init(categories: Set<SpendCategory> = [], merchantTerms: [String] = [], range: DayRange? = nil,
+                rangeLabel: String? = nil, notes: [String] = []) {
+        self.categories = categories
+        self.merchantTerms = merchantTerms
+        self.range = range
+        self.rangeLabel = rangeLabel
+        self.notes = notes
+    }
 }
 
 public enum QuestionParser {
@@ -157,5 +166,83 @@ public enum QuestionParser {
         let names = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
                      "October", "November", "December"]
         return "\(names[month - 1]) \(year)"
+    }
+}
+
+/// A question as a language model read it, in fixed fields: what kind of
+/// question, which categories, merchants and period. The model fills these
+/// in and nothing else; `QuestionParser.question(from:today:)` turns them
+/// into a `Question` with the same rules as typed words, and the answer is
+/// still worked out by ordinary code.
+public struct Interpretation: Equatable, Sendable {
+    public enum Intent: Equatable, Sendable { case spending, whereIs, expiry, search }
+
+    public enum Period: Equatable, Sendable {
+        case anyTime, thisMonth, lastMonth, thisYear, lastYear
+        /// Month 1–12, in `year` if given, else the most recent one.
+        case month(Int, year: Int?)
+        case year(Int)
+    }
+
+    public var intent: Intent
+    public var categories: Set<SpendCategory>
+    public var merchants: [String]
+    /// The thing asked about, for where and expiry questions.
+    public var subject: [String]
+    public var period: Period
+
+    public init(intent: Intent, categories: Set<SpendCategory> = [], merchants: [String] = [],
+                subject: [String] = [], period: Period = .anyTime) {
+        self.intent = intent
+        self.categories = categories
+        self.merchants = merchants
+        self.subject = subject
+        self.period = period
+    }
+}
+
+extension QuestionParser {
+    public static func question(from interpretation: Interpretation, original: String, today: Day) -> Question {
+        let words = { (phrases: [String]) in
+            phrases.flatMap { $0.lowercased().split(whereSeparator: \.isWhitespace).map(String.init) }
+                .filter { !filler.contains($0) && $0.count >= 2 }
+        }
+        switch interpretation.intent {
+        case .search:
+            return .search(original.trimmingCharacters(in: .whitespacesAndNewlines))
+        case .whereIs:
+            let terms = words(interpretation.subject)
+            return terms.isEmpty ? .search(original) : .whereIs(terms: terms)
+        case .expiry:
+            return .expiry(terms: words(interpretation.subject))
+        case .spending:
+            var query = SpendingQuery(categories: interpretation.categories.subtracting([.other]),
+                                      merchantTerms: interpretation.merchants
+                                          .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+                                          .filter { $0.count >= 2 })
+            if let (range, label) = range(of: interpretation.period, today: today) {
+                query.range = range
+                query.rangeLabel = label
+            }
+            return .spending(query)
+        }
+    }
+
+    static func range(of period: Interpretation.Period, today: Day) -> (DayRange, String)? {
+        let phrase: String
+        switch period {
+        case .anyTime: return nil
+        case .thisMonth: phrase = "this month"
+        case .lastMonth: phrase = "last month"
+        case .thisYear: phrase = "this year"
+        case .lastYear: phrase = "last year"
+        case .month(let month, let year):
+            guard (1...12).contains(month) else { return nil }
+            let resolved = year ?? (month <= today.month ? today.year : today.year - 1)
+            return DayRange.month(month, of: resolved).map { ($0, monthLabel(month, resolved)) }
+        case .year(let year):
+            return DayRange.year(year).map { ($0, String(year)) }
+        }
+        return dateRange(in: " \(phrase) ", today: today).map { ($0.0, $0.1) }
     }
 }
