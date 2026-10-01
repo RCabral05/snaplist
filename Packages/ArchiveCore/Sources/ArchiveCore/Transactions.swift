@@ -159,3 +159,27 @@ extension ArchiveStore {
         try db.execute(sql: "UPDATE txn SET isEdited = 1 WHERE recordId = ?", arguments: [recordId])
     }
 }
+
+extension ArchiveStore {
+    /// The total of each receipt and bill, for showing on its card.
+    /// Statements are left out: their lines aren't one amount.
+    public func recordTotals() throws -> [UUID: Money] {
+        try db.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT recordId, currency,
+                       SUM(CASE kind WHEN 'refund' THEN -amountCents WHEN 'payment' THEN 0 ELSE amountCents END) AS cents
+                FROM txn WHERE source != 'statement'
+                GROUP BY recordId, currency
+                """)
+            var totals: [UUID: Money] = [:]
+            for row in rows {
+                let recordId: UUID = row["recordId"]
+                // One currency per record in practice; keep the first if not.
+                if totals[recordId] == nil {
+                    totals[recordId] = Money(cents: row["cents"], currency: row["currency"])
+                }
+            }
+            return totals
+        }
+    }
+}

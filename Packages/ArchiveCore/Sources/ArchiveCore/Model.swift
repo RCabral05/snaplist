@@ -14,12 +14,16 @@ public enum IngestStatus: String, Codable, Sendable {
 
 public enum AssetType: String, Codable, Sendable {
     case image, pdf
+    /// A voice note.
+    case audio
 }
 
 /// Where a page's text came from. A PDF's own text layer is exact; OCR is not,
 /// and the UI should never present the two as equally trustworthy.
 public enum TextSource: String, Codable, Sendable {
     case pdfText, ocr
+    /// Transcribed from a voice note.
+    case speech
 }
 
 /// Who named a record, which decides whether the app may rename it.

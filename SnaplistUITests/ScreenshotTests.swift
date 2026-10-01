@@ -59,6 +59,22 @@ final class ScreenshotTests: XCTestCase {
                 receipts.tap()
             }
 
+            let ask = app.buttons["ask"]
+            if ask.waitForExistence(timeout: 3) {
+                ask.tap()
+                sleep(1)
+                snap("07-ask-\(suffix)")
+                askQuestion(app, "How much did I spend on gas last month?")
+                snap("08-ask-gas-\(suffix)")
+                app.swipeUp()
+                sleep(1)
+                snap("08b-ask-gas-scrolled-\(suffix)")
+                askQuestion(app, "Where did I put the spare HDMI cable?")
+                snap("09-ask-where-\(suffix)")
+                app.buttons["Done"].firstMatch.tap()
+                sleep(1)
+            }
+
             let search = app.searchFields.firstMatch
             if !search.waitForExistence(timeout: 3) { app.swipeDown() }
             if search.waitForExistence(timeout: 5) {
@@ -69,6 +85,20 @@ final class ScreenshotTests: XCTestCase {
             }
             app.terminate()
         }
+    }
+
+    @MainActor
+    private func askQuestion(_ app: XCUIApplication, _ question: String) {
+        let field = app.textFields["ask-field"].exists ? app.textFields["ask-field"] : app.textViews["ask-field"]
+        guard field.waitForExistence(timeout: 3) else { return }
+        field.tap()
+        if let current = field.value as? String, !current.isEmpty, !current.hasPrefix("Ask about") {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        }
+        field.typeText(question)
+        app.buttons["ask-button"].firstMatch.tap()
+        sleep(2)
+        app.swipeDown()
     }
 
     private func waitWhile(_ element: XCUIElement, timeout: TimeInterval) {

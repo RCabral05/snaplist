@@ -17,6 +17,9 @@ public struct Suggestion: Equatable, Sendable {
 enum Suggester {
     static func suggest(_ pages: [RecognizedPage]) -> Suggestion {
         guard !pages.isEmpty else { return Suggestion() }
+        if pages.allSatisfy({ $0.source == .speech }) {
+            return Suggestion(title: noteTitle(pages.map(\.text).joined(separator: " ")), kind: .item)
+        }
         let text = pages.map(\.text).joined(separator: "\n").lowercased()
         let kind = kind(of: text)
 
@@ -24,6 +27,21 @@ enum Suggester {
             return Suggestion(title: nil, kind: kind)
         }
         return Suggestion(title: title(name, kind: kind), kind: kind)
+    }
+
+    /// A voice note is named by its first words: "Spare HDMI cable is in the
+    /// hall closet" rather than "Voice note 3".
+    static func noteTitle(_ transcript: String) -> String? {
+        let words = transcript.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return nil }
+        let firstSentence = transcript.split(whereSeparator: { ".!?".contains($0) }).first.map(String.init) ?? transcript
+        var title = firstSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        if title.count > 50 {
+            title = String(title.prefix(50))
+            if let lastSpace = title.lastIndex(of: " ") { title = String(title[..<lastSpace]) }
+            title += "…"
+        }
+        return title.prefix(1).uppercased() + title.dropFirst()
     }
 
     /// Who the document is from: "CVS Pharmacy", "Chase", "Blue Bottle Coffee".

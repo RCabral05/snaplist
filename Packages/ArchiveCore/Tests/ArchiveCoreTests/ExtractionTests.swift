@@ -248,3 +248,15 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         #expect(try tmp.archive.store.record(recordId)?.documentDate == Day(year: 2026, month: 1, day: 1))
     }
 }
+
+@Suite struct CardTotals {
+    @Test func receiptsAndBillsShowTheirTotal() throws {
+        let tmp = try TemporaryArchive()
+        let record = try tmp.archive.add(kind: .receipt, title: "Shell",
+                                         items: [ImportItem(type: .pdf, source: .data(Data([1])), fileExtension: "pdf")])
+        let asset = try #require(try tmp.archive.store.assets(of: record.id).first)
+        try tmp.archive.store.saveText([ExtractedAsset(assetId: asset.id, pages: [pdf(["SHELL", "TOTAL $39.82"])])],
+                                       for: record.id)
+        #expect(try tmp.archive.store.recordTotals()[record.id] == Money(cents: 3982))
+    }
+}

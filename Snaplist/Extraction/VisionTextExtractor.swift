@@ -25,6 +25,14 @@ struct VisionTextExtractor: TextExtractor {
             return [try await recognize(image)]
         case .pdf:
             return try await pdfPages(fileURL)
+        case .audio:
+            let transcript = try await VoiceTranscription.transcribe(fileURL)
+            // One line per sentence, so search snippets stay short.
+            let sentences = transcript
+                .split(whereSeparator: { ".!?".contains($0) })
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            return [RecognizedPage(lines: sentences.map { RecognizedLine(text: $0) }, source: .speech)]
         }
     }
 

@@ -26,6 +26,7 @@ struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 18) {
                 feature("doc.viewfinder", "Scan or import", "Paper, photos and PDFs. The text is read automatically.")
                 feature("magnifyingglass", "Find anything", "Search a store, an amount or any word, and land on the page.")
+                feature("sparkle.magnifyingglass", "Ask", "“How much did I spend on gas in September?” Answered from what you saved.")
                 feature("lock.shield", "Yours alone", "Everything stays on this iPhone. No account, no uploads.")
             }
             .padding(.horizontal, 8)

@@ -82,7 +82,7 @@ struct DateGroup: Identifiable {
     static func grouping(_ records: [Record], now: Date = .now, calendar: Calendar = .current) -> [DateGroup] {
         var groups: [DateGroup] = []
         for record in records {
-            let title = Self.title(for: record.createdAt, now: now, calendar: calendar)
+            let title = Self.title(for: record.effectiveDay.date(calendar: calendar), now: now, calendar: calendar)
             if groups.last?.title == title {
                 groups[groups.count - 1].records.append(record)
             } else {

@@ -62,6 +62,15 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         #expect(Suggester.suggest([]) == Suggestion(title: nil, kind: nil))
     }
 
+    @Test func voiceNotesAreItemsNamedByTheirFirstWords() {
+        let note = RecognizedPage(lines: [RecognizedLine(text: "spare HDMI cable is in the hall closet, top shelf. Behind the towels.")],
+                                  source: .speech)
+        #expect(Suggester.suggest([note]) == Suggestion(title: "Spare HDMI cable is in the hall closet, top shelf", kind: .item))
+
+        let long = RecognizedPage(lines: [RecognizedLine(text: String(repeating: "word ", count: 30))], source: .speech)
+        #expect(Suggester.suggest([long]).title?.count ?? 0 <= 51)
+    }
+
     @Test func casing() {
         #expect(Suggester.titleCased("TRADER JOE'S MARKET") == "Trader Joe's Market")
         #expect(Suggester.titleCased("CVS pharmacy") == "CVS Pharmacy")

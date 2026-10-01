@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "1.5.0"
+    MARKETING_VERSION: "1.6.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:
@@ -46,6 +46,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSCameraUsageDescription: Snaplist uses the camera to scan receipts and documents into your archive.
         NSFaceIDUsageDescription: Snaplist uses Face ID to keep your archive private.
+        NSMicrophoneUsageDescription: Snaplist records voice notes about where you put things.
+        NSSpeechRecognitionUsageDescription: Snaplist turns your voice notes into text on this iPhone so you can search them.
   SnaplistUITests:
     type: bundle.ui-testing
     platform: iOS

@@ -1,0 +1,161 @@
+import Foundation
+
+/// A question, understood well enough to answer from stored records with
+/// ordinary code. Parsing is rules, not a language model, so it works on
+/// every iPhone and the same words always mean the same thing.
+public enum Question: Equatable, Sendable {
+    /// "How much did I spend on gas in September?"
+    case spending(SpendingQuery)
+    /// "Where did I put the spare HDMI cable?"
+    case whereIs(terms: [String])
+    /// "When does the warranty on my TV expire?"
+    case expiry(terms: [String])
+    /// Anything else: a plain search.
+    case search(String)
+}
+
+public struct SpendingQuery: Equatable, Sendable {
+    public var categories: Set<SpendCategory> = []
+    /// Words that must appear in the merchant, the printed line or the
+    /// record's name: "costco", "amazon".
+    public var merchantTerms: [String] = []
+    public var range: DayRange?
+    /// How the range reads back: "September 2026", "this year".
+    public var rangeLabel: String?
+    /// Caveats about how the words were read, shown with the answer.
+    public var notes: [String] = []
+}
+
+public enum QuestionParser {
+    public static func parse(_ question: String, today: Day) -> Question {
+        var text = " " + question.lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .components(separatedBy: CharacterSet(charactersIn: "?!.,;:\"")).joined(separator: " ") + " "
+
+        if text.contains(" where ") || text.contains(" where's ") {
+            return .whereIs(terms: terms(in: text, dropping: whereWords))
+        }
+        if text.contains("expire") || text.contains("expiration") || (text.contains("warranty") && text.contains(" when ")) {
+            return .expiry(terms: terms(in: text, dropping: expiryWords))
+        }
+        guard spendingWords.contains(where: { text.contains($0) }) else {
+            return .search(question.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        var query = SpendingQuery()
+        if let (range, label, matched) = dateRange(in: text, today: today) {
+            query.range = range
+            query.rangeLabel = label
+            text = text.replacingOccurrences(of: matched, with: " ")
+        }
+        for (words, categories, note) in categoryWords {
+            guard let word = words.first(where: { text.contains(" \($0) ") }) else { continue }
+            query.categories.formUnion(categories)
+            if let note { query.notes.append(note) }
+            text = text.replacingOccurrences(of: " \(word) ", with: " ")
+        }
+        query.merchantTerms = terms(in: text, dropping: spendingFiller)
+        return .spending(query)
+    }
+
+    // MARK: Words
+
+    static let spendingWords = ["how much", "spend", "spent", "total", "cost", "bill", " pay", "paid",
+                                "what was my", "what did i"]
+
+    /// Phrase → categories, with a note when the phrase is ambiguous.
+    static let categoryWords: [([String], Set<SpendCategory>, String?)] = [
+        (["gas station", "gasoline", "fuel", "gas"], [.fuel],
+         "\"Gas\" was read as fuel. Gas utility bills aren't included; ask about utilities for those."),
+        (["electric bill", "electricity", "electric", "power bill", "utilities", "utility", "water bill",
+          "internet", "phone bill", "cable bill"], [.utilities], nil),
+        (["groceries", "grocery", "supermarket"], [.groceries], nil),
+        (["eating out", "restaurants", "restaurant", "dining", "takeout", "take out", "coffee", "lunch", "dinner"],
+         [.dining], nil),
+        (["food"], [.groceries, .dining], "\"Food\" counts groceries and eating out."),
+        (["pharmacy", "prescriptions", "medicine"], [.pharmacy], nil),
+        (["subscriptions", "subscription", "streaming"], [.subscriptions], nil),
+        (["shopping"], [.shopping], nil),
+        (["travel", "rides", "flights", "hotels"], [.travel], nil),
+    ]
+
+    static let filler: Set<String> = [
+        "how", "much", "did", "do", "does", "i", "my", "me", "we", "our", "the", "a", "an", "on", "at", "in",
+        "for", "of", "to", "from", "with", "was", "were", "is", "are", "it", "this", "that", "what", "whats",
+        "what's", "when", "and", "or", "have", "has", "had", "all", "any", "there", "be", "been", "get", "got",
+        "put", "keep", "kept", "stuff", "things", "thing", "so", "far", "may", "might", "can", "could",
+        "would", "should", "will", "ever", "up", "out", "about", "around", "roughly", "approximately",
+    ]
+    static let spendingFiller = filler.union(["spend", "spent", "spending", "total", "cost", "costs", "bill",
+                                              "bills", "pay", "paid", "money", "charges", "charged", "purchases",
+                                              "bought", "buy", "dollars", "amount"])
+    static let whereFiller = filler.union(["where", "where's", "wheres", "left", "store", "stored", "find", "can"])
+    static let whereWords = whereFiller
+    static let expiryWords = filler.union(["expire", "expires", "expiring", "expiration", "date", "end", "ends",
+                                           "run", "out", "warranty", "warranties", "coverage", "covered", "until",
+                                           "valid", "still"])
+
+    static func terms(in text: String, dropping words: Set<String>) -> [String] {
+        text.split(whereSeparator: \.isWhitespace).map(String.init)
+            .filter { !words.contains($0) && $0.count(where: { $0.isLetter || $0.isNumber }) >= 2 }
+    }
+
+    // MARK: Dates
+
+    /// The first date range mentioned, how to describe it, and the words it
+    /// took up.
+    static func dateRange(in text: String, today: Day) -> (DayRange, String, String)? {
+        let relative: [(String, () -> (DayRange, String)?)] = [
+            ("last month", {
+                let month = today.month == 1 ? 12 : today.month - 1
+                let year = today.month == 1 ? today.year - 1 : today.year
+                return DayRange.month(month, of: year).map { ($0, monthLabel(month, year)) }
+            }),
+            ("this month", { DayRange.month(today.month, of: today.year).map { ($0, "this month") } }),
+            ("last year", { DayRange.year(today.year - 1).map { ($0, String(today.year - 1)) } }),
+            ("this year", { DayRange.year(today.year).map { ($0, "this year") } }),
+            ("last week", { (DayRange(today.adding(days: -7), today), "the last 7 days") }),
+            ("this week", { (DayRange(today.adding(days: -6), today), "the last 7 days") }),
+            ("yesterday", { (DayRange(today.adding(days: -1), today.adding(days: -1)), "yesterday") }),
+            ("today", { (DayRange(today, today), "today") }),
+        ]
+        for (phrase, build) in relative where text.contains(" \(phrase) ") {
+            if let (range, label) = build() { return (range, label, " \(phrase) ") }
+        }
+
+        // "september", "sept 2025", "in august"
+        let monthRegex = DayParser.regex("\\s(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?(?:\\s+(\\d{4}))?\\s")
+        let ns = text as NSString
+        for match in monthRegex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            let word = ns.substring(with: match.range(at: 1))
+            // "may" is also a verb; only count it with a year or after "in".
+            let full = ns.substring(with: match.range).trimmingCharacters(in: .whitespaces)
+            if word == "may", match.range(at: 2).location == NSNotFound, !text.contains(" in may ") { continue }
+            guard let month = DayParser.month(named: word),
+                  DayParser.months.contains(where: { full.hasPrefix($0) }) else { continue }
+            let year: Int
+            if match.range(at: 2).location != NSNotFound {
+                year = Int(ns.substring(with: match.range(at: 2))) ?? today.year
+            } else {
+                // The most recent one: in October, "September" is this year's.
+                year = month <= today.month ? today.year : today.year - 1
+            }
+            guard let range = DayRange.month(month, of: year) else { continue }
+            return (range, monthLabel(month, year), ns.substring(with: match.range) + " ")
+        }
+
+        // "in 2025"
+        let yearRegex = DayParser.regex("\\s((?:19|20)\\d{2})\\s")
+        if let match = yearRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+           let year = Int(ns.substring(with: match.range(at: 1))), let range = DayRange.year(year) {
+            return (range, String(year), ns.substring(with: match.range))
+        }
+        return nil
+    }
+
+    static func monthLabel(_ month: Int, _ year: Int) -> String {
+        let names = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                     "October", "November", "December"]
+        return "\(names[month - 1]) \(year)"
+    }
+}

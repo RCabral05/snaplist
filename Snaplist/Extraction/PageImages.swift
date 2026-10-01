@@ -9,13 +9,14 @@ import UIKit
 /// the same pixels it was found on.
 enum PageImages {
     enum Failure: Error, LocalizedError {
-        case unreadableImage, unreadablePDF, missingPage(Int)
+        case unreadableImage, unreadablePDF, missingPage(Int), notAnImage
 
         var errorDescription: String? {
             switch self {
             case .unreadableImage: "The image couldn't be read."
             case .unreadablePDF: "The PDF couldn't be read."
             case .missingPage(let index): "The PDF has no page \(index + 1)."
+            case .notAnImage: "A voice note has no page to show."
             }
         }
     }
@@ -30,6 +31,8 @@ enum PageImages {
             guard let page = document.page(at: pageInAsset + 1) else { throw Failure.missingPage(pageInAsset) }
             guard let image = render(page, maxPixelSize: maxPixelSize) else { throw Failure.unreadablePDF }
             return image
+        case .audio:
+            throw Failure.notAnImage
         }
     }
 

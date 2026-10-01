@@ -24,6 +24,10 @@ final class AppModel {
         didSet { search() }
     }
     var errorMessage: String?
+    /// Each receipt's and bill's total, for its card.
+    private(set) var totals: [UUID: Money] = [:]
+    /// Bumped when amounts change, which the record list doesn't observe.
+    private(set) var amountsRevision = 0
 
     private let thumbnails = NSCache<NSString, UIImage>()
 
@@ -82,6 +86,7 @@ final class AppModel {
         do {
             for try await list in archive.store.recordUpdates() {
                 records = list
+                refreshTotals()
                 // A record that just became ready may now match.
                 search()
             }
@@ -134,6 +139,13 @@ final class AppModel {
         }
     }
 
+    /// A voice note becomes an item named by what was said.
+    func importVoiceNote(_ url: URL) {
+        add(kind: .item, title: "Voice note · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))",
+            nameSource: .automatic, items: [ImportItem(type: .audio, source: .file(url), fileExtension: "m4a")])
+        try? FileManager.default.removeItem(at: url)
+    }
+
     /// Camera-roll and scanner names say nothing: "IMG_4021", "Scan 3",
     /// "Document", a UUID. Those get a name read from the text instead.
     static func isGenericFileName(_ name: String) -> Bool {
@@ -168,11 +180,77 @@ final class AppModel {
         }
     }
 
+    // MARK: Amounts
+
+    func transactions(of recordId: UUID) -> [Transaction] {
+        (try? archive.store.transactions(of: recordId)) ?? []
+    }
+
+    func save(_ transaction: Transaction) {
+        do {
+            try archive.store.save(transaction)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't save the amount: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteTransaction(_ id: Int64, of recordId: UUID) {
+        do {
+            try archive.store.delete(transaction: id, of: recordId)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't delete the amount: \(error.localizedDescription)"
+        }
+    }
+
+    func setDocumentDate(_ day: Day, for recordId: UUID) {
+        do {
+            try archive.store.setDocumentDate(day, for: recordId)
+        } catch {
+            errorMessage = "Couldn't save the date: \(error.localizedDescription)"
+        }
+    }
+
+    private func amountsChanged() {
+        amountsRevision += 1
+        refreshTotals()
+    }
+
+    private func refreshTotals() {
+        totals = (try? archive.store.recordTotals()) ?? [:]
+    }
+
+    // MARK: Asking
+
+    /// Answered from the archive by ArchiveCore: rules to read the question,
+    /// SQL and integer sums for the numbers.
+    func ask(_ text: String) -> AskResult {
+        let today = Day(.now)
+        do {
+            switch QuestionParser.parse(text, today: today) {
+            case .spending(let query):
+                return .spending(try archive.store.answer(query))
+            case .whereIs(let terms):
+                return .whereIs(try archive.store.whereIs(terms), terms: terms)
+            case .expiry(let terms):
+                return .expiry(try archive.store.expiries(terms), terms: terms)
+            case .search(let text):
+                return .search(try archive.store.search(text, limit: 10), text: text)
+            }
+        } catch {
+            errorMessage = "Couldn't answer that: \(error.localizedDescription)"
+            return .search([], text: text)
+        }
+    }
+
     // MARK: Changing
 
+    /// Refiling can change a record's amounts, so totals refresh too.
     func update(_ record: Record) {
         do {
             try archive.store.update(record)
+            amountsChanged()
         } catch {
             errorMessage = "Couldn't save the change: \(error.localizedDescription)"
         }

@@ -20,6 +20,11 @@ struct RecordDetailView: View {
     @State private var isConfirmingDelete = false
     @State private var isShowingAllText = false
     @State private var copied = false
+    @State private var transactions: [Transaction] = []
+    /// A printed amount being pointed at: its page and line.
+    @State private var focusedLine: (page: Int, line: Int)?
+    /// Changes on every "Show on Page", even for the same line twice.
+    @State private var focusToken = 0
 
     /// One swipeable page. Before the text is read there are no `Page` rows
     /// yet, so a slot can also be just an original's first page.
@@ -38,15 +43,21 @@ struct RecordDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                pager
-                header
-                statusBanner
-                details
-                textSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    pager.id("pager")
+                    header
+                    statusBanner
+                    details
+                    AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
+                    textSection
+                }
+                .padding(.bottom, 32)
             }
-            .padding(.bottom, 32)
+            .onChange(of: focusToken) {
+                withAnimation(.snappy) { proxy.scrollTo("pager", anchor: .top) }
+            }
         }
         .background(Theme.background)
         .navigationTitle(current.title)
@@ -84,7 +95,7 @@ struct RecordDetailView: View {
         } message: {
             Text("The original and its text are removed from this iPhone. This can't be undone.")
         }
-        .task(id: current.status) { load() }
+        .task(id: "\(current.status)-\(current.kind)-\(model.amountsRevision)") { load() }
     }
 
     // MARK: Pages
@@ -100,17 +111,23 @@ struct RecordDetailView: View {
             VStack(spacing: 10) {
                 TabView(selection: $selection) {
                     ForEach(slots) { slot in
-                        PageImageView(url: model.archive.url(for: slot.asset), type: slot.asset.type,
-                                      pageInAsset: slot.pageInAsset, highlights: highlights(on: slot))
-                            .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .frame(maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture { zoomed = slot }
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityHint("Opens the page full screen")
-                            .tag(slot.index)
+                        Group {
+                            if slot.asset.type == .audio {
+                                AudioNoteCard(url: model.archive.url(for: slot.asset), transcript: slot.page?.text)
+                            } else {
+                                PageImageView(url: model.archive.url(for: slot.asset), type: slot.asset.type,
+                                              pageInAsset: slot.pageInAsset, highlights: highlights(on: slot))
+                                    .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { zoomed = slot }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityHint("Opens the page full screen")
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .frame(maxHeight: .infinity)
+                        .tag(slot.index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -131,9 +148,15 @@ struct RecordDetailView: View {
             Text(current.title)
                 .font(Theme.display(.title, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Added \(current.createdAt.formatted(date: .long, time: .shortened))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Group {
+                if let day = current.documentDate {
+                    Text("\(day.date().formatted(date: .long, time: .omitted)) · added \(current.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                } else {
+                    Text("Added \(current.createdAt.formatted(date: .long, time: .shortened))")
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
     }
@@ -208,6 +231,7 @@ struct RecordDetailView: View {
 
     private var textSource: String {
         let sources = Set(slots.compactMap(\.page?.textSource))
+        if sources == [.speech] { return "Transcribed on this iPhone" }
         switch (sources.contains(.ocr), sources.contains(.pdfText)) {
         case (true, true): return "PDF and read on iPhone"
         case (true, false): return "Read on this iPhone"
@@ -248,8 +272,10 @@ struct RecordDetailView: View {
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
 
                 HStack {
-                    if page.textSource == .ocr {
-                        Label("Read automatically; may contain mistakes.", systemImage: "text.viewfinder")
+                    if page.textSource != .pdfText {
+                        Label(page.textSource == .speech ? "Transcribed automatically; may contain mistakes."
+                                                         : "Read automatically; may contain mistakes.",
+                              systemImage: page.textSource == .speech ? "waveform" : "text.viewfinder")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -272,13 +298,29 @@ struct RecordDetailView: View {
         model.query.split(whereSeparator: \.isWhitespace).map(String.init)
     }
 
-    /// Lines containing a search term. A PDF's text layer has no positions
-    /// yet, so its matches are found but not drawn.
+    /// Lines containing a search term, and the row of an amount being
+    /// pointed at. A PDF's text layer has no positions yet, so its lines are
+    /// found but not drawn.
     private func highlights(on slot: PageSlot) -> [PageRect] {
-        guard !searchTerms.isEmpty else { return [] }
-        return slot.lines.compactMap { line in
+        var boxes = searchTerms.isEmpty ? [] : slot.lines.compactMap { line in
             searchTerms.contains { line.text.localizedStandardContains($0) } ? line.box : nil
         }
+        if let focusedLine, focusedLine.page == slot.index,
+           let anchor = slot.lines.first(where: { $0.position == focusedLine.line })?.box {
+            // Everything on the same printed row: OCR splits "TOTAL" and "72.65".
+            let mid = anchor.y + anchor.height / 2
+            boxes += slot.lines.compactMap(\.box).filter { abs(($0.y + $0.height / 2) - mid) < anchor.height * 0.6 }
+        }
+        return boxes
+    }
+
+    private func showOnPage(_ transaction: Transaction) {
+        guard let page = transaction.pagePosition else { return }
+        withAnimation(.snappy) {
+            selection = page
+            focusedLine = transaction.linePosition.map { (page, $0) }
+        }
+        focusToken += 1
     }
 
     private func load() {
@@ -302,6 +344,7 @@ struct RecordDetailView: View {
             if let focusPage, slots.contains(where: { $0.index == focusPage }) {
                 selection = focusPage
             }
+            transactions = try store.transactions(of: record.id)
         } catch {
             model.errorMessage = "Couldn't load this record: \(error.localizedDescription)"
         }

@@ -14,6 +14,8 @@ struct RecordListView: View {
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var pendingDelete: Record?
     @State private var isShowingSettings = false
+    @State private var isAsking = false
+    @State private var isRecordingNote = false
 
     /// Where a card leads: the record, and for a search hit the page that matched.
     struct Destination: Hashable {
@@ -56,9 +58,19 @@ struct RecordListView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Settings", systemImage: "gearshape") { isShowingSettings = true }
                 }
-                ToolbarItem(placement: .topBarTrailing) { addMenu }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if !model.records.isEmpty {
+                        Button("Ask", systemImage: "sparkle.magnifyingglass") { isAsking = true }
+                            .accessibilityIdentifier("ask")
+                    }
+                    addMenu
+                }
             }
             .sheet(isPresented: $isShowingSettings) { SettingsView() }
+            .sheet(isPresented: $isAsking) { AskView() }
+            .sheet(isPresented: $isRecordingNote) {
+                VoiceNoteRecorder { url in model.importVoiceNote(url) }
+            }
             .fullScreenCover(isPresented: $isScanning) {
                 DocumentScanner { images in
                     isScanning = false
@@ -115,7 +127,7 @@ struct RecordListView: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                         ForEach(group.records) { record in
                             NavigationLink(value: Destination(record: record)) {
-                                RecordCard(record: record)
+                                RecordCard(record: record, total: model.totals[record.id])
                             }
                             .buttonStyle(.plain)
                             .contextMenu { rowActions(record) }
@@ -172,6 +184,7 @@ struct RecordListView: View {
             }
             Button("Choose Photos", systemImage: "photo.on.rectangle") { isPickingPhotos = true }
             Button("Import Files", systemImage: "folder") { isPickingFiles = true }
+            Button("Voice Note", systemImage: "mic") { isRecordingNote = true }
         } label: {
             Label("Add", systemImage: "plus")
         } primaryAction: {
@@ -201,6 +214,7 @@ struct RecordListView: View {
 /// A grid cell: the preview, then the name and where it's filed.
 struct RecordCard: View {
     let record: Record
+    var total: Money?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -216,7 +230,11 @@ struct RecordCard: View {
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 4) {
                     Circle().fill(record.kind.tint).frame(width: 6, height: 6)
-                    Text(record.createdAt, format: .dateTime.month(.abbreviated).day())
+                    if let total {
+                        Text(total.formatted).monospacedDigit()
+                    } else {
+                        Text(record.effectiveDay.date(), format: .dateTime.month(.abbreviated).day())
+                    }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -243,7 +261,7 @@ struct SearchHitCard: View {
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(hit.record.createdAt, format: .dateTime.month(.abbreviated).day())
+                    Text(hit.record.effectiveDay.date(), format: .dateTime.month(.abbreviated).day())
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
