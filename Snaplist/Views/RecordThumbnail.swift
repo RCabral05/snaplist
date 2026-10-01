@@ -44,7 +44,7 @@ struct RecordThumbnail: View {
             .animation(.easeOut(duration: 0.2), value: image != nil)
             .accessibilityHidden(true)
             .task(id: pagePosition) {
-                image = await model.thumbnail(for: record.id, pagePosition: pagePosition, maxPixelSize: isCard ? 640 : 240)
+                image = await model.thumbnail(for: record.id, pagePosition: pagePosition, maxPixelSize: isCard ? 420 : 240)
             }
     }
 
@@ -59,5 +59,5 @@ struct RecordThumbnail: View {
     }
 
     private var aspectRatio: CGFloat { isCard ? 3 / 4 : 1 }
-    private var cornerRadius: CGFloat { isCard ? Theme.cardRadius : 8 }
+    private var cornerRadius: CGFloat { isCard ? 10 : 8 }
 }

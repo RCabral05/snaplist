@@ -143,7 +143,7 @@ struct LockView: View {
         .padding(.horizontal, 32)
         .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Theme.background)
         .task { await lock.unlock() }
     }
 }
@@ -153,7 +153,7 @@ struct LockView: View {
 struct PrivacyCover: View {
     var body: some View {
         Rectangle()
-            .fill(Color(.systemGroupedBackground))
+            .fill(Theme.background)
             .overlay {
                 Text("Snaplist")
                     .font(Theme.display(.largeTitle, weight: .bold))

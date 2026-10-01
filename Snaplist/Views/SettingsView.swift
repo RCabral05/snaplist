@@ -19,6 +19,7 @@ struct SettingsView: View {
                         Text("Set a passcode in the Settings app to lock Snaplist.")
                     }
                 }
+                .listRowBackground(Theme.surface)
 
                 Section("Where your data is") {
                     Label("Only on this iPhone. There is no account, and nothing is uploaded.", systemImage: "iphone")
@@ -27,11 +28,14 @@ struct SettingsView: View {
                     Label("Included in your iPhone's own backups (iCloud or computer), which belong to your Apple ID.", systemImage: "externaldrive")
                 }
                 .font(.subheadline)
+                .listRowBackground(Theme.surface)
 
                 Section {
                     LabeledContent("Version", value: version)
                 }
+                .listRowBackground(Theme.surface)
             }
+            .warmForm()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

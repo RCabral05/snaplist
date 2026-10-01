@@ -11,26 +11,50 @@ enum Theme {
 
     static let cardRadius: CGFloat = 14
 
-    /// Amber: deep enough to read as text on white, brighter on black.
-    static let accent = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.98, green: 0.75, blue: 0.14, alpha: 1)
-            : UIColor(red: 0.71, green: 0.33, blue: 0.04, alpha: 1)
-    })
+    // Warm paper: cream and white by day, warm charcoal by night. No pure
+    // black or white backgrounds, and no system blue.
+
+    /// Amber: deep enough to read as text on cream, brighter on charcoal.
+    static let accent = Color(light: 0xB45309, dark: 0xF5B942)
+    /// Behind everything.
+    static let background = Color(light: 0xF6F1E7, dark: 0x1C1A17)
+    /// Cards, rows and fields that sit on the background.
+    static let surface = Color(light: 0xFFFDF8, dark: 0x2A2723)
+}
+
+extension Color {
+    /// One colour for light mode and one for dark, from hex.
+    init(light: UInt32, dark: UInt32) {
+        func ui(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        self.init(UIColor { $0.userInterfaceStyle == .dark ? ui(dark) : ui(light) })
+    }
 }
 
 extension RecordKind {
+    /// Muted, earthy colours that sit on cream and charcoal without shouting.
     var tint: Color {
         switch self {
-        case .receipt: .green
-        case .statement: .blue
-        case .bill: .orange
-        case .warranty: .purple
-        case .manual: .brown
-        case .document: .gray
-        case .item: .pink
-        case .other: .secondary
+        case .receipt: Color(light: 0x4F7A5C, dark: 0x8FBF9C)    // sage
+        case .statement: Color(light: 0x56657A, dark: 0x9FB0C6)  // slate
+        case .bill: Color(light: 0xA65A33, dark: 0xE09A72)       // clay
+        case .warranty: Color(light: 0x77588A, dark: 0xBBA0CB)   // plum
+        case .manual: Color(light: 0x7D6142, dark: 0xC7A57F)     // walnut
+        case .document: Color(light: 0x6E6A62, dark: 0xADA79B)   // stone
+        case .item: Color(light: 0xA2505F, dark: 0xDC93A1)       // rose
+        case .other: Color(light: 0x7A766E, dark: 0x9C978D)      // ash
         }
+    }
+}
+
+extension View {
+    /// A form on the warm background. Its sections set
+    /// `.listRowBackground(Theme.surface)` for the rows.
+    func warmForm() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Theme.background)
     }
 }
 

@@ -48,7 +48,7 @@ struct RecordDetailView: View {
             }
             .padding(.bottom, 32)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Theme.background)
         .navigationTitle(current.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -188,7 +188,7 @@ struct RecordDetailView: View {
             }
         }
         .font(.subheadline)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
         .padding(.horizontal)
     }
 
@@ -245,7 +245,7 @@ struct RecordDetailView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
 
                 HStack {
                     if page.textSource == .ocr {
@@ -331,7 +331,7 @@ private extension View {
     func card() -> some View {
         padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .padding(.horizontal)
     }
 }

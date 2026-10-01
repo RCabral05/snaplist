@@ -38,11 +38,12 @@ enum DemoData {
                   items: [pdf(pages: [statementPage1, statementPage2])], at: now - 1 * day)
         model.add(kind: .receipt, title: "Shell",
                   items: [image(receipt(shell))], at: now - 2 * day)
-        model.add(kind: .receipt, title: "Costco",
+        // Placeholder names, as a scan gets: these should come back named.
+        model.add(title: "Scan · Sep 25", nameSource: .automatic,
                   items: [image(receipt(costco))], at: now - 5 * day)
         model.add(kind: .item, title: "Spare HDMI cable · hall closet, top shelf",
                   items: [image(label(["HDMI 2.1 CABLE", "8K @ 60Hz · 6 FT", "BOX 3 · HALL CLOSET"]))], at: now - 9 * day)
-        model.add(kind: .receipt, title: "Trader Joe's",
+        model.add(title: "Photo · Sep 18", nameSource: .automatic,
                   items: [image(receipt(traderJoes))], at: now - 12 * day)
         model.add(kind: .bill, title: "PG&E · August",
                   items: [image(receipt(pge, width: 1000))], at: now - 33 * day)

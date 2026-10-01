@@ -18,6 +18,9 @@ let package = Package(
             name: "ArchiveCore",
             dependencies: [.product(name: "GRDB", package: "GRDB.swift")]
         ),
-        .testTarget(name: "ArchiveCoreTests", dependencies: ["ArchiveCore"]),
+        .testTarget(
+            name: "ArchiveCoreTests",
+            dependencies: ["ArchiveCore", .product(name: "GRDB", package: "GRDB.swift")]
+        ),
     ]
 )

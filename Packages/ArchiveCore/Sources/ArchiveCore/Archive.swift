@@ -23,9 +23,10 @@ public struct Archive: Sendable {
     /// `Ingestor` reads its text afterwards. If the rows cannot be written the
     /// files are removed, so a failed import leaves nothing behind.
     @discardableResult
-    public func add(kind: RecordKind, title: String, items: [ImportItem], at date: Date = Date()) throws -> Record {
+    public func add(kind: RecordKind, title: String, nameSource: NameSource = .person,
+                    items: [ImportItem], at date: Date = Date()) throws -> Record {
         precondition(!items.isEmpty, "a record needs at least one original")
-        let record = Record(kind: kind, title: title, createdAt: date)
+        let record = Record(kind: kind, title: title, createdAt: date, nameSource: nameSource)
 
         do {
             let assets = try items.enumerated().map { position, item in

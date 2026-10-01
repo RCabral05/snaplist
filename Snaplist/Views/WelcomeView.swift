@@ -97,7 +97,7 @@ private struct PaperStack: View {
 
     private var sheet: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color(.secondarySystemGroupedBackground))
+            .fill(Theme.surface)
             .frame(width: 112, height: 148)
             .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }

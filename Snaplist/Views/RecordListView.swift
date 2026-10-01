@@ -21,7 +21,7 @@ struct RecordListView: View {
         var pagePosition: Int?
     }
 
-    private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3)
 
     var body: some View {
         @Bindable var model = model
@@ -43,7 +43,7 @@ struct RecordListView: View {
                     .padding(.bottom, 24)
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Theme.background)
             .navigationTitle("Snaplist")
             .navigationSubtitle(subtitle)
             // Hidden on the welcome screen, where it would cover the buttons
@@ -112,7 +112,7 @@ struct RecordListView: View {
                     Text(group.title)
                         .font(Theme.display(.title3))
                         .padding(.horizontal, 4)
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                         ForEach(group.records) { record in
                             NavigationLink(value: Destination(record: record)) {
                                 RecordCard(record: record)
@@ -203,27 +203,27 @@ struct RecordCard: View {
     let record: Record
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             RecordThumbnail(record: record, style: .card)
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
-                .overlay(alignment: .topLeading) {
-                    StatusPill(status: record.status).padding(8)
+                .shadow(color: .black.opacity(0.06), radius: 5, y: 2)
+                .overlay(alignment: .bottomLeading) {
+                    StatusPill(status: record.status).padding(5)
                 }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(record.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                HStack(spacing: 5) {
-                    Circle().fill(record.kind.tint).frame(width: 7, height: 7)
-                    Text(record.kind.label)
-                    Text("·")
+                HStack(spacing: 4) {
+                    Circle().fill(record.kind.tint).frame(width: 6, height: 6)
                     Text(record.createdAt, format: .dateTime.month(.abbreviated).day())
                 }
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 1)
+            // Three to a row stays three to a row at large text sizes.
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -263,7 +263,7 @@ struct SearchHitCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
         .contentShape(Rectangle())
     }
 
@@ -294,6 +294,7 @@ struct StatusPill: View {
             .pill()
         case .failed:
             Label("Couldn't read", systemImage: "exclamationmark.triangle.fill")
+                .labelStyle(.iconOnly)
                 .foregroundStyle(.orange)
                 .pill()
         case .ready:

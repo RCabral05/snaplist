@@ -22,6 +22,16 @@ public enum TextSource: String, Codable, Sendable {
     case pdfText, ocr
 }
 
+/// Who named a record, which decides whether the app may rename it.
+public enum NameSource: String, Codable, Sendable {
+    /// A placeholder ("Scan Sep 30…"): replaced by a name read from the text.
+    case automatic
+    /// The imported file's name: kept, though the category may still be guessed.
+    case file
+    /// Typed or chosen by the person: never changed by the app.
+    case person
+}
+
 /// One thing the person saved: a receipt, a statement, a photo of a shelf.
 public struct Record: Codable, Hashable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     public var id: UUID
@@ -30,15 +40,18 @@ public struct Record: Codable, Hashable, Identifiable, Sendable, FetchableRecord
     public var createdAt: Date
     public var status: IngestStatus
     public var failureReason: String?
+    public var nameSource: NameSource
 
     public init(id: UUID = UUID(), kind: RecordKind, title: String, createdAt: Date,
-                status: IngestStatus = .pending, failureReason: String? = nil) {
+                status: IngestStatus = .pending, failureReason: String? = nil,
+                nameSource: NameSource = .person) {
         self.id = id
         self.kind = kind
         self.title = title
         self.createdAt = createdAt
         self.status = status
         self.failureReason = failureReason
+        self.nameSource = nameSource
     }
 }
 

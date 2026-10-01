@@ -104,6 +104,7 @@ struct EditRecordView: View {
                     TextField("Name", text: $title)
                         .submitLabel(.done)
                 }
+                .listRowBackground(Theme.surface)
                 Section("Category") {
                     Picker("Category", selection: $kind) {
                         ForEach(RecordKind.allCases, id: \.self) { kind in
@@ -113,7 +114,9 @@ struct EditRecordView: View {
                     .pickerStyle(.inline)
                     .labelsHidden()
                 }
+                .listRowBackground(Theme.surface)
             }
+            .warmForm()
             .navigationTitle("Edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

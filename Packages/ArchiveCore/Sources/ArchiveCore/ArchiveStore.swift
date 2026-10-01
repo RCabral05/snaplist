@@ -72,6 +72,13 @@ public struct ArchiveStore: Sendable {
                 );
                 """)
         }
+        migrator.registerMigration("v2-nameSource") { db in
+            try db.execute(sql: """
+                ALTER TABLE record ADD COLUMN nameSource TEXT NOT NULL DEFAULT 'person';
+                -- Records made before this existed: the placeholders are recognisable.
+                UPDATE record SET nameSource = 'automatic' WHERE title LIKE 'Scan %' OR title LIKE 'Photo %';
+                """)
+        }
         return migrator
     }
 
@@ -137,10 +144,13 @@ public struct ArchiveStore: Sendable {
         }
     }
 
-    /// Kind and title are the parts a person edits; status belongs to the pipeline.
+    /// Kind and title are the parts a person edits; status belongs to the
+    /// pipeline. Either edit makes the record theirs: no more automatic naming.
     public func update(_ record: Record) throws {
+        var record = record
+        record.nameSource = .person
         try db.write { db in
-            try record.update(db, columns: ["kind", "title"])
+            try record.update(db, columns: ["kind", "title", "nameSource"])
             try db.execute(
                 sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
                 arguments: [record.title, record.id])
@@ -155,6 +165,8 @@ public struct ArchiveStore: Sendable {
         try db.write { db in
             guard var record = try Record.fetchOne(db, key: recordId) else { return }
             try Self.removeText(of: recordId, in: db)
+            // Before the index rows are written, so they carry the new name.
+            Self.applySuggestion(Suggester.suggest(extracted.flatMap(\.pages)), to: &record)
 
             var position = 0
             for asset in extracted {
@@ -210,6 +222,50 @@ public struct ArchiveStore: Sendable {
         try db.write { db in
             try db.execute(sql: "DELETE FROM searchIndex")
             _ = try Record.deleteAll(db)
+        }
+    }
+
+    /// Re-reads the stored text of records the app may still name, and applies
+    /// what it suggests: for records read before suggestions existed. Cheap
+    /// enough to run at every launch. Returns how many records changed.
+    @discardableResult
+    public func refreshSuggestions() throws -> Int {
+        try db.write { db in
+            let records = try Record
+                .filter(Column("nameSource") != NameSource.person.rawValue)
+                .filter(Column("status") == IngestStatus.ready.rawValue)
+                .fetchAll(db)
+            var changed = 0
+            for var record in records {
+                let pages = try Page.filter(Column("recordId") == record.id).order(Column("position")).fetchAll(db)
+                let recognized = try pages.map { page in
+                    let lines = try TextLine.filter(Column("pageId") == page.id).order(Column("position")).fetchAll(db)
+                    return RecognizedPage(
+                        lines: lines.map { RecognizedLine(text: $0.text, box: $0.box, confidence: $0.confidence) },
+                        source: page.textSource)
+                }
+                let before = record
+                Self.applySuggestion(Suggester.suggest(recognized), to: &record)
+                guard record != before else { continue }
+                try record.update(db, columns: ["kind", "title"])
+                try db.execute(
+                    sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
+                    arguments: [record.title, record.id])
+                changed += 1
+            }
+            return changed
+        }
+    }
+
+    /// A placeholder name is replaced; a file's name is kept. The category is
+    /// only filled in while it's still the default.
+    static func applySuggestion(_ suggestion: Suggestion, to record: inout Record) {
+        guard record.nameSource != .person else { return }
+        if record.nameSource == .automatic, let title = suggestion.title {
+            record.title = title
+        }
+        if record.kind == .document, let kind = suggestion.kind {
+            record.kind = kind
         }
     }
 

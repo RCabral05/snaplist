@@ -75,6 +75,8 @@ final class AppModel {
             DemoData.seed(into: self)
         }
         #endif
+        // Names records read before naming existed, e.g. "Scan Sep 30…".
+        _ = try? archive.store.refreshSuggestions()
         resumePending()
 
         do {
@@ -115,7 +117,7 @@ final class AppModel {
             .compactMap { $0.jpegData(compressionQuality: 0.85) }
             .map { ImportItem(type: .image, source: .data($0), fileExtension: "jpg") }
         guard !items.isEmpty else { return }
-        add(title: "Scan \(Date.now.formatted(date: .abbreviated, time: .shortened))", items: items)
+        add(title: "Scan · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))", nameSource: .automatic, items: items)
     }
 
     /// One record per photo: picking five receipts means five receipts.
@@ -124,12 +126,21 @@ final class AppModel {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
                 let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
-                add(title: "Photo \(Date.now.formatted(date: .abbreviated, time: .shortened))",
+                add(title: "Photo · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))", nameSource: .automatic,
                     items: [ImportItem(type: .image, source: .data(data), fileExtension: ext)])
             } catch {
                 errorMessage = "Couldn't load a photo: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// Camera-roll and scanner names say nothing: "IMG_4021", "Scan 3",
+    /// "Document", a UUID. Those get a name read from the text instead.
+    static func isGenericFileName(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        let letters = lower.filter(\.isLetter)
+        let generic = ["img", "image", "photo", "scan", "scanned", "document", "doc", "untitled", "file", "pxl", "dsc"]
+        return letters.count < 3 || generic.contains { lower.hasPrefix($0) } || UUID(uuidString: name) != nil
     }
 
     /// One record per file, named after the file.
@@ -139,15 +150,17 @@ final class AppModel {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
             let isPDF = UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) ?? false
-            add(title: url.deletingPathExtension().lastPathComponent,
+            let name = url.deletingPathExtension().lastPathComponent
+            add(title: name, nameSource: Self.isGenericFileName(name) ? .automatic : .file,
                 items: [ImportItem(type: isPDF ? .pdf : .image, source: .file(url), fileExtension: url.pathExtension)])
         }
     }
 
     /// Imports start as a plain document; the person files them afterwards.
-    func add(kind: RecordKind = .document, title: String, items: [ImportItem], at date: Date = .now) {
+    func add(kind: RecordKind = .document, title: String, nameSource: NameSource = .person,
+             items: [ImportItem], at date: Date = .now) {
         do {
-            let record = try archive.add(kind: kind, title: title, items: items, at: date)
+            let record = try archive.add(kind: kind, title: title, nameSource: nameSource, items: items, at: date)
             let ingestor = ingestor
             Task { await ingestor.process(record.id) }
         } catch {
