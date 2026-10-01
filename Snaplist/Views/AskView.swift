@@ -26,7 +26,9 @@ struct AskView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     questionField
                     if let answer {
-                        AnswerView(result: answer)
+                        AnswerView(result: answer) { query in
+                            self.answer = model.answer(query)
+                        }
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     } else {
                         examples
@@ -121,10 +123,12 @@ enum AskResult {
 
 private struct AnswerView: View {
     let result: AskResult
+    /// Re-asks a spending question for another period.
+    var reask: (SpendingQuery) -> Void
 
     var body: some View {
         switch result {
-        case .spending(let answer): SpendingAnswerView(answer: answer)
+        case .spending(let answer): SpendingAnswerView(answer: answer, reask: reask)
         case .whereIs(let hits, let terms): WhereAnswerView(hits: hits, terms: terms)
         case .expiry(let found, let terms): ExpiryAnswerView(found: found, terms: terms)
         case .search(let hits, let text):
@@ -147,6 +151,7 @@ private struct AnswerView: View {
 
 private struct SpendingAnswerView: View {
     let answer: SpendingAnswer
+    var reask: (SpendingQuery) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -166,6 +171,38 @@ private struct SpendingAnswerView: View {
                     Text(answer.counted.count == 1 ? "From 1 amount in your archive" : "From \(answer.counted.count) amounts in your archive")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if answer.counted.isEmpty, !answer.otherMonths.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Your archive does have \(subject) in")
+                        .font(.subheadline.weight(.semibold))
+                    ForEach(answer.otherMonths, id: \.label) { month in
+                        Button {
+                            var query = answer.query
+                            query.range = month.range
+                            query.rangeLabel = month.label
+                            reask(query)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(month.label).font(.subheadline.weight(.medium))
+                                    Text(month.count == 1 ? "1 amount" : "\(month.count) amounts")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(month.totals.map(\.formatted).joined(separator: " + "))
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            .padding(12)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 
@@ -210,6 +247,16 @@ private struct SpendingAnswerView: View {
                 .font(.subheadline.weight(.semibold))
             }
         }
+    }
+
+    /// "fuel spending at Shell", without the period.
+    private var subject: String {
+        let query = answer.query
+        var subject = query.categories.isEmpty ? "spending" : query.categories.map(\.label).sorted().joined(separator: " and ").lowercased() + " spending"
+        if !query.merchantTerms.isEmpty {
+            subject += " at \(query.merchantTerms.joined(separator: " or ").capitalized)"
+        }
+        return subject
     }
 
     /// "fuel purchases in September 2026", "spending at costco this year".

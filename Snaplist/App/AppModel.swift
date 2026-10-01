@@ -244,6 +244,17 @@ final class AppModel {
         }
     }
 
+    /// A spending question re-asked with a different period, from an answer's
+    /// "other months" buttons.
+    func answer(_ query: SpendingQuery) -> AskResult {
+        do {
+            return .spending(try archive.store.answer(query))
+        } catch {
+            errorMessage = "Couldn't answer that: \(error.localizedDescription)"
+            return .spending(SpendingAnswer(query: query, totals: [], counted: [], duplicates: [], notes: []))
+        }
+    }
+
     // MARK: Changing
 
     /// Refiling can change a record's amounts, so totals refresh too.

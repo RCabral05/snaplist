@@ -131,6 +131,19 @@ private let today = Day(year: 2026, month: 10, day: 1)!
         #expect(answer.notes.contains { $0.contains("No card or bank statement") })
     }
 
+    @Test func anEmptyMonthPointsToMonthsThatHaveSpending() throws {
+        let tmp = try archive(sample)
+        // October: nothing saved yet.
+        let answer = try tmp.archive.store.answer(SpendingQuery(categories: [.fuel], range: DayRange.month(10, of: 2026),
+                                                                rangeLabel: "October 2026"))
+        #expect(answer.counted.isEmpty)
+        #expect(answer.otherMonths.map(\.label) == ["September 2026", "August 2026"])
+        // September counts the duplicated Shell purchase once: 44.10 + 39.82 − 5.00.
+        #expect(answer.otherMonths.first?.totals == [Money(cents: 7892)])
+        #expect(answer.otherMonths.last?.totals == [Money(cents: 5100)])
+        #expect(answer.notes.contains { $0.contains("Your statements cover September 2026") })
+    }
+
     @Test func nothingFoundIsEmptyNotZeroGuessing() throws {
         let tmp = try archive(sample)
         let answer = try tmp.archive.store.answer(SpendingQuery(merchantTerms: ["starbucks"]))

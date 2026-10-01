@@ -26,6 +26,17 @@ public struct SpendingAnswer: Sendable {
     public var counted: [Counted]
     public var duplicates: [Duplicate]
     public var notes: [String]
+    /// When a period was asked about: other months with matching spending,
+    /// newest first, so an empty answer can say where there is some.
+    public var otherMonths: [MonthTotal] = []
+}
+
+/// Matching spending in one calendar month.
+public struct MonthTotal: Hashable, Sendable {
+    public var range: DayRange
+    public var label: String
+    public var totals: [Money]
+    public var count: Int
 }
 
 public struct ExpiryFinding: Hashable, Sendable {
@@ -62,12 +73,7 @@ extension ArchiveStore {
         let droppedIds = Set(duplicates.map(\.dropped.id))
         matching.removeAll { droppedIds.contains($0.id) }
         matching.sort { ($0.day, $0.id) > ($1.day, $1.id) }
-
-        var byCurrency: [String: Int64] = [:]
-        for item in matching {
-            byCurrency[item.transaction.currency, default: 0] += item.transaction.spendCents
-        }
-        let totals = byCurrency.map { Money(cents: $0.value, currency: $0.key) }.sorted { abs($0.cents) > abs($1.cents) }
+        let totals = Self.totals(of: matching)
 
         var notes = query.notes
         let refunds = matching.filter { $0.transaction.kind == .refund }
@@ -79,13 +85,56 @@ extension ArchiveStore {
                 ? "1 purchase appears on both a receipt and a statement; it's counted once."
                 : "\(duplicates.count) purchases appear on both a receipt and a statement; each is counted once.")
         }
+        var otherMonths: [MonthTotal] = []
         if let range = query.range, let label = query.rangeLabel {
             let statementsCover = all.contains { $0.transaction.source == .statement && range.contains($0.day) }
             if !statementsCover {
-                notes.append("No card or bank statement in your archive covers \(label), so this only counts receipts and bills you've saved.")
+                let covered = Self.months(of: all.filter { $0.transaction.source == .statement }).map(\.label)
+                let which = covered.isEmpty ? "" : " Your statements cover \(Self.list(covered))."
+                notes.append("No card or bank statement in your archive covers \(label), so this only counts receipts and bills you've saved.\(which)")
             }
+            otherMonths = otherMonthsWithSpending(all, query: query, excluding: range)
         }
-        return SpendingAnswer(query: query, totals: totals, counted: matching, duplicates: duplicates, notes: notes)
+        return SpendingAnswer(query: query, totals: totals, counted: matching, duplicates: duplicates, notes: notes,
+                              otherMonths: otherMonths)
+    }
+
+    /// The same question without the date, month by month, deduplicated the
+    /// same way. Newest four.
+    private func otherMonthsWithSpending(_ all: [Counted], query: SpendingQuery, excluding range: DayRange) -> [MonthTotal] {
+        var anyTime = query
+        anyTime.range = nil
+        var items = all.filter { matches($0, anyTime) && !range.contains($0.day) }
+        let dropped = Set(Self.duplicates(in: items).map(\.dropped.id))
+        items.removeAll { dropped.contains($0.id) }
+        return Self.months(of: items).prefix(4).map { month in
+            let inMonth = items.filter { month.range.contains($0.day) }
+            return MonthTotal(range: month.range, label: month.label, totals: Self.totals(of: inMonth), count: inMonth.count)
+        }
+    }
+
+    /// Distinct calendar months the items fall in, newest first.
+    static func months(of items: [Counted]) -> [(range: DayRange, label: String)] {
+        let keys = Set(items.map { $0.day.year * 100 + $0.day.month }).sorted(by: >)
+        return keys.compactMap { key in
+            DayRange.month(key % 100, of: key / 100).map { ($0, QuestionParser.monthLabel(key % 100, key / 100)) }
+        }
+    }
+
+    static func totals(of items: [Counted]) -> [Money] {
+        var byCurrency: [String: Int64] = [:]
+        for item in items {
+            byCurrency[item.transaction.currency, default: 0] += item.transaction.spendCents
+        }
+        return byCurrency.map { Money(cents: $0.value, currency: $0.key) }.sorted { abs($0.cents) > abs($1.cents) }
+    }
+
+    static func list(_ words: [String]) -> String {
+        switch words.count {
+        case 0: ""
+        case 1: words[0]
+        default: words.dropLast().joined(separator: ", ") + " and " + words.last!
+        }
     }
 
     private func matches(_ item: Counted, _ query: SpendingQuery) -> Bool {
