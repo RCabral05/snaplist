@@ -233,15 +233,13 @@ struct RecordListView: View {
                 Button("Scan Document", systemImage: "doc.viewfinder") { isScanning = true }
             }
             Button("Choose Photos", systemImage: "photo.on.rectangle") { isPickingPhotos = true }
-            Button("Import Files", systemImage: "folder") { isPickingFiles = true }
+            Button("Import PDFs and Files", systemImage: "folder") { isPickingFiles = true }
             Button("Voice Note", systemImage: "mic") { isRecordingNote = true }
         } label: {
             Label("Add", systemImage: "plus")
-        } primaryAction: {
-            if canScan { isScanning = true } else { isPickingPhotos = true }
         }
         .buttonStyle(.glassProminent)
-        .accessibilityHint("Tap to scan, or hold for photos and files")
+        .accessibilityHint("Scan, photos, files or a voice note")
     }
 
     private var subtitle: String {
