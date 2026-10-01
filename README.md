@@ -8,11 +8,14 @@ Everything stays on the phone. There is no account and no server.
 
 ## Status
 
-Phase 1 of the plan below: capture, local storage, on-device text recognition,
-and search that leads back to the page a match was found on.
+Built: capture (scan, photos, files, voice notes), on-device text reading and
+transcription, automatic names and categories, search that lands on the page,
+receipt/bill totals and statement lines (correctable, each linked to where it
+was printed), Ask (spending totals, where something is, warranty expiry), and
+a Face ID lock.
 
-The previous Expo app (sign-in and a profile, backed by Supabase) was removed
-on 2026-10-01 and is in git history before that.
+Not yet: export and delete-everything in Settings, App Intents and Spotlight,
+iCloud sync.
 
 ## Building
 
@@ -87,20 +90,27 @@ OCR makes mistakes; the app says which text was machine-read.
 searchable when it is done. A failure is kept on the record with a reason
 and a retry, never silently dropped.
 
+## How answers work
+
+Questions are read by `QuestionParser` with plain rules, so they work on every
+iPhone and the same words always mean the same thing. Spending totals are sums
+of stored integer cents (`ArchiveStore.answer`), never a language model's
+arithmetic, and every amount counted is listed with the record it came from.
+A receipt and its statement line (same amount, a few days apart, same kind of
+merchant) count once. When no statement covers the period asked about, the
+answer says so; when nothing matches, it says that instead of guessing.
+
 ## Plan
 
-1. Capture, storage, OCR, search with links to the page. *(this)*
-2. Organise and correct: record types, dates, merchants, people, places;
-   editing; voice notes with on-device transcription. (The Face ID / passcode
-   lock from this phase is done.)
-3. Receipt and statement extraction into transactions, with a review screen.
-4. Questions with exact answers: totals computed in SQL from stored
-   transactions, each answer citing the records it used. The on-device model
-   (Foundation Models, where Apple Intelligence is available) only turns a
-   question into a query; it never does arithmetic.
-5. Possible duplicates (a receipt and its statement line), shown with the
-   evidence, decided by the person.
-6. Privacy and system: where data lives, export, delete everything, App
-   Intents and Spotlight.
+1. ~~Capture, storage, OCR, search with links to the page.~~
+2. ~~Organise and correct; voice notes; Face ID lock.~~
+3. ~~Receipt and statement extraction, with correction.~~
+4. ~~Questions with exact, cited answers.~~
+5. Duplicates: today they're counted once in answers; next, show them on the
+   records and let the person merge or keep both.
+6. Privacy and system: export, delete everything, App Intents and Spotlight.
+7. Optional: Foundation Models (where Apple Intelligence is available) to read
+   unusual phrasings into the same structured question. It would never add up
+   amounts.
 
 Later: iCloud sync, household sharing, a paid tier.
