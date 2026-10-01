@@ -161,6 +161,42 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
         let sources = try store.db.read {
             try String.fetchAll($0, sql: "SELECT nameSource FROM record ORDER BY id")
         }
-        #expect(sources == ["automatic", "automatic", "person"])
+        // The third is a file imported under the default category: v4 lets it be categorised.
+        #expect(sources == ["automatic", "automatic", "file"])
+    }
+}
+
+@Suite struct OlderImports {
+    @Test func filesImportedBeforeCategoriesGetThemAtLaunch() throws {
+        // A database from before v4: a statement PDF imported by file name,
+        // still under "Document", marked as named by the person by v2.
+        let queue = try DatabaseQueue()
+        try ArchiveStore.migrator.migrate(queue, upTo: "v3-transactions")
+        let record = UUID()
+        let text = ["Statement", "Jul 1 — Jul 31, 2026", "Your Balance $27.67", "07/04/2026 SHELL OIL 2050 PLAINFIELD 2%", "$0.55", "$27.67"]
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO record (id, kind, title, createdAt, status, nameSource)
+                VALUES (?, 'document', 'Apple Card Statement - July 2026', '2026-09-30', 'ready', 'person')
+                """, arguments: [record])
+            let asset = UUID()
+            try db.execute(sql: "INSERT INTO asset (id, recordId, position, type, fileName, byteSize) VALUES (?, ?, 0, 'pdf', 'x.pdf', 1)",
+                           arguments: [asset, record])
+            // Text stored as it was read back then.
+            try db.execute(sql: "INSERT INTO page (recordId, assetId, position, pageInAsset, text, textSource) VALUES (?, ?, 0, 0, ?, 'pdfText')",
+                           arguments: [record, asset, text.joined(separator: "\n")])
+            let pageId = db.lastInsertedRowID
+            for (index, line) in text.enumerated() {
+                try db.execute(sql: "INSERT INTO textLine (pageId, position, text) VALUES (?, ?, ?)", arguments: [pageId, index, line])
+            }
+        }
+
+        // Reopening runs v4; launch refreshes categories and amounts.
+        let reopened = try ArchiveStore(db: queue)
+        try reopened.refreshSuggestions()
+        let after = try #require(try reopened.record(record))
+        #expect(after.kind == .statement)
+        #expect(after.title == "Apple Card Statement - July 2026")
+        #expect(try reopened.transactions(of: record).map(\.amountCents) == [2767])
     }
 }

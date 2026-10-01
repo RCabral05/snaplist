@@ -105,6 +105,14 @@ public struct ArchiveStore: Sendable {
                 CREATE INDEX txn_date ON txn(date);
                 """)
         }
+        // v2 marked every record without a placeholder title as named by the
+        // person, which also stopped imported files still filed under the
+        // default "Document" from ever getting a category (or their amounts).
+        // Those are files whose name came from the file: treat them so. The
+        // name stays; only the category may now be filled in.
+        migrator.registerMigration("v4-uncategorised-files") { db in
+            try db.execute(sql: "UPDATE record SET nameSource = 'file' WHERE nameSource = 'person' AND kind = 'document'")
+        }
         return migrator
     }
 
