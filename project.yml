@@ -35,6 +35,10 @@ targets:
       path: Snaplist/Info.plist
       properties:
         CFBundleDisplayName: Snaplist
+        # Without these XcodeGen writes fixed values and the build settings
+        # (and CI's build number) never reach the app.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
