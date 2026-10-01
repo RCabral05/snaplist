@@ -251,7 +251,7 @@ final class AppModel {
             return .spending(try archive.store.answer(query))
         } catch {
             errorMessage = "Couldn't answer that: \(error.localizedDescription)"
-            return .spending(SpendingAnswer(query: query, totals: [], counted: [], duplicates: [], notes: []))
+            return .search([], text: query.rangeLabel ?? "")
         }
     }
 
