@@ -41,10 +41,19 @@ public struct Record: Codable, Hashable, Identifiable, Sendable, FetchableRecord
     public var status: IngestStatus
     public var failureReason: String?
     public var nameSource: NameSource
+    /// The date the record is about: a receipt's purchase date, a statement's
+    /// closing date. Nil until read, or if none was found.
+    public var documentDate: Day?
+    /// Set by hand, so re-reading the text leaves it alone.
+    public var documentDateEdited: Bool
+
+    /// What to sort and group by: the document's own date if known, else
+    /// the day it was added.
+    public var effectiveDay: Day { documentDate ?? Day(createdAt) }
 
     public init(id: UUID = UUID(), kind: RecordKind, title: String, createdAt: Date,
                 status: IngestStatus = .pending, failureReason: String? = nil,
-                nameSource: NameSource = .person) {
+                nameSource: NameSource = .person, documentDate: Day? = nil, documentDateEdited: Bool = false) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -52,6 +61,8 @@ public struct Record: Codable, Hashable, Identifiable, Sendable, FetchableRecord
         self.status = status
         self.failureReason = failureReason
         self.nameSource = nameSource
+        self.documentDate = documentDate
+        self.documentDateEdited = documentDateEdited
     }
 }
 

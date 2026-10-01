@@ -16,14 +16,20 @@ public struct Suggestion: Equatable, Sendable {
 /// OCR gave positions, which on a receipt is usually the store's name.
 enum Suggester {
     static func suggest(_ pages: [RecognizedPage]) -> Suggestion {
-        guard let first = pages.first else { return Suggestion() }
+        guard !pages.isEmpty else { return Suggestion() }
         let text = pages.map(\.text).joined(separator: "\n").lowercased()
         let kind = kind(of: text)
 
-        guard let name = knownName(in: first) ?? prominentLine(in: first) else {
+        guard let name = name(in: pages) else {
             return Suggestion(title: nil, kind: kind)
         }
         return Suggestion(title: title(name, kind: kind), kind: kind)
+    }
+
+    /// Who the document is from: "CVS Pharmacy", "Chase", "Blue Bottle Coffee".
+    static func name(in pages: [RecognizedPage]) -> String? {
+        guard let first = pages.first else { return nil }
+        return knownName(in: first) ?? prominentLine(in: first)
     }
 
     // MARK: Category
@@ -150,11 +156,16 @@ enum Suggester {
         return !boilerplate.contains { lower.contains($0) }
     }
 
-    /// "TRADER JOE'S" → "Trader Joe's", but short all-caps words stay: "CVS".
+    /// Short words that are words, not initials.
+    static let shortWords: Set<String> = ["the", "and", "for", "you", "our", "of", "to", "at", "in", "on", "by",
+                                          "its", "new", "old", "inc", "llc", "co", "a", "an", "&"]
+
+    /// "TRADER JOE'S" → "Trader Joe's", but short all-caps initials stay: "CVS".
     static func titleCased(_ text: String) -> String {
         text.split(separator: " ").map { word in
             let w = String(word)
-            if w.count <= 3, w == w.uppercased(), w.contains(where: \.isLetter) { return w }
+            if w.count <= 3, w == w.uppercased(), w.contains(where: \.isLetter),
+               !shortWords.contains(w.lowercased()) { return w }
             return w.prefix(1).uppercased() + w.dropFirst().lowercased()
         }.joined(separator: " ")
     }

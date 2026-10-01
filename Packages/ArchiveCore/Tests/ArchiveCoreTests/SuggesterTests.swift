@@ -53,7 +53,7 @@ private func pdf(_ lines: [String]) -> RecognizedPage {
 
     @Test func namesOnlyMatchWholeWords() {
         let page = ocr([("EGGSHELL PAINT CO", 0.04), ("TOTAL 12.00", 0.012), ("CASH", 0.012)])
-        #expect(Suggester.suggest([page]).title == "Eggshell Paint CO")
+        #expect(Suggester.suggest([page]).title == "Eggshell Paint Co")
     }
 
     @Test func nothingUsableMeansNoSuggestion() {

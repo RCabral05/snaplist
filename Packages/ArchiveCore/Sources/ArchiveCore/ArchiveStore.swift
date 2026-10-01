@@ -79,6 +79,32 @@ public struct ArchiveStore: Sendable {
                 UPDATE record SET nameSource = 'automatic' WHERE title LIKE 'Scan %' OR title LIKE 'Photo %';
                 """)
         }
+        migrator.registerMigration("v3-transactions") { db in
+            try db.execute(sql: """
+                ALTER TABLE record ADD COLUMN documentDate TEXT;
+                ALTER TABLE record ADD COLUMN documentDateEdited BOOLEAN NOT NULL DEFAULT 0;
+
+                -- Amounts read from records. Positions, not page ids: pages are
+                -- replaced when text is read again, positions stay the same.
+                CREATE TABLE txn (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    pagePosition INTEGER,
+                    linePosition INTEGER,
+                    date TEXT,
+                    merchant TEXT NOT NULL,
+                    memo TEXT NOT NULL,
+                    amountCents INTEGER NOT NULL CHECK (amountCents >= 0),
+                    currency TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    isEdited BOOLEAN NOT NULL DEFAULT 0
+                );
+                CREATE INDEX txn_recordId ON txn(recordId);
+                CREATE INDEX txn_date ON txn(date);
+                """)
+        }
         return migrator
     }
 
@@ -129,8 +155,10 @@ public struct ArchiveStore: Sendable {
         }
     }
 
+    /// By the date each record is about, so an August receipt scanned in
+    /// October sits with August.
     private static func recordsRequest(kind: RecordKind?) -> QueryInterfaceRequest<Record> {
-        var request = Record.order(Column("createdAt").desc)
+        var request = Record.order(sql: "COALESCE(documentDate, substr(createdAt, 1, 10)) DESC, createdAt DESC")
         if let kind { request = request.filter(Column("kind") == kind.rawValue) }
         return request
     }
@@ -146,14 +174,21 @@ public struct ArchiveStore: Sendable {
 
     /// Kind and title are the parts a person edits; status belongs to the
     /// pipeline. Either edit makes the record theirs: no more automatic naming.
+    /// Refiling a record reads its amounts again for the new kind: a
+    /// "document" refiled as a receipt gets its total.
     public func update(_ record: Record) throws {
         var record = record
         record.nameSource = .person
         try db.write { db in
+            let previousKind = try Record.fetchOne(db, key: record.id)?.kind
             try record.update(db, columns: ["kind", "title", "nameSource"])
             try db.execute(
                 sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
                 arguments: [record.title, record.id])
+            if previousKind != record.kind, record.status == .ready {
+                try Self.applyExtraction(to: &record, pages: try Self.storedPages(of: record.id, in: db), in: db)
+                try record.update(db, columns: ["documentDate"])
+            }
         }
     }
 
@@ -190,6 +225,7 @@ public struct ArchiveStore: Sendable {
                 }
             }
 
+            try Self.applyExtraction(to: &record, pages: extracted.flatMap(\.pages), in: db)
             record.status = .ready
             record.failureReason = nil
             try record.update(db)
@@ -225,29 +261,29 @@ public struct ArchiveStore: Sendable {
         }
     }
 
-    /// Re-reads the stored text of records the app may still name, and applies
-    /// what it suggests: for records read before suggestions existed. Cheap
-    /// enough to run at every launch. Returns how many records changed.
+    /// Re-reads stored text for what was added since a record was read:
+    /// names for placeholder-named records, and dates and amounts for records
+    /// that have none yet. Cheap enough to run at every launch. Returns how
+    /// many records changed.
     @discardableResult
     public func refreshSuggestions() throws -> Int {
         try db.write { db in
-            let records = try Record
-                .filter(Column("nameSource") != NameSource.person.rawValue)
-                .filter(Column("status") == IngestStatus.ready.rawValue)
-                .fetchAll(db)
+            let records = try Record.fetchAll(db, sql: """
+                SELECT * FROM record WHERE status = ? AND (
+                    nameSource != ?
+                    OR (documentDate IS NULL AND NOT documentDateEdited)
+                    OR NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id))
+                """, arguments: [IngestStatus.ready.rawValue, NameSource.person.rawValue])
             var changed = 0
             for var record in records {
-                let pages = try Page.filter(Column("recordId") == record.id).order(Column("position")).fetchAll(db)
-                let recognized = try pages.map { page in
-                    let lines = try TextLine.filter(Column("pageId") == page.id).order(Column("position")).fetchAll(db)
-                    return RecognizedPage(
-                        lines: lines.map { RecognizedLine(text: $0.text, box: $0.box, confidence: $0.confidence) },
-                        source: page.textSource)
-                }
+                let recognized = try Self.storedPages(of: record.id, in: db)
                 let before = record
+                let transactionsBefore = try Transaction.filter(Column("recordId") == record.id).fetchCount(db)
                 Self.applySuggestion(Suggester.suggest(recognized), to: &record)
-                guard record != before else { continue }
-                try record.update(db, columns: ["kind", "title"])
+                try Self.applyExtraction(to: &record, pages: recognized, in: db)
+                let transactionsAfter = try Transaction.filter(Column("recordId") == record.id).fetchCount(db)
+                guard record != before || transactionsBefore != transactionsAfter else { continue }
+                try record.update(db, columns: ["kind", "title", "documentDate"])
                 try db.execute(
                     sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
                     arguments: [record.title, record.id])
@@ -266,6 +302,33 @@ public struct ArchiveStore: Sendable {
         }
         if record.kind == .document, let kind = suggestion.kind {
             record.kind = kind
+        }
+    }
+
+    /// Dates and amounts from the text, for the record's current kind.
+    /// Amounts a person corrected are left exactly as they are.
+    static func applyExtraction(to record: inout Record, pages: [RecognizedPage], in db: Database) throws {
+        let merchant = Suggester.name(in: pages) ?? record.title
+        let facts = Extractor.extract(kind: record.kind, pages: pages, recordId: record.id, merchant: merchant)
+        if !record.documentDateEdited {
+            record.documentDate = facts.documentDate
+        }
+        let hasEdits = try Bool.fetchOne(
+            db, sql: "SELECT EXISTS (SELECT 1 FROM txn WHERE recordId = ? AND isEdited)", arguments: [record.id]) ?? false
+        guard !hasEdits else { return }
+        try db.execute(sql: "DELETE FROM txn WHERE recordId = ?", arguments: [record.id])
+        for var transaction in facts.transactions {
+            try transaction.insert(db)
+        }
+    }
+
+    /// A record's text as it was recognised, rebuilt from the stored rows.
+    static func storedPages(of recordId: UUID, in db: Database) throws -> [RecognizedPage] {
+        try Page.filter(Column("recordId") == recordId).order(Column("position")).fetchAll(db).map { page in
+            let lines = try TextLine.filter(Column("pageId") == page.id).order(Column("position")).fetchAll(db)
+            return RecognizedPage(
+                lines: lines.map { RecognizedLine(text: $0.text, box: $0.box, confidence: $0.confidence) },
+                source: page.textSource)
         }
     }
 
