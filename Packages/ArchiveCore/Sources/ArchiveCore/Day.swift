@@ -97,6 +97,15 @@ public struct DayRange: Hashable, Sendable {
         return DayRange(start, next.adding(days: -1))
     }
 
+    /// Months `first`…`first + count - 1`, which may run into the next year.
+    public static func months(from first: Int, of year: Int, count: Int) -> DayRange? {
+        var lastMonth = first + count - 1
+        var lastYear = year
+        while lastMonth > 12 { lastMonth -= 12; lastYear += 1 }
+        guard let start = month(first, of: year), let end = month(lastMonth, of: lastYear) else { return nil }
+        return DayRange(start.start, end.end)
+    }
+
     public static func year(_ year: Int) -> DayRange? {
         guard let start = Day(year: year, month: 1, day: 1), let end = Day(year: year, month: 12, day: 31) else { return nil }
         return DayRange(start, end)

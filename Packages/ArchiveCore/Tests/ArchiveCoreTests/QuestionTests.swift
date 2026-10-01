@@ -181,3 +181,53 @@ private let today = Day(year: 2026, month: 10, day: 1)!
         #expect(blender.first?.isCalculated == true)
     }
 }
+
+@Suite struct LooserWording {
+    func spending(_ text: String) -> SpendingQuery? {
+        if case .spending(let query) = QuestionParser.parse(text, today: today) { return query }
+        return nil
+    }
+
+    @Test func takeoutOverTheSummer() throws {
+        let query = try #require(spending("what did takeout set me back over the summer"))
+        #expect(query.categories == [.dining])
+        #expect(query.range == DayRange(Day(year: 2026, month: 6, day: 1)!, Day(year: 2026, month: 8, day: 31)!))
+        #expect(query.rangeLabel == "summer 2026")
+        #expect(query.merchantTerms == [], "\(query.merchantTerms)")
+    }
+
+    @Test func seasons() throws {
+        // October 1: fall has started, so "this fall" is now; winter hasn't, so it's last winter.
+        #expect(try #require(spending("food this fall")).range?.start == Day(year: 2026, month: 9, day: 1))
+        let winter = try #require(spending("how much on gas in the winter"))
+        #expect(winter.range == DayRange(Day(year: 2025, month: 12, day: 1)!, Day(year: 2026, month: 2, day: 28)!))
+        #expect(winter.rangeLabel == "winter 2025–2026")
+        #expect(try #require(spending("spending last fall")).range?.start == Day(year: 2025, month: 9, day: 1))
+        #expect(try #require(spending("spending summer 2025")).range?.start == Day(year: 2025, month: 6, day: 1))
+    }
+
+    @Test func storeNamesStillCount() throws {
+        #expect(try #require(spending("how much did I blow at Shell")).merchantTerms == ["shell"])
+    }
+}
+
+@Suite struct UnknownWords {
+    @Test func strayWordsDontEmptyACategoryAnswer() throws {
+        let tmp = try TemporaryArchive()
+        let record = try tmp.archive.add(kind: .document, title: "Scan", nameSource: .automatic,
+                                         items: [ImportItem(type: .pdf, source: .data(Data([1])), fileExtension: "pdf")])
+        let asset = try #require(try tmp.archive.store.assets(of: record.id).first)
+        try tmp.archive.store.saveText([ExtractedAsset(assetId: asset.id, pages: [
+            RecognizedPage(lines: ["Card Statement", "Statement period 06/01/2026 - 06/30/2026",
+                                   "06/12  DOORDASH*WENDYS  18.00"].map { RecognizedLine(text: $0) }, source: .pdfText),
+        ])], for: record.id)
+
+        let store = tmp.archive.store
+        #expect(try store.unknownMerchantTerms(["doordash", "vacation"]) == ["vacation"])
+        let answer = try store.answer(SpendingQuery(categories: [.dining], merchantTerms: ["vacation"]))
+        #expect(answer.totals == [Money(cents: 1800)])
+        #expect(answer.notes.contains { $0.contains("“vacation”") })
+        // Without a category, an unknown store is an honest nothing.
+        #expect(try store.answer(SpendingQuery(merchantTerms: ["starbucks"])).counted.isEmpty)
+    }
+}

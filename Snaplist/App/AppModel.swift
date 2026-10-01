@@ -276,9 +276,20 @@ final class AppModel {
         let today = Day(.now)
         var question = QuestionParser.parse(text, today: today)
         var readByModel = false
-        if case .search = question, let interpretation = await QuestionInterpreter.interpret(text) {
-            question = QuestionParser.question(from: interpretation, original: text, today: today)
-            readByModel = true
+        // The model gets a turn when the rules didn't follow the question,
+        // or took words for store names that match nothing saved.
+        let rulesStruggled: Bool = switch question {
+        case .search: true
+        case .spending(let query): !((try? archive.store.unknownMerchantTerms(query.merchantTerms)) ?? []).isEmpty
+        case .whereIs, .expiry: false
+        }
+        if rulesStruggled, let interpretation = await QuestionInterpreter.interpret(text) {
+            let reread = QuestionParser.question(from: interpretation, original: text, today: today)
+            // A model that can't place it either doesn't undo what the rules found.
+            if case .search = reread, case .spending = question {} else {
+                question = reread
+                readByModel = true
+            }
         }
         do {
             switch question {

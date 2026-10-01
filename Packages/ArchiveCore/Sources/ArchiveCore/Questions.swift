@@ -47,12 +47,15 @@ public enum QuestionParser {
         if text.contains("expire") || text.contains("expiration") || (text.contains("warranty") && text.contains(" when ")) {
             return .expiry(terms: terms(in: text, dropping: expiryWords))
         }
-        guard spendingWords.contains(where: { text.contains($0) }) else {
+        let dated = dateRange(in: text, today: today)
+        // "food this fall" is about money too: a category and a period.
+        let namesCategory = categoryWords.contains { words, _, _ in words.contains { text.contains(" \($0) ") } }
+        guard spendingWords.contains(where: { text.contains($0) }) || (namesCategory && dated != nil) else {
             return .search(question.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
         var query = SpendingQuery()
-        if let (range, label, matched) = dateRange(in: text, today: today) {
+        if let (range, label, matched) = dated {
             query.range = range
             query.rangeLabel = label
             text = text.replacingOccurrences(of: matched, with: " ")
@@ -70,7 +73,8 @@ public enum QuestionParser {
     // MARK: Words
 
     static let spendingWords = ["how much", "spend", "spent", "total", "cost", "bill", " pay", "paid",
-                                "what was my", "what did i"]
+                                "what was my", "what did i", "set me back", "set us back", " blew ", " blow ",
+                                "shell out", "shelled out", "fork out", "forked out", " drop on ", " dropped on "]
 
     /// Phrase → categories, with a note when the phrase is ambiguous.
     static let categoryWords: [([String], Set<SpendCategory>, String?)] = [
@@ -94,8 +98,12 @@ public enum QuestionParser {
         "what's", "when", "and", "or", "have", "has", "had", "all", "any", "there", "be", "been", "get", "got",
         "put", "keep", "kept", "stuff", "things", "thing", "so", "far", "may", "might", "can", "could",
         "would", "should", "will", "ever", "up", "out", "about", "around", "roughly", "approximately",
+        "us", "over", "during", "since", "past", "last", "entire", "whole", "just", "only", "lately",
+        "recently", "altogether", "overall",
     ]
     static let spendingFiller = filler.union(["spend", "spent", "spending", "total", "cost", "costs", "bill",
+                                              "blow", "blew", "drop", "dropped", "shelled", "fork", "forked",
+                                              "set", "back", "run", "ran", "go", "went", "like",
                                               "bills", "pay", "paid", "money", "charges", "charged", "purchases",
                                               "bought", "buy", "dollars", "amount"])
     static let whereFiller = filler.union(["where", "where's", "wheres", "left", "store", "stored", "find", "can"])
@@ -151,6 +159,31 @@ public enum QuestionParser {
             }
             guard let range = DayRange.month(month, of: year) else { continue }
             return (range, monthLabel(month, year), ns.substring(with: match.range) + " ")
+        }
+
+        // "over the summer", "last winter", "spring 2025": northern seasons by
+        // month, the most recent one that has started.
+        let seasonRegex = DayParser.regex("\\s(?:(last|this)\\s+)?(spring|summer|fall|autumn|winter)(?:\\s+((?:19|20)\\d{2}))?\\s")
+        if let match = seasonRegex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) {
+            let season = ns.substring(with: match.range(at: 2))
+            let first = ["spring": 3, "summer": 6, "fall": 9, "autumn": 9, "winter": 12][season] ?? 6
+            var year: Int
+            if match.range(at: 3).location != NSNotFound, let named = Int(ns.substring(with: match.range(at: 3))) {
+                // "winter 2026" is the one that ends in 2026.
+                year = first == 12 ? named - 1 : named
+            } else {
+                let startedThisYear = first <= today.month
+                year = startedThisYear ? today.year : today.year - 1
+                if match.range(at: 1).location != NSNotFound, ns.substring(with: match.range(at: 1)) == "last",
+                   let current = DayRange.months(from: first, of: year, count: 3), current.contains(today) {
+                    year -= 1
+                }
+            }
+            if let range = DayRange.months(from: first, of: year, count: 3) {
+                let name = season == "autumn" ? "fall" : season
+                let label = first == 12 ? "winter \(year)–\(year + 1)" : "\(name) \(year)"
+                return (range, label, ns.substring(with: match.range))
+            }
         }
 
         // "in 2025"

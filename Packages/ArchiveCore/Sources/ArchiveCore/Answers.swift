@@ -102,6 +102,16 @@ extension ArchiveStore {
         }
         let decisions = try duplicateDecisions()
 
+        // Words that aren't any saved merchant ("set back over") are dropped
+        // when a category says what was meant; on their own they stay, so
+        // "at Starbucks" with no Starbucks is an honest nothing.
+        var query = query
+        let unknown = Self.unknownTerms(query.merchantTerms, in: all)
+        if !unknown.isEmpty, !query.categories.isEmpty {
+            query.merchantTerms.removeAll { unknown.contains($0) }
+            query.notes.append("Didn't match \(Self.list(unknown.map { "“\($0)”" })) to any saved store, so \(unknown.count == 1 ? "it was" : "they were") left out.")
+        }
+
         var matching = all.filter { matches($0, query) }
         let duplicates = Self.duplicates(in: matching, decisions: decisions)
         let droppedIds = Set(duplicates.map(\.dropped.id))
@@ -142,6 +152,26 @@ extension ArchiveStore {
         }
         return SpendingAnswer(query: query, totals: totals, counted: matching, duplicates: duplicates, notes: notes,
                               otherMonths: otherMonths)
+    }
+
+    /// Merchant words that appear in no saved amount, its line or its record.
+    public func unknownMerchantTerms(_ terms: [String]) throws -> [String] {
+        guard !terms.isEmpty else { return [] }
+        return try db.read { db in
+            try terms.filter { term in
+                let pattern = "%\(term)%"
+                return try !(Bool.fetchOne(db, sql: """
+                    SELECT EXISTS (SELECT 1 FROM txn JOIN record ON record.id = txn.recordId
+                    WHERE txn.merchant LIKE ? OR txn.memo LIKE ? OR record.title LIKE ?)
+                    """, arguments: [pattern, pattern, pattern]) ?? false)
+            }
+        }
+    }
+
+    static func unknownTerms(_ terms: [String], in items: [Counted]) -> [String] {
+        terms.filter { term in
+            !items.contains { "\($0.transaction.merchant) \($0.transaction.memo) \($0.record.title)".lowercased().contains(term) }
+        }
     }
 
     /// The same question without the date, month by month, deduplicated the
