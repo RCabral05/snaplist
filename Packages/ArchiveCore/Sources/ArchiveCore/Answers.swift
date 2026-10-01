@@ -149,15 +149,19 @@ extension ArchiveStore {
     /// printed ones first, then ones worked out from "purchased" plus
     /// "N year(s)" coverage.
     public func expiries(_ terms: [String]) throws -> [ExpiryFinding] {
-        let candidates: [Record]
-        if terms.isEmpty {
-            candidates = try records(kind: .warranty)
-        } else {
+        var candidates: [Record] = []
+        if !terms.isEmpty {
             var hits = try search(terms.joined(separator: " "))
             if hits.isEmpty { hits = try terms.flatMap { try search($0) } }
-            let warrantiesFirst = hits.map(\.record).sorted { ($0.kind == .warranty ? 0 : 1) < ($1.kind == .warranty ? 0 : 1) }
+            let matched: [Record] = hits.map(\.record)
+            let warranties = matched.filter { $0.kind == .warranty }
+            let others = matched.filter { $0.kind != .warranty }
             var seen = Set<UUID>()
-            candidates = warrantiesFirst.filter { seen.insert($0.id).inserted }
+            candidates = (warranties + others).filter { seen.insert($0.id).inserted }
+        }
+        // Nothing mentions it, or nothing was named: every warranty.
+        if candidates.isEmpty {
+            candidates = try records(kind: .warranty)
         }
         return try db.read { db in
             try candidates.compactMap { record in
