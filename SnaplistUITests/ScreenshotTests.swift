@@ -71,8 +71,7 @@ final class ScreenshotTests: XCTestCase {
                 snap("08b-ask-gas-scrolled-\(suffix)")
                 askQuestion(app, "Where did I put the spare HDMI cable?")
                 snap("09-ask-where-\(suffix)")
-                app.buttons["Done"].firstMatch.tap()
-                sleep(1)
+                closeSheet(app)
             }
 
             let search = app.searchFields.firstMatch
@@ -99,6 +98,19 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["ask-button"].firstMatch.tap()
         sleep(2)
         app.swipeDown()
+    }
+
+    /// Done if it can be found, else swipe the sheet away: the toolbar
+    /// button isn't always reachable once the keyboard has been up.
+    @MainActor
+    private func closeSheet(_ app: XCUIApplication) {
+        let done = app.buttons.matching(NSPredicate(format: "label == 'Done'")).firstMatch
+        if done.waitForExistence(timeout: 2), done.isHittable {
+            done.tap()
+        } else {
+            app.swipeDown(velocity: .fast)
+        }
+        sleep(1)
     }
 
     private func waitWhile(_ element: XCUIElement, timeout: TimeInterval) {
