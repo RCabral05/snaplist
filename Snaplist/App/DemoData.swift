@@ -1,5 +1,5 @@
-#if DEBUG
 import ArchiveCore
+import SwiftUI
 import UIKit
 
 /// Sample records for screenshots and UI tests, enabled by the `-demoData`
@@ -8,11 +8,21 @@ import UIKit
 ///
 /// The documents are drawn as images (and one PDF) so they go through the real
 /// pipeline: Vision reads the images, PDFKit reads the PDF's text layer.
+#if DEBUG
 enum DemoData {
     /// A throwaway archive and no lock: `-demoData` fills it, `-demoEmpty`
     /// leaves it empty to show the welcome screen.
     static var isEnabled: Bool {
         shouldSeed || ProcessInfo.processInfo.arguments.contains("-demoEmpty")
+    }
+
+    /// `-forceDark` / `-forceLight`, since the simulator's own appearance
+    /// switch doesn't reliably reach a test run.
+    static var forcedColorScheme: ColorScheme? {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-forceDark") { return .dark }
+        if arguments.contains("-forceLight") { return .light }
+        return nil
     }
 
     static var shouldSeed: Bool {
@@ -158,5 +168,11 @@ enum DemoData {
         format.scale = 1
         return UIGraphicsImageRenderer(size: size, format: format).image(actions: draw)
     }
+}
+#endif
+#else
+/// Release builds: no demo data, the system's appearance.
+enum DemoData {
+    static let forcedColorScheme: ColorScheme? = nil
 }
 #endif

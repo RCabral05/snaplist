@@ -46,7 +46,9 @@ struct RecordListView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Snaplist")
             .navigationSubtitle(subtitle)
-            .searchable(text: $model.query, prompt: "Stores, amounts, any word")
+            // Hidden on the welcome screen, where it would cover the buttons
+            // and has nothing to search yet.
+            .searchable(when: !model.records.isEmpty, text: $model.query, prompt: "Stores, amounts, any word")
             .navigationDestination(for: Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
@@ -210,7 +212,7 @@ struct RecordCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.title)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 5) {
                     Circle().fill(record.kind.tint).frame(width: 7, height: 7)
@@ -301,6 +303,15 @@ struct StatusPill: View {
 }
 
 private extension View {
+    @ViewBuilder
+    func searchable(when enabled: Bool, text: Binding<String>, prompt: String) -> some View {
+        if enabled {
+            searchable(text: text, prompt: Text(prompt))
+        } else {
+            self
+        }
+    }
+
     func pill() -> some View {
         font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)

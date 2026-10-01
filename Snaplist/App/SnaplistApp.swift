@@ -39,6 +39,8 @@ struct SnaplistApp: App {
                 }
                 .environment(model)
                 .environment(lock)
+                .tint(Theme.accent)
+                .preferredColorScheme(DemoData.forcedColorScheme)
                 // On the container, so locking and unlocking doesn't restart it.
                 .task { await model.start() }
                 .onChange(of: scenePhase) { _, phase in

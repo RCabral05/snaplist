@@ -10,19 +10,18 @@ final class ScreenshotTests: XCTestCase {
 
     @MainActor
     func testTour() throws {
-        for appearance in [XCUIDevice.Appearance.light, .dark] {
-            XCUIDevice.shared.appearance = appearance
-            let suffix = appearance == .dark ? "dark" : "light"
+        for suffix in ["light", "dark"] {
+            let scheme = suffix == "dark" ? "-forceDark" : "-forceLight"
 
             let empty = XCUIApplication()
-            empty.launchArguments = ["-demoEmpty"]
+            empty.launchArguments = ["-demoEmpty", scheme]
             empty.launch()
             sleep(2)
             snap("00-welcome-\(suffix)")
             empty.terminate()
 
             let app = XCUIApplication()
-            app.launchArguments = ["-demoData"]
+            app.launchArguments = ["-demoData", scheme]
             app.launch()
 
             let firstRecord = app.descendants(matching: .any).matching(identifier: "record").firstMatch

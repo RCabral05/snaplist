@@ -10,6 +10,13 @@ enum Theme {
     }
 
     static let cardRadius: CGFloat = 14
+
+    /// Amber: deep enough to read as text on white, brighter on black.
+    static let accent = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.98, green: 0.75, blue: 0.14, alpha: 1)
+            : UIColor(red: 0.71, green: 0.33, blue: 0.04, alpha: 1)
+    })
 }
 
 extension RecordKind {
@@ -41,7 +48,8 @@ struct KindBadge: View {
     }
 }
 
-/// Today, Yesterday, This Week, Earlier This Month, then one group per month.
+/// This Week, Earlier This Month, then one group per month: coarse enough
+/// that a group is rarely a single lonely card.
 struct DateGroup: Identifiable {
     var title: String
     var records: [Record]
@@ -61,9 +69,9 @@ struct DateGroup: Identifiable {
     }
 
     private static func title(for date: Date, now: Date, calendar: Calendar) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
-        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) { return "This Week" }
+        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) || calendar.isDateInYesterday(date) {
+            return "This Week"
+        }
         if calendar.isDate(date, equalTo: now, toGranularity: .month) { return "Earlier This Month" }
         if calendar.isDate(date, equalTo: now, toGranularity: .year) {
             return date.formatted(.dateTime.month(.wide))
