@@ -13,7 +13,7 @@ struct TagsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("People and places")
+            Text("People, places and taxes")
                 .font(Theme.display(.title3))
                 .padding(.horizontal, 4)
             FlowLayout(spacing: 8) {
@@ -39,7 +39,7 @@ struct TagsSection: View {
                     Button {
                         adding = kind
                     } label: {
-                        Label(kind == .person ? "Person" : "Place", systemImage: "plus")
+                        Label(kind.label, systemImage: "plus")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 12)
@@ -47,11 +47,11 @@ struct TagsSection: View {
                             .overlay(Capsule().strokeBorder(.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(kind == .person ? "Add a person" : "Add a place")
+                    .accessibilityLabel(kind == .tax ? "Mark for taxes" : "Add a \(kind.label.lowercased())")
                 }
             }
             if tags.isEmpty {
-                Text("Tag who it's for or where it's from, then ask things like “Mom's warranties” or “receipts from Boston”.")
+                Text("Tag who it's for, where it's from, or what it is at tax time, then ask “Mom's warranties” or “receipts from Boston”.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -82,10 +82,20 @@ private struct TagPicker: View {
 
     private var existing: [Tag] {
         let mine = Set((model.tagsByRecord[record.id] ?? []).compactMap(\.id))
+        let mineNames = Set((model.tagsByRecord[record.id] ?? []).filter { $0.kind == kind }.map { $0.name.lowercased() })
         let typed = name.trimmingCharacters(in: .whitespaces).lowercased()
-        return model.tags.filter { tag in
+        var tags = model.tags.filter { tag in
             tag.kind == kind && !mine.contains(tag.id ?? -1) && (typed.isEmpty || tag.name.lowercased().contains(typed))
         }
+        // Tax purposes start with the usual ones, used or not.
+        if kind == .tax {
+            for suggestion in TagKind.taxSuggestions where !tags.contains(where: { $0.name.lowercased() == suggestion.lowercased() })
+                && !mineNames.contains(suggestion.lowercased())
+                && (typed.isEmpty || suggestion.lowercased().contains(typed)) {
+                tags.append(Tag(kind: .tax, name: suggestion))
+            }
+        }
+        return tags
     }
 
     private var canCreate: Bool {
@@ -97,7 +107,7 @@ private struct TagPicker: View {
         NavigationStack {
             List {
                 Section {
-                    TextField(kind == .person ? "Name, like Mom or Work" : "Place, like Boston or Lake House", text: $name)
+                    TextField(placeholder, text: $name)
                         .focused($isFocused)
                         .submitLabel(.done)
                         .onSubmit(addTyped)
@@ -108,8 +118,8 @@ private struct TagPicker: View {
                 .listRowBackground(Theme.surface)
 
                 if !existing.isEmpty {
-                    Section(kind == .person ? "People" : "Places") {
-                        ForEach(existing) { tag in
+                    Section(kind == .person ? "People" : kind == .place ? "Places" : "Purposes") {
+                        ForEach(existing, id: \.name) { tag in
                             Button {
                                 model.addTag(tag.name, kind: kind, to: record.id)
                                 dismiss()
@@ -123,12 +133,20 @@ private struct TagPicker: View {
                 }
             }
             .warmForm()
-            .navigationTitle(kind == .person ? "Add Person" : "Add Place")
+            .navigationTitle(kind == .tax ? "Mark for Taxes" : "Add \(kind.label)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .onAppear { isFocused = existing.isEmpty }
+        }
+    }
+
+    private var placeholder: String {
+        switch kind {
+        case .person: "Name, like Mom or Work"
+        case .place: "Place, like Boston or Lake House"
+        case .tax: "Purpose, like Business or Medical"
         }
     }
 

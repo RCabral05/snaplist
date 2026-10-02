@@ -31,7 +31,7 @@ enum Reminders {
         for date in dates {
             // iOS keeps 64 per app; leave room.
             guard added < 50 else { break }
-            let daysBefore = date.kind == .billDue ? 3 : 30
+            let daysBefore = date.kind == .warrantyEnds ? 30 : 3
             guard var fire = calendar.date(byAdding: .day, value: -daysBefore, to: date.day.date(calendar: calendar)),
                   let nineAM = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: fire) else { continue }
             fire = nineAM
@@ -51,6 +51,9 @@ enum Reminders {
             case .warrantyEnds:
                 content.title = "A warranty ends \(when)"
                 content.body = "“\(date.record.title)” stops covering you then. Tap to see it."
+            case .returnBy:
+                content.title = "Last day to return: \(when)"
+                content.body = "The return window for “\(date.record.title)” closes then. Tap to see the receipt."
             }
             content.sound = .default
             content.userInfo = ["recordId": date.record.id.uuidString]
@@ -61,6 +64,20 @@ enum Reminders {
             try? await center.add(request)
             added += 1
         }
+    }
+}
+
+extension Reminders {
+    /// Right away: a budget passed 80% or 100% of its limit this month.
+    static func notifyBudget(_ status: BudgetStatus, threshold: Int) async {
+        let content = UNMutableNotificationContent()
+        let name = status.budget.category?.label ?? "spending"
+        let limit = Money(cents: status.budget.limitCents, currency: status.currency).formatted
+        content.title = threshold >= 100 ? "Over your \(name.lowercased()) budget" : "\(threshold)% of your \(name.lowercased()) budget"
+        content.body = "\(Money(cents: status.spentCents, currency: status.currency).formatted) of \(limit) this month."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "snaplist.budget.\(status.id).\(threshold)", content: content, trigger: nil)
+        try? await UNUserNotificationCenter.current().add(request)
     }
 }
 

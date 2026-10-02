@@ -51,6 +51,7 @@ struct RecordDetailView: View {
                     statusBanner
                     details
                     TagsSection(record: current)
+                    BelongingSection(record: current)
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
                     textSection
@@ -234,6 +235,7 @@ struct RecordDetailView: View {
     private var textSource: String {
         let sources = Set(slots.compactMap(\.page?.textSource))
         if sources == [.speech] { return "Transcribed on this iPhone" }
+        if sources == [.file] { return "From the bank's file" }
         switch (sources.contains(.ocr), sources.contains(.pdfText)) {
         case (true, true): return "PDF and read on iPhone"
         case (true, false): return "Read on this iPhone"
@@ -274,7 +276,7 @@ struct RecordDetailView: View {
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
 
                 HStack {
-                    if page.textSource != .pdfText {
+                    if page.textSource != .pdfText && page.textSource != .file {
                         Label(page.textSource == .speech ? "Transcribed automatically; may contain mistakes."
                                                          : "Read automatically; may contain mistakes.",
                               systemImage: page.textSource == .speech ? "waveform" : "text.viewfinder")

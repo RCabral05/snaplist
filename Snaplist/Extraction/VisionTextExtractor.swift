@@ -33,6 +33,14 @@ struct VisionTextExtractor: TextExtractor {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
             return [RecognizedPage(lines: sentences.map { RecognizedLine(text: $0) }, source: .speech)]
+        case .csv:
+            // A bank export: its text is exact, one line per row.
+            let data = try Data(contentsOf: fileURL)
+            let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+            let lines = text.split(whereSeparator: \.isNewline)
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            return [RecognizedPage(lines: lines.map { RecognizedLine(text: $0) }, source: .file)]
         }
     }
 

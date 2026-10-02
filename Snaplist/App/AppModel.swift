@@ -125,6 +125,7 @@ final class AppModel {
                 refreshTotals()
                 updateSpotlight()
                 updateReminders()
+                checkBudgets()
                 // A record that just became ready may now match.
                 search()
             }
@@ -206,8 +207,15 @@ final class AppModel {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
-            let isPDF = UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) ?? false
+            let type = UTType(filenameExtension: url.pathExtension)
             let name = url.deletingPathExtension().lastPathComponent
+            if type?.conforms(to: .commaSeparatedText) ?? false {
+                // A bank or card export: a statement, read column by column.
+                add(kind: .statement, title: Self.isGenericFileName(name) ? "Transactions" : name, nameSource: .file,
+                    items: [ImportItem(type: .csv, source: .file(url), fileExtension: "csv")])
+                continue
+            }
+            let isPDF = type?.conforms(to: .pdf) ?? false
             add(title: name, nameSource: Self.isGenericFileName(name) ? .automatic : .file,
                 items: [ImportItem(type: isPDF ? .pdf : .image, source: .file(url), fileExtension: url.pathExtension)])
         }
@@ -290,9 +298,10 @@ final class AppModel {
         }
     }
 
-    private func amountsChanged() {
+    func amountsChanged() {
         amountsRevision += 1
         refreshTotals()
+        checkBudgets()
     }
 
     private func refreshTotals() {
@@ -480,7 +489,7 @@ final class AppModel {
     }
 
     /// Asking to read a folder "for uploading" makes the system zip it.
-    private nonisolated static func zip(_ folder: URL) throws -> URL {
+    nonisolated static func zip(_ folder: URL) throws -> URL {
         let destination = folder.deletingLastPathComponent().appending(path: folder.lastPathComponent + ".zip")
         var coordinationError: NSError?
         var copyError: (any Error)?

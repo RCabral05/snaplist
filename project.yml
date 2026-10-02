@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "2.0.1"
+    MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:
@@ -53,6 +53,9 @@ targets:
           - CFBundleTypeName: Image
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.image]
+          - CFBundleTypeName: Transactions
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.comma-separated-values-text]
         LSSupportsOpeningDocumentsInPlace: false
         NSCameraUsageDescription: Snaplist uses the camera to scan receipts and documents into your archive.
         NSFaceIDUsageDescription: Snaplist uses Face ID to keep your archive private.

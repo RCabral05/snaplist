@@ -33,7 +33,48 @@ enum PageImages {
             return image
         case .audio:
             throw Failure.notAnImage
+        case .csv:
+            return try spreadsheet(at: url, maxPixelSize: maxPixelSize)
         }
+    }
+
+    /// A bank export drawn as a page: its first rows, column by column, so
+    /// it has a preview like any other record.
+    static func spreadsheet(at url: URL, maxPixelSize: Int) throws -> CGImage {
+        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? (try? String(contentsOf: url, encoding: .isoLatin1)) ?? ""
+        let rows = text.split(whereSeparator: \.isNewline).prefix(40).map { line in
+            line.split(separator: ",", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")) }
+                .prefix(5)
+                .map { String($0.prefix(18)) }
+        }
+        let width = CGFloat(min(maxPixelSize, 1200))
+        let size = CGSize(width: width, height: width * 1.3)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let margin = width * 0.05
+            let rowHeight = (size.height - margin * 2) / 40
+            let columnWidth = (width - margin * 2) / 5
+            for (index, row) in rows.enumerated() {
+                let y = margin + CGFloat(index) * rowHeight
+                if index % 2 == 1 {
+                    UIColor(white: 0.95, alpha: 1).setFill()
+                    context.fill(CGRect(x: margin, y: y, width: width - margin * 2, height: rowHeight))
+                }
+                let font = UIFont.monospacedSystemFont(ofSize: rowHeight * 0.5, weight: index == 0 ? .bold : .regular)
+                for (column, cell) in row.enumerated() {
+                    (cell as NSString).draw(
+                        in: CGRect(x: margin + CGFloat(column) * columnWidth + 4, y: y + rowHeight * 0.2,
+                                   width: columnWidth - 8, height: rowHeight),
+                        withAttributes: [.font: font, .foregroundColor: UIColor.darkGray])
+                }
+            }
+        }
+        guard let cgImage = image.cgImage else { throw Failure.unreadableImage }
+        return cgImage
     }
 
     /// For SwiftUI, off the main actor.

@@ -12,6 +12,8 @@ struct OverviewView: View {
     @State private var overview: SpendingOverview?
     @State private var recurring: [RecurringCharge] = []
     @State private var upcoming: [UpcomingDate] = []
+    @State private var budgets: [BudgetStatus] = []
+    @State private var isEditingBudgets = false
     @State private var selectedMonth: Day?
     /// False when Spending is a tab rather than a sheet.
     var showsDone = true
@@ -29,6 +31,7 @@ struct OverviewView: View {
                         ContentUnavailableView("No spending yet", systemImage: "chart.bar",
                                                description: Text("Import a card statement or scan a receipt, and its amounts show up here by month."))
                     }
+                    budgetsSection
                     if !recurring.isEmpty {
                         RecurringSection(charges: recurring)
                     }
@@ -59,6 +62,30 @@ struct OverviewView: View {
         }
     }
 
+    private var budgetsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Budgets").font(Theme.display(.title3))
+                Spacer()
+                Button(budgets.isEmpty ? "Set Up" : "Edit") { isEditingBudgets = true }
+                    .font(.subheadline.weight(.semibold))
+            }
+            if budgets.isEmpty {
+                Text("Set a monthly limit for eating out, groceries or everything, and see how this month is going.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                BudgetBars(statuses: budgets)
+                    .padding(16)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                Text("This month, \(Day(.now).date().formatted(.dateTime.month(.wide))). Statements arrive after a month ends, so until then only receipts and bills count.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .sheet(isPresented: $isEditingBudgets) { BudgetEditor() }
+    }
+
     private func selected(in overview: SpendingOverview) -> MonthSpending? {
         overview.months.first { $0.range.start == selectedMonth } ?? overview.months.last
     }
@@ -67,6 +94,7 @@ struct OverviewView: View {
         overview = model.spendingOverview()
         recurring = model.recurringCharges()
         upcoming = model.upcomingDates()
+        budgets = model.budgetStatus()
     }
 }
 
@@ -262,14 +290,14 @@ private struct UpcomingSection: View {
                     if index > 0 { Divider().padding(.leading, 52) }
                     NavigationLink(value: RecordListView.Destination(record: date.record)) {
                         HStack(spacing: 12) {
-                            Image(systemName: date.kind == .billDue ? "calendar.badge.clock" : "checkmark.shield")
+                            Image(systemName: date.symbol)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(date.record.kind.tint)
                                 .frame(width: 28, height: 28)
                                 .background(date.record.kind.tint.opacity(0.14), in: .circle)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(date.record.title).font(.subheadline).lineLimit(1)
-                                Text("\(date.kind == .billDue ? "Due" : "Warranty ends") \(date.day.date().formatted(date: .abbreviated, time: .omitted))")
+                                Text("\(date.kind == .billDue ? "Due" : date.kind == .returnBy ? "Return by" : "Warranty ends") \(date.day.date().formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

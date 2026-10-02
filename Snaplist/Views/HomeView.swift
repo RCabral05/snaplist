@@ -15,6 +15,9 @@ struct HomeView: View {
     @State private var question = ""
     @State private var overview: SpendingOverview?
     @State private var comingUp: [ComingUp] = []
+    @State private var budgets: [BudgetStatus] = []
+    @State private var inventory: InventorySummary?
+    @State private var hasTaxRecords = false
 
     var body: some View {
         NavigationStack {
@@ -30,10 +33,14 @@ struct HomeView: View {
                         if let month = overview?.months.last(where: { $0.count > 0 }) {
                             MonthCard(month: month, overview: overview!) { open(.spending) }
                         }
+                        if !budgets.isEmpty {
+                            budgetsSection
+                        }
                         if !comingUp.isEmpty {
                             comingUpSection
                         }
                         recentSection
+                        toolsSection
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 32)
@@ -110,6 +117,52 @@ struct HomeView: View {
         }
     }
 
+    private var budgetsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Budgets this month").font(Theme.display(.title3))
+                Spacer()
+                Button("Spending") { open(.spending) }.font(.subheadline.weight(.semibold))
+            }
+            BudgetBars(statuses: Array(budgets.sorted { $0.fraction > $1.fraction }.prefix(3)))
+                .padding(16)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
+        }
+    }
+
+    /// The home inventory and the tax report, one tap from Home.
+    private var toolsSection: some View {
+        HStack(spacing: 12) {
+            NavigationLink {
+                InventoryView()
+            } label: {
+                tool("Home inventory", "sofa",
+                     inventory.map { $0.count == 0 ? "For insurance" : "\($0.count) · \(Money(cents: $0.totalCents, currency: $0.currency).formattedWhole)" } ?? "For insurance")
+            }
+            NavigationLink {
+                TaxReportView()
+            } label: {
+                tool("Tax report", "building.columns", hasTaxRecords ? "Ready to export" : "Mark records + Tax")
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tool(_ title: String, _ symbol: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.headline)
+                .foregroundStyle(Theme.accent)
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
+    }
+
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
@@ -149,11 +202,12 @@ struct HomeView: View {
         overview = model.spendingOverview()
         let today = Day(.now)
         let horizon = today.adding(days: 30)
+        budgets = model.budgetStatus()
+        inventory = model.inventorySummary()
+        hasTaxRecords = !model.taxYears().isEmpty
         var items = model.upcomingDates().filter { $0.day <= horizon.addingMonths(12) }.map { date in
             ComingUp(id: date.id, record: date.record, day: date.day, amount: date.amount,
-                     title: date.kind == .billDue ? "\(date.record.title) due" : "\(date.record.title) warranty ends",
-                     symbol: date.kind == .billDue ? "calendar.badge.clock" : "checkmark.shield",
-                     tint: date.record.kind.tint)
+                     title: date.title, symbol: date.symbol, tint: date.record.kind.tint)
         }
         for charge in model.recurringCharges() where charge.nextExpected >= today && charge.nextExpected <= horizon {
             items.append(ComingUp(id: charge.id, record: charge.latest.record, day: charge.nextExpected,
@@ -310,5 +364,24 @@ extension Money {
     /// "$412", for labels where cents are noise.
     var formattedWhole: String {
         (Decimal(cents) / 100).formatted(.currency(code: currency).precision(.fractionLength(0)))
+    }
+}
+
+extension UpcomingDate {
+    /// "PG&E Bill due", "Samsung TV warranty ends", "Return Best Buy by".
+    var title: String {
+        switch kind {
+        case .billDue: "\(record.title) due"
+        case .warrantyEnds: "\(record.title) warranty ends"
+        case .returnBy: "Return \(record.title) by"
+        }
+    }
+
+    var symbol: String {
+        switch kind {
+        case .billDue: "calendar.badge.clock"
+        case .warrantyEnds: "checkmark.shield"
+        case .returnBy: "arrow.uturn.backward"
+        }
     }
 }

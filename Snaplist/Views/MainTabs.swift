@@ -79,7 +79,7 @@ struct MainTabs: View {
             photoSelection = []
             Task { await model.importPhotos(items) }
         }
-        .fileImporter(isPresented: $addFlow.isPickingFiles, allowedContentTypes: [.pdf, .image],
+        .fileImporter(isPresented: $addFlow.isPickingFiles, allowedContentTypes: [.pdf, .image, .commaSeparatedText],
                       allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls): model.importFiles(urls)
@@ -156,7 +156,7 @@ private struct AddView: View {
                     option("Choose photos", "Pictures of receipts or of where you put things.", "photo.on.rectangle") {
                         addFlow.isPickingPhotos = true
                     }
-                    option("Import PDFs and files", "Statements and bills you downloaded.", "folder") {
+                    option("Import PDFs and files", "Statements and bills you downloaded, or a card's CSV export.", "folder") {
                         addFlow.isPickingFiles = true
                     }
                     option("Record a voice note", "Say where something is; it becomes searchable.", "mic") {
