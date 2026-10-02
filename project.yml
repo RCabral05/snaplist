@@ -14,15 +14,22 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "2.1.0"
+    MARKETING_VERSION: "2.2.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:
     type: application
     platform: iOS
-    sources: [Snaplist]
+    sources: [Snaplist, Shared]
     dependencies:
       - package: ArchiveCore
+      - target: SnaplistWidgets
+        embed: true
+    entitlements:
+      path: Snaplist/Snaplist.entitlements
+      properties:
+        # Shared with the widgets, which read a small summary from it.
+        com.apple.security.application-groups: [group.com.rcabral.snaplist]
     scheme:
       testTargets: [SnaplistUITests]
     settings:
@@ -57,10 +64,35 @@ targets:
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.comma-separated-values-text]
         LSSupportsOpeningDocumentsInPlace: false
+        # snaplist://scan and friends, opened by the widgets.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.rcabral.snaplist
+            CFBundleURLSchemes: [snaplist]
         NSCameraUsageDescription: Snaplist uses the camera to scan receipts and documents into your archive.
         NSFaceIDUsageDescription: Snaplist uses Face ID to keep your archive private.
         NSMicrophoneUsageDescription: Snaplist records voice notes about where you put things.
         NSSpeechRecognitionUsageDescription: Snaplist turns your voice notes into text on this iPhone so you can search them.
+  SnaplistWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [SnaplistWidgets, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+    entitlements:
+      path: SnaplistWidgets/SnaplistWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.rcabral.snaplist]
+    info:
+      path: SnaplistWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Snaplist
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   SnaplistUITests:
     type: bundle.ui-testing
     platform: iOS

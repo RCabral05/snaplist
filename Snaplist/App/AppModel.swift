@@ -42,6 +42,9 @@ final class AppModel {
 
     private var spotlightTask: Task<Void, Never>?
     private var remindersTask: Task<Void, Never>?
+    var widgetTask: Task<Void, Never>?
+    /// Where a widget asked to go: snaplist://scan and the like.
+    var pendingLink: SnaplistLink?
     /// "Added 2 files", shown briefly after something arrives from another app.
     var notice: String?
 
@@ -126,6 +129,7 @@ final class AppModel {
                 updateSpotlight()
                 updateReminders()
                 checkBudgets()
+                updateWidgets()
                 // A record that just became ready may now match.
                 search()
             }
@@ -302,6 +306,7 @@ final class AppModel {
         amountsRevision += 1
         refreshTotals()
         checkBudgets()
+        updateWidgets()
     }
 
     private func refreshTotals() {
@@ -555,6 +560,10 @@ final class AppModel {
     /// with a share button. iOS hands over a copy, which is removed once
     /// it's in the archive.
     func importShared(_ url: URL) {
+        if url.scheme == "snaplist" {
+            pendingLink = url.host().flatMap(SnaplistLink.init(rawValue:))
+            return
+        }
         guard url.isFileURL else { return }
         importFiles([url])
         if url.path.contains("/Inbox/") {

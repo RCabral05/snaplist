@@ -115,6 +115,19 @@ struct MainTabs: View {
             isShowingSettings = false
             ask(question)
         }
+        // From a widget.
+        .task(id: model.pendingLink) {
+            guard let link = model.pendingLink else { return }
+            model.pendingLink = nil
+            isShowingSettings = false
+            switch link {
+            case .scan:
+                if addFlow.canScan { addFlow.isScanning = true } else { selection = .add }
+            case .ask: selection = .ask
+            case .spending: selection = .spending
+            case .home: selection = .home
+            }
+        }
         // From Spotlight or a reminder.
         .task(id: model.pendingRecordId) { openPendingRecord() }
         .onChange(of: model.records) { openPendingRecord() }

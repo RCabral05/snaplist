@@ -120,6 +120,7 @@ final class ThemeStore {
 
 /// The theme library: each theme as a small preview to tap.
 struct ThemePicker: View {
+    @Environment(AppModel.self) private var model
     private var store: ThemeStore { ThemeStore.shared }
 
     var body: some View {
@@ -128,6 +129,7 @@ struct ThemePicker: View {
                 ForEach(AppTheme.all) { theme in
                     Button {
                         withAnimation(.snappy) { store.select(theme.id) }
+                        model.updateWidgets()
                     } label: {
                         ThemePreview(theme: theme, isSelected: store.theme.id == theme.id)
                     }

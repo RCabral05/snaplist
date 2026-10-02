@@ -48,10 +48,12 @@ jobs:
       - run: brew install xcodegen
       - run: xcodegen generate
 
-      # Archived unsigned; the export below signs it once, for distribution,
-      # with Apple's cloud-managed certificate. Signing the archive itself
-      # made each fresh runner create a new development certificate, and
-      # accounts only get a few.
+      # Archived with a local ad-hoc signature, which carries the entitlements
+      # (the App Group the widgets share) without needing a certificate; the
+      # export below re-signs it once, for distribution, with Apple's
+      # cloud-managed certificate. Signing the archive for real made each
+      # fresh runner create a new development certificate, and accounts only
+      # get a few.
       - name: Archive
         run: |
           xcodebuild archive \
@@ -59,7 +61,8 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Snaplist.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO PROVISIONING_PROFILE_SPECIFIER="" \
             | tee archive.log | grep -E "error:|warning:|ARCHIVE (SUCCEEDED|FAILED)" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log
 
