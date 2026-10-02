@@ -127,4 +127,23 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 10. ~~People and places on records: tags, filters, search, questions, and
     (opt-in) town names from photo locations.~~
 
+11. ~~Budgets, return windows, Apple Card CSV import, tax report, home inventory.~~
+12. Widgets: written (`SnaplistWidgets/`, `Shared/`) but switched off; see below.
+
 Later: iCloud sync, household sharing, a paid tier.
+
+### Turning on widgets
+
+The widgets read a summary the app writes to a shared App Group, which has to
+be registered once by hand at developer.apple.com > Certificates, Identifiers
+& Profiles > Identifiers:
+
+1. + > App Groups: `group.com.rcabral.snaplist`.
+2. `com.rcabral.snaplist`: enable App Groups, select that group.
+3. + > App IDs > App: `com.rcabral.snaplist.widgets`, App Groups enabled with
+   the same group.
+
+Then uncomment the widget target and the app's dependency and entitlements in
+`project.yml`, and in the TestFlight workflow archive with
+`CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" AD_HOC_CODE_SIGNING_ALLOWED=YES`
+so the entitlements survive to the export.
