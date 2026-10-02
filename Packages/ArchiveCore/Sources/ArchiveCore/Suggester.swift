@@ -20,13 +20,47 @@ enum Suggester {
         if pages.allSatisfy({ $0.source == .speech }) {
             return Suggestion(title: noteTitle(pages.map(\.text).joined(separator: " ")), kind: .item)
         }
+        let pages = pages.map(withoutScreenChrome)
         let text = pages.map(\.text).joined(separator: "\n").lowercased()
         let kind = kind(of: text)
+
+        // A router sticker or a screenshot of one.
+        if ["wi-fi password", "wifi password", "wi-fi name", "wifi name", "network name", "ssid", "network key"]
+            .contains(where: { text.contains($0) }) {
+            return Suggestion(title: "Wi-Fi Network", kind: kind)
+        }
 
         guard let name = name(in: pages) else {
             return Suggestion(title: nil, kind: kind)
         }
         return Suggestion(title: title(name, kind: kind), kind: kind)
+    }
+
+    /// A screenshot's status bar ("6:21 PM", the carrier, the battery) and
+    /// the Photos bar above a picture ("44 of 84") say nothing about what's in
+    /// it, but they're at the top, where names are looked for. Dropped when
+    /// a time sits in the top strip, which is how a screenshot looks.
+    static func withoutScreenChrome(_ page: RecognizedPage) -> RecognizedPage {
+        let time = DayParser.regex("^\\d{1,2}:\\d{2}( ?[ap]m)?$")
+        let isScreenshot = page.lines.contains { line in
+            guard let box = line.box, box.y < 0.06 else { return false }
+            let text = line.text.trimmingCharacters(in: .whitespaces)
+            return time.firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
+        }
+        guard isScreenshot else { return page }
+        let counter = DayParser.regex("^\\d+ of \\d+$")
+        var trimmed = page
+        trimmed.lines = page.lines.filter { line in
+            guard let box = line.box else { return true }
+            if box.y < 0.06 { return false }
+            let text = line.text.trimmingCharacters(in: .whitespaces)
+            if box.y < 0.15, counter.firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
+                || ["photos", "back", "done", "edit"].contains(text.lowercased()) {
+                return false
+            }
+            return true
+        }
+        return trimmed
     }
 
     /// A voice note is named by its first words: "Spare HDMI cable is in the

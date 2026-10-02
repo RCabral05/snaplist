@@ -251,14 +251,14 @@ private struct BelongingEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("What it is", text: $belonging.name)
-                    TextField("Value", text: $value).keyboardType(.decimalPad)
-                    TextField("Room, like Living room", text: $belonging.room)
-                    TextField("Serial number", text: $belonging.serialNumber)
+                    TextField("What it is, like Samsung TV", text: $belonging.name)
+                    TextField("Value (optional)", text: $value).keyboardType(.decimalPad)
+                    TextField("Room (optional)", text: $belonging.room)
+                    TextField("Serial number (optional)", text: $belonging.serialNumber)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text("Filled in from the record where possible. Check the value is what it would cost to replace.")
+                    Text("For things you own, in case you ever need to make an insurance claim. Only the name is needed; the value and serial number are read from a receipt when they're printed on it.")
                 }
                 .listRowBackground(Theme.surface)
                 if !isNew {

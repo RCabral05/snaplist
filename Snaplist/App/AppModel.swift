@@ -386,7 +386,7 @@ final class AppModel {
             case .lastBought(let terms):
                 return .lastBought(try archive.store.lastBought(terms), terms: terms)
             case .search(let text):
-                return .search(try archive.store.search(text, limit: 10), text: text)
+                return .search(try archive.store.searchQuestion(text), text: text)
             }
         } catch {
             errorMessage = "Couldn't answer that: \(error.localizedDescription)"

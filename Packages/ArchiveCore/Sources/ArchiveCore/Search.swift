@@ -60,6 +60,10 @@ extension ArchiveStore {
     /// `kind` narrows to one category; nil searches everything.
     public func search(_ text: String, kind: RecordKind? = nil, limit: Int = 50) throws -> [SearchHit] {
         guard let match = Self.matchExpression(for: text) else { return [] }
+        return try search(matching: match, kind: kind, limit: limit)
+    }
+
+    private func search(matching match: String, kind: RecordKind?, limit: Int) throws -> [SearchHit] {
 
         return try db.read { db in
             // Ranked per page; a record can appear several times. Fetched with
@@ -105,12 +109,43 @@ extension ArchiveStore {
     /// Turns typed words into an FTS5 query: each word quoted as a phrase (so
     /// "12.50" or "AT&T" mean what they look like) and marked as a prefix.
     /// Returns nil when nothing searchable is left, e.g. "$" or "--".
-    static func matchExpression(for text: String) -> String? {
+    static func matchExpression(for text: String, anyWord: Bool = false) -> String? {
         let terms = text
             .split(whereSeparator: \.isWhitespace)
             .map { $0.replacingOccurrences(of: "\"", with: "") }
             .filter { $0.contains(where: { $0.isLetter || $0.isNumber }) }
         guard !terms.isEmpty else { return nil }
-        return terms.map { "\"\($0)\"*" }.joined(separator: " ")
+        return terms.map(termExpression).joined(separator: anyWord ? " OR " : " AND ")
     }
+
+    /// Words printed with a hyphen that people type without one, and back:
+    /// "wifi" also finds "Wi-Fi", which the index holds as "wi" "fi".
+    static let spellings: [String: [String]] = [
+        "wifi": ["wi fi"], "wi-fi": ["wifi"], "email": ["e mail"], "e-mail": ["email"],
+        "login": ["log in"], "username": ["user name"], "zipcode": ["zip code"],
+    ]
+
+    private static func termExpression(_ term: String) -> String {
+        let quoted = "\"\(term)\"*"
+        guard let others = spellings[term.lowercased()] else { return quoted }
+        return "(" + ([quoted] + others.map { "\"\($0)\"" }).joined(separator: " OR ") + ")"
+    }
+
+    /// For a question typed in Ask: the words that matter ("wifi password"
+    /// from "what's my wifi password"), every one of them if possible, else
+    /// the pages with any of them, best first.
+    public func searchQuestion(_ question: String, limit: Int = 10) throws -> [SearchHit] {
+        let words = QuestionParser.terms(in: " " + question.lowercased().replacingOccurrences(of: "’", with: "'") + " ",
+                                         dropping: QuestionParser.filler.union(Self.questionWords))
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "?!.,;:\"")) }
+            .filter { !$0.isEmpty }
+        let text = words.isEmpty ? question : words.joined(separator: " ")
+        let all = try search(text, limit: limit)
+        if !all.isEmpty || words.count < 2 { return all }
+        guard let loose = Self.matchExpression(for: text, anyWord: true) else { return [] }
+        return try search(matching: loose, kind: nil, limit: limit)
+    }
+
+    static let questionWords: Set<String> = ["what's", "whats", "which", "who", "show", "find", "tell", "give",
+                                             "need", "want", "know", "look", "please", "info", "information"]
 }

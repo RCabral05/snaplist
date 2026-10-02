@@ -51,7 +51,10 @@ struct RecordDetailView: View {
                     statusBanner
                     details
                     TagsSection(record: current)
-                    BelongingSection(record: current)
+                    // Things owned: not statements, bills, IDs or screenshots.
+                    if [.receipt, .warranty, .manual, .item, .other].contains(current.kind) {
+                        BelongingSection(record: current)
+                    }
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
                     textSection
