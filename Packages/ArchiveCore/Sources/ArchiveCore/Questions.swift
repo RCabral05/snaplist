@@ -39,6 +39,8 @@ public struct SpendingQuery: Hashable, Sendable {
     /// though their store's name doesn't: "dispensary" on a receipt from
     /// "Green Leaf Wellness". Filled in while answering.
     var textMatchedRecords: Set<UUID> = []
+    /// "What did I get at the dispensary?": the things bought, not only the total.
+    public var listsItems = false
 
     public init(categories: Set<SpendCategory> = [], merchantTerms: [String] = [], range: DayRange? = nil,
                 rangeLabel: String? = nil, notes: [String] = []) {
@@ -105,7 +107,16 @@ public enum QuestionParser {
             text = text.replacingOccurrences(of: " \(word) ", with: " ")
         }
         query.merchantTerms = terms(in: text, dropping: spendingFiller)
+        query.listsItems = asksWhatWasBought(question)
         return .spending(query)
+    }
+
+    /// "What did I get at…", "what have I bought from…": asking for the things.
+    public static func asksWhatWasBought(_ question: String) -> Bool {
+        let text = " " + question.lowercased().replacingOccurrences(of: "’", with: "'") + " "
+        return [" what did i get ", " what did i buy ", " what did i purchase ", " what did i order ", " what have i bought ",
+                " what have i gotten ", " what i got ", " what i bought ", " what did we get ", " what did we buy "]
+            .contains { text.contains($0) }
     }
 
     // MARK: Words
@@ -306,6 +317,7 @@ extension QuestionParser {
                 query.range = range
                 query.rangeLabel = label
             }
+            query.listsItems = QuestionParser.asksWhatWasBought(original)
             return .spending(query)
         }
     }

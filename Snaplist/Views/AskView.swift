@@ -266,6 +266,43 @@ private struct SpendingAnswerView: View {
                 }
             }
 
+            if answer.query.listsItems, !answer.itemsByRecord.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("What you got").font(Theme.display(.title3))
+                    ForEach(answer.itemsByRecord, id: \.record.id) { entry in
+                        NavigationLink(value: RecordListView.Destination(record: entry.record)) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                HStack {
+                                    Text(entry.record.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                    Spacer()
+                                    Text(entry.record.effectiveDay.date(), format: .dateTime.month(.abbreviated).day().year())
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 10)
+                                ForEach(entry.items) { item in
+                                    Divider().padding(.leading)
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(item.name).font(.subheadline)
+                                        Spacer()
+                                        Text(Money(cents: item.amountCents, currency: item.currency).formatted)
+                                            .font(.subheadline).monospacedDigit()
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 8)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                    }
+                    Text("Prices are as printed, less any discount shown under them, before tax.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             if !answer.counted.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("What was counted").font(Theme.display(.title3))

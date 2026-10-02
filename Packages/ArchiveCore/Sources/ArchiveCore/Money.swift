@@ -29,7 +29,8 @@ enum MoneyParser {
     private static let pattern = DayParser.regex(
         "(?<![\\d.,/])(?<neg>[-−(])?\\s?(?<cur>[$€£])?\\s?" +
         "(?:(?<num>\\d{1,3}(?:[,.]\\d{3})+[.,]\\d{2}|\\d+[.,]\\d{2})|(?<whole>(?<=[$€£])\\d+))" +
-        "(?![\\d.,]*\\d)(?<close>\\))?(?:\\s?(?<after>[€£]))?(?:\\s?(?<cr>CR)\\b)?")
+        // Not a quantity with its unit after it: "(3.50g)", "2.25 lb".
+        "(?![\\d.,]*\\d)(?!\\s?(?:g|kg|mg|lbs?|oz|ml|l|gal|ct|pk)\\b)(?<close>\\))?(?:\\s?(?<after>[€£]))?(?:\\s?(?<cr>CR)\\b)?")
 
     static func amounts(in line: String) -> [ParsedAmount] {
         let ns = line as NSString

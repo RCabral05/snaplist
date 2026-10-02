@@ -129,8 +129,11 @@ import Testing
                            "urned at the dispensary where they were purchase", "d."]])
         #expect(try total(id) == 3165, "\(lines(id))")
         #expect(try store.record(id)?.documentDate == Day(year: 2026, month: 10, day: 2))
-        let items = try store.items(of: id).map(\.name)
-        #expect(!items.contains { $0.lowercased().contains("unit price") || $0.lowercased().contains("discount") }, "\(items)")
+        // Named by the product line above "Unit Price", less its discount.
+        let items = try store.items(of: id)
+        #expect(items.map(\.name) == ["F(Popcorn)-Example Strain-7.0g (7.00g)", "PR(Single)-Example Roll-1.0g-S (1.00g)"],
+                "\(items.map(\.name))")
+        #expect(items.map(\.amountCents) == [2485, 474])
         // Only defective items go back: no return reminder.
         #expect(try store.upcomingDates(from: Day(year: 2026, month: 10, day: 2)!).isEmpty)
         guard case .spending(let query) = QuestionParser.parse("How much have I spent at the dispensary",
@@ -138,6 +141,23 @@ import Testing
             Issue.record("not a spending question"); return
         }
         #expect(try store.answer(query).totals == [Money(cents: 3165)])
+
+        // "What did I get there?": the things, not only the total.
+        guard case .spending(let what) = QuestionParser.parse("What did I get at the dispensary",
+                                                              today: Day(year: 2026, month: 10, day: 3)!) else {
+            Issue.record("not a spending question"); return
+        }
+        #expect(what.listsItems)
+        let got = try store.answer(what)
+        #expect(got.itemsByRecord.first?.items.count == 2)
+        #expect(got.totals == [Money(cents: 3165)])
+    }
+
+    @Test func pricesAndDiscountsOnTheSameRow() throws {
+        let id = try add([["Example Shop", "10/2/2026", "F(Premium)-Example Sunset (3.50g)", "-3.5g-H", "1A42A0300000000000000000",
+                           "Unit Price  25.00", "--Multiple Discounts  -$7.25", "Subtotal: $25.00", "Total: $17.75"]])
+        #expect(try store.items(of: id).map(\.amountCents) == [1775])
+        #expect(try store.items(of: id).first?.name == "F(Premium)-Example Sunset (3.50g)")
     }
 
     @Test func aSubtotalTheCameraMisread() throws {

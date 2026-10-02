@@ -128,30 +128,61 @@ enum Extractor {
         }.joined(separator: " ")
     }
 
-    /// Rows above the total that end in an amount and name something.
+    /// Rows above the total that end in an amount and name something. When
+    /// the amount's row only says "Unit Price" (or nothing), the name is the
+    /// product line above it, skipping package IDs; a discount on the row
+    /// after comes off the price.
     static func lineItems(_ rows: [TextRow], recordId: UUID, before total: TextRow, totalCents: Int64,
                           keepTaxes: Bool = false) -> [LineItem] {
         // On a bill, taxes and fees are charges like any other.
         let notItem = keepTaxes ? Self.notItem.filter { $0 != "tax" } : Self.notItem
+        let priceOnly = ["unit price", "price", "each", "ea", "@"]
         var items: [LineItem] = []
-        for row in rows {
+        for (index, row) in rows.enumerated() {
             if (row.pagePosition, row.linePosition) >= (total.pagePosition, total.linePosition) { break }
-            let lower = row.text.lowercased()
-            guard !notItem.contains(where: { lower.contains($0) }), DayParser.firstDay(in: row.text) == nil,
-                  let amount = MoneyParser.amounts(in: row.text).last, !amount.isCredit,
-                  amount.cents > 0, amount.cents <= totalCents else { continue }
+            guard DayParser.firstDay(in: row.text) == nil,
+                  let amount = MoneyParser.amounts(in: row.text).last, !amount.isCredit, amount.cents > 0 else { continue }
             let ns = row.text as NSString
             // Only a tax flag ("T", "N F") may follow the price.
             let after = ns.substring(from: amount.range.location + amount.range.length).trimmingCharacters(in: .whitespaces)
             guard after.count <= 3 else { continue }
-            let name = ns.substring(to: amount.range.location)
+            var name = ns.substring(to: amount.range.location)
                 .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "$*#:-")))
+            let lowerName = name.lowercased()
+            if priceOnly.contains(lowerName) || name.count(where: \.isLetter) < 3 {
+                guard let above = nameAbove(rows, index, notItem: notItem) else { continue }
+                name = above
+            } else if notItem.contains(where: { lowerName.contains($0) }) {
+                continue
+            }
             guard name.count(where: \.isLetter) >= 3 else { continue }
+            var cents = amount.cents
+            if index + 1 < rows.count {
+                let next = rows[index + 1].text
+                if let discount = MoneyParser.amounts(in: next).last, discount.isCredit, discount.cents < cents,
+                   next.lowercased().contains("discount") || isOnlyAmounts(next) {
+                    cents -= discount.cents
+                }
+            }
+            guard cents <= totalCents else { continue }
             items.append(LineItem(recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition,
-                                  name: itemName(name), amountCents: amount.cents,
+                                  name: itemName(name), amountCents: cents,
                                   currency: amount.currency ?? "USD"))
         }
         return items
+    }
+
+    /// The product named above a price-only row: the nearest line with words,
+    /// not a package ID or a "discounts" line, and never past another price.
+    static func nameAbove(_ rows: [TextRow], _ index: Int, notItem: [String]) -> String? {
+        for row in rows[max(0, index - 5)..<index].reversed() {
+            if !MoneyParser.amounts(in: row.text).isEmpty { return nil }
+            let letters = row.text.count(where: \.isLetter), digits = row.text.count(where: \.isNumber)
+            let lower = row.text.lowercased()
+            guard letters >= 3, letters >= digits, !notItem.contains(where: { lower.contains($0) }) else { continue }
+            return row.text.trimmingCharacters(in: .whitespaces)
+        }
+        return nil
     }
 
     static func bill(_ rows: [TextRow], recordId: UUID, merchant: String) -> ExtractedFacts {

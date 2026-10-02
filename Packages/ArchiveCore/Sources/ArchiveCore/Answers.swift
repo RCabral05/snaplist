@@ -63,6 +63,8 @@ public struct SpendingAnswer: Sendable {
     /// When a period was asked about: other months with matching spending,
     /// newest first, so an empty answer can say where there is some.
     public var otherMonths: [MonthTotal] = []
+    /// For "what did I get…": each counted receipt's lines, newest receipt first.
+    public var itemsByRecord: [(record: Record, items: [LineItem])] = []
 }
 
 /// Matching spending in one calendar month.
@@ -204,8 +206,19 @@ extension ArchiveStore {
             }
             otherMonths = otherMonthsWithSpending(all, query: query, excluding: range, decisions: decisions)
         }
+        var itemsByRecord: [(record: Record, items: [LineItem])] = []
+        if query.listsItems {
+            var seen = Set<UUID>()
+            for item in matching where item.transaction.source != .statement && seen.insert(item.record.id).inserted {
+                let lines = try items(of: item.record.id)
+                if !lines.isEmpty { itemsByRecord.append((item.record, lines)) }
+            }
+            if itemsByRecord.isEmpty, !matching.isEmpty {
+                notes.append("No item lines could be read from these, so only the totals are shown. Card statements don't list items.")
+            }
+        }
         return SpendingAnswer(query: query, totals: totals, counted: matching, duplicates: duplicates, notes: notes,
-                              otherMonths: otherMonths)
+                              otherMonths: otherMonths, itemsByRecord: itemsByRecord)
     }
 
     /// Merchant words that appear in no saved amount, its line, its record,
