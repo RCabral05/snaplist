@@ -143,7 +143,8 @@ private struct MonthChart: View {
                                        range: SpendCategory.allCases.map(\.tint))
             .chartLegend(.hidden)
             .chartXAxis {
-                AxisMarks(values: .stride(by: .month)) { _ in
+                // Each month with spending by name; a stride skipped the first.
+                AxisMarks(values: overview.months.map { $0.range.start.date() }) { _ in
                     AxisValueLabel(format: .dateTime.month(.narrow), centered: true)
                 }
             }

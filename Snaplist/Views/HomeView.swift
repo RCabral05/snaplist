@@ -283,7 +283,8 @@ struct HomeView: View {
         for charge in model.recurringCharges() where charge.nextExpected >= today && charge.nextExpected <= horizon {
             items.append(ComingUp(id: charge.id, record: charge.latest.record, day: charge.nextExpected,
                                   amount: Money(cents: charge.typicalCents, currency: charge.currency),
-                                  title: "\(charge.merchant) renews", symbol: "repeat",
+                                  title: charge.latest.transaction.source == .bill ? "Next \(charge.merchant) bill" : "\(charge.merchant) renews",
+                                  symbol: "repeat",
                                   tint: charge.category.tint))
         }
         comingUp = items.sorted { $0.day < $1.day }
@@ -443,7 +444,8 @@ extension UpcomingDate {
     var title: String {
         switch kind {
         case .billDue: "\(record.title) due"
-        case .warrantyEnds: "\(record.title) warranty ends"
+        // "Samsung TV warranty" already says warranty.
+        case .warrantyEnds: record.title.lowercased().contains("warranty") ? "\(record.title) ends" : "\(record.title) warranty ends"
         case .returnBy: "Return \(record.title) by"
         case .renewal: "\(record.title) expires"
         }
