@@ -37,8 +37,8 @@ struct AppTheme: Identifiable, Equatable, Sendable {
 
     static func == (a: AppTheme, b: AppTheme) -> Bool { a.id == b.id }
 
-    /// Refined paper: cream and ink by day, warm charcoal by night, serif
-    /// numbers, a rust accent.
+    /// Refined paper: cream and ink, serif numbers, a rust accent. Always
+    /// light, as drawn.
     static let ledger = AppTheme(
         id: .ledger, name: "Ledger", summary: "Warm paper, serif numbers",
         accent: Color(light: 0x9A3412, dark: 0xF5B942),
@@ -46,7 +46,7 @@ struct AppTheme: Identifiable, Equatable, Sendable {
         background: Color(light: 0xF4EFE6, dark: 0x1C1A17),
         surface: Color(light: 0xFFFCF6, dark: 0x2A2723),
         border: Color(light: 0xE2D8C8, dark: 0x3A352E),
-        design: .serif, boldness: 0, cardRadius: 16, colorScheme: nil)
+        design: .serif, boldness: 0, cardRadius: 16, colorScheme: .light)
 
     /// Dark and private: ink, slate cards, a mint accent.
     static let vault = AppTheme(
@@ -59,6 +59,7 @@ struct AppTheme: Identifiable, Equatable, Sendable {
         design: .default, boldness: 1, cardRadius: 18, colorScheme: .dark)
 
     /// Bright and native: white cards, bold blue, heavy rounded numbers.
+    /// Always light, as drawn.
     static let clarity = AppTheme(
         id: .clarity, name: "Clarity", summary: "Bright and bold, rounded numbers",
         accent: Color(light: 0x1D46D8, dark: 0x7B93FF),
@@ -66,7 +67,7 @@ struct AppTheme: Identifiable, Equatable, Sendable {
         background: Color(light: 0xF2F3F7, dark: 0x000000),
         surface: Color(light: 0xFFFFFF, dark: 0x1C1C1E),
         border: .clear,
-        design: .rounded, boldness: 1, cardRadius: 20, colorScheme: nil)
+        design: .rounded, boldness: 1, cardRadius: 20, colorScheme: .light)
 
     static let all: [AppTheme] = [.ledger, .vault, .clarity]
 
@@ -134,7 +135,7 @@ struct ThemePicker: View {
                     .accessibilityLabel("\(theme.name): \(theme.summary)")
                     .accessibilityAddTraits(store.theme.id == theme.id ? .isSelected : [])
                 }
-                Text("Ledger and Clarity follow your iPhone's light or dark setting. Vault is always dark.")
+                Text("Ledger and Clarity are light themes and Vault is dark, whatever your iPhone is set to.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)

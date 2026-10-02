@@ -22,7 +22,7 @@ struct MainTabs: View {
     @Environment(AppModel.self) private var model
 
     enum Tab: Hashable {
-        case home, library, spending, ask
+        case home, library, spending, ask, add
     }
 
     @State private var selection: Tab = .home
@@ -52,10 +52,11 @@ struct MainTabs: View {
                 AskView(question: askQuestion, showsDone: false)
                     .id(askToken)
             }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            AddBar()
+            // The search role puts it in its own circle beside the tab bar:
+            // the round + of the design.
+            SwiftUI.Tab("Add", systemImage: "plus", value: Tab.add, role: .search) {
+                AddView()
+            }
         }
         .environment(addFlow)
         .sheet(isPresented: $isShowingSettings) { SettingsView() }
@@ -139,54 +140,61 @@ struct MainTabs: View {
     }
 }
 
-/// Scan, Photos, Files and Voice, above the tabs. Collapses to one Add menu
-/// when the tab bar shrinks.
-private struct AddBar: View {
+/// The + tab: every way to add something, as big buttons.
+private struct AddView: View {
     @Environment(AddFlow.self) private var addFlow
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     var body: some View {
-        if placement == .inline {
-            Menu {
-                actions
-            } label: {
-                Label("Add", systemImage: "plus")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .accessibilityIdentifier("add")
-        } else {
-            HStack(spacing: 0) {
-                if addFlow.canScan {
-                    item("Scan", "doc.viewfinder") { addFlow.isScanning = true }
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 12) {
+                    if addFlow.canScan {
+                        option("Scan a document", "Paper receipts, bills and letters, with the camera.", "doc.viewfinder") {
+                            addFlow.isScanning = true
+                        }
+                    }
+                    option("Choose photos", "Pictures of receipts or of where you put things.", "photo.on.rectangle") {
+                        addFlow.isPickingPhotos = true
+                    }
+                    option("Import PDFs and files", "Statements and bills you downloaded.", "folder") {
+                        addFlow.isPickingFiles = true
+                    }
+                    option("Record a voice note", "Say where something is; it becomes searchable.", "mic") {
+                        addFlow.isRecordingNote = true
+                    }
+                    Label("You can also share a PDF to Snaplist from Mail, Files or Safari.", systemImage: "square.and.arrow.up")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
                 }
-                item("Photos", "photo.on.rectangle") { addFlow.isPickingPhotos = true }
-                item("Files", "folder") { addFlow.isPickingFiles = true }
-                item("Voice", "mic") { addFlow.isRecordingNote = true }
+                .padding()
             }
-            .accessibilityIdentifier("add")
+            .background(Theme.background)
+            .navigationTitle("Add")
         }
     }
 
-    @ViewBuilder private var actions: some View {
-        if addFlow.canScan {
-            Button("Scan Document", systemImage: "doc.viewfinder") { addFlow.isScanning = true }
-        }
-        Button("Choose Photos", systemImage: "photo.on.rectangle") { addFlow.isPickingPhotos = true }
-        Button("Import PDFs and Files", systemImage: "folder") { addFlow.isPickingFiles = true }
-        Button("Voice Note", systemImage: "mic") { addFlow.isRecordingNote = true }
-    }
-
-    private func item(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+    private func option(_ title: String, _ detail: String, _ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol).foregroundStyle(Theme.accent)
-                Text(title)
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.onAccent)
+                    .frame(width: 48, height: 48)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(Theme.display(.headline))
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
             }
-            .font(.subheadline.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(14)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title == "Voice" ? "Voice Note" : title)
     }
 }

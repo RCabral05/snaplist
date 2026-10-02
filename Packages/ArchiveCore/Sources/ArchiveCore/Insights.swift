@@ -12,6 +12,14 @@ public struct MonthSpending: Hashable, Identifiable, Sendable {
     public var count: Int
 
     public var id: Day { range.start }
+
+    public init(range: DayRange, label: String, totalCents: Int64, byCategory: [SpendCategory: Int64], count: Int) {
+        self.range = range
+        self.label = label
+        self.totalCents = totalCents
+        self.byCategory = byCategory
+        self.count = count
+    }
 }
 
 public struct SpendingOverview: Sendable {

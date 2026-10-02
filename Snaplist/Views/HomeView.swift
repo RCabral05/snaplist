@@ -261,9 +261,15 @@ private struct MonthCard: View {
         .accessibilityHint("Opens Spending")
     }
 
+    /// The six calendar months ending with this one, empty ones included,
+    /// so a short history doesn't draw two giant bars.
     private var recentMonths: [MonthSpending] {
-        let upTo = overview.months.filter { $0.range.start <= month.range.start }
-        return Array(upTo.suffix(6))
+        (0..<6).reversed().map { back in
+            let start = month.range.start.addingMonths(-back)
+            if let found = overview.months.first(where: { $0.range.start == start }) { return found }
+            let range = DayRange.month(start.month, of: start.year) ?? month.range
+            return MonthSpending(range: range, label: "", totalCents: 0, byCategory: [:], count: 0)
+        }
     }
 
     private var bars: some View {
@@ -280,16 +286,19 @@ private struct MonthCard: View {
         .accessibilityHidden(true)
     }
 
+    /// The biggest named categories; "Other" says nothing here.
     private var top: [(key: SpendCategory, value: Int64)] {
-        Array(month.byCategory.filter { $0.value > 0 }.sorted { $0.value > $1.value }.prefix(3))
+        Array(month.byCategory.filter { $0.value > 0 && $0.key != .other }.sorted { $0.value > $1.value }.prefix(3))
     }
 
     /// "8% less than August"
     private var change: String? {
         guard let index = overview.months.firstIndex(where: { $0.id == month.id }), index > 0 else { return nil }
         let previous = overview.months[index - 1]
-        guard previous.totalCents > 0 else { return nil }
+        // A month with only a receipt or two isn't a fair comparison.
+        guard previous.totalCents > 0, previous.count >= 10, month.count >= 10 else { return nil }
         let percent = Int((Double(month.totalCents - previous.totalCents) / Double(previous.totalCents) * 100).rounded())
+        guard abs(percent) <= 150 else { return nil }
         let name = previous.label.components(separatedBy: " ").first ?? previous.label
         if percent == 0 { return "Same as \(name)" }
         return percent < 0 ? "\(-percent)% less than \(name)" : "\(percent)% more than \(name)"
