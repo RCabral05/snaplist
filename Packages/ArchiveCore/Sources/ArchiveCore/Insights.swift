@@ -62,6 +62,8 @@ public struct RecurringCharge: Hashable, Identifiable, Sendable {
 public struct UpcomingDate: Hashable, Identifiable, Sendable {
     public enum Kind: String, Sendable {
         case billDue, warrantyEnds
+        /// The last day a purchase can be returned.
+        case returnBy
     }
 
     public var kind: Kind
@@ -201,6 +203,16 @@ extension ArchiveStore {
         for finding in try expiries([]) where finding.day >= today {
             dates.append(UpcomingDate(kind: .warrantyEnds, record: finding.record, day: finding.day))
         }
+        // Receipts, and anything not yet filed that may be one.
+        let receipts = try records().filter { [.receipt, .document, .other].contains($0.kind) && $0.status == .ready }
+        try db.read { db in
+            for record in receipts {
+                let rows = Extractor.rows(of: try Self.storedPages(of: record.id, in: db))
+                if let last = Self.returnDeadline(in: rows, purchased: record.documentDate), last >= today {
+                    dates.append(UpcomingDate(kind: .returnBy, record: record, day: last, amount: totals[record.id]))
+                }
+            }
+        }
         return dates.sorted { ($0.day, $0.record.title) < ($1.day, $1.record.title) }
     }
 
@@ -211,6 +223,187 @@ extension ArchiveStore {
             let lower = row.text.lowercased()
             guard lower.contains("due"), !lower.contains("past due"), !lower.contains("overdue") else { continue }
             if let day = DayParser.firstDay(in: row.text) { return day }
+        }
+        return nil
+    }
+}
+
+extension ArchiveStore {
+    /// The last day to return a purchase, from its receipt's return policy:
+    /// "RETURN BY 10/28/2026", "Returns accepted within 30 days",
+    /// "90 day return policy". Days are counted from the purchase date.
+    static func returnDeadline(in rows: [TextRow], purchased: Day?) -> Day? {
+        let returnWords = ["return", "refund", "exchange"]
+        for row in rows {
+            let lower = row.text.lowercased()
+            guard returnWords.contains(where: { lower.contains($0) }) else { continue }
+            if lower.contains(" by") || lower.contains("until") || lower.contains("before"),
+               let day = DayParser.days(in: row.text).map(\.day).first(where: { $0 != purchased }) {
+                return day
+            }
+            guard let purchased else { continue }
+            let ns = row.text as NSString
+            if let match = Self.returnDays.firstMatch(in: row.text, range: NSRange(location: 0, length: ns.length)) {
+                let digits = match.range(at: 1).location != NSNotFound ? match.range(at: 1) : match.range(at: 2)
+                if let count = Int(ns.substring(with: digits)), (1...365).contains(count) {
+                    return purchased.adding(days: count)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// "within 30 days", "30-day", "30 day", "30 days".
+    static let returnDays = DayParser.regex("(?:within\\s+(\\d{1,3})\\s+days?)|(?:\\b(\\d{1,3})[\\s-]?days?\\b)")
+}
+
+// MARK: Budgets
+
+/// A monthly limit for one category, or for all spending (`category` nil).
+public struct Budget: Hashable, Sendable {
+    public var category: SpendCategory?
+    public var limitCents: Int64
+}
+
+/// How a budget is doing this month.
+public struct BudgetStatus: Hashable, Identifiable, Sendable {
+    public var budget: Budget
+    public var spentCents: Int64
+    public var currency: String
+
+    public var fraction: Double { budget.limitCents > 0 ? Double(spentCents) / Double(budget.limitCents) : 0 }
+    public var remainingCents: Int64 { budget.limitCents - spentCents }
+    public var id: String { budget.category?.rawValue ?? "all" }
+}
+
+extension ArchiveStore {
+    public func budgets() throws -> [Budget] {
+        try db.read { db in
+            try Row.fetchAll(db, sql: "SELECT category, limitCents FROM budget").map { row in
+                let key: String = row["category"]
+                return Budget(category: SpendCategory(rawValue: key), limitCents: row["limitCents"])
+            }
+            .sorted { ($0.category == nil ? 0 : 1, $0.category?.rawValue ?? "") < ($1.category == nil ? 0 : 1, $1.category?.rawValue ?? "") }
+        }
+    }
+
+    /// Sets a monthly limit; nil or zero removes it.
+    public func setBudget(_ limitCents: Int64?, for category: SpendCategory?) throws {
+        let key = category?.rawValue ?? "all"
+        try db.write { db in
+            if let limitCents, limitCents > 0 {
+                try db.execute(sql: """
+                    INSERT INTO budget (category, limitCents) VALUES (?, ?)
+                    ON CONFLICT(category) DO UPDATE SET limitCents = excluded.limitCents
+                    """, arguments: [key, limitCents])
+            } else {
+                try db.execute(sql: "DELETE FROM budget WHERE category = ?", arguments: [key])
+            }
+        }
+    }
+
+    /// Each budget against what was spent in `month`, counted like answers.
+    public func budgetStatus(in month: DayRange) throws -> [BudgetStatus] {
+        let budgets = try budgets()
+        guard !budgets.isEmpty else { return [] }
+        let items = try spendingAmounts().filter { month.contains($0.day) }
+        let currency = Dictionary(grouping: items, by: \.transaction.currency).max { $0.value.count < $1.value.count }?.key ?? "USD"
+        return budgets.map { budget in
+            let spent = items.filter { $0.transaction.currency == currency && (budget.category == nil || $0.transaction.category == budget.category) }
+                .reduce(Int64(0)) { $0 + $1.transaction.spendCents }
+            return BudgetStatus(budget: budget, spentCents: spent, currency: currency)
+        }
+    }
+}
+
+// MARK: Home inventory
+
+/// Something owned, for insurance: what it is, what it cost, its serial
+/// number, and the record (photo, receipt or warranty) that shows it.
+public struct Belonging: Hashable, Identifiable, Sendable {
+    public var record: Record
+    public var name: String
+    public var valueCents: Int64?
+    public var currency: String
+    public var serialNumber: String
+    public var room: String
+    public var purchased: Day?
+
+    public var id: UUID { record.id }
+
+    public init(record: Record, name: String, valueCents: Int64?, currency: String = "USD", serialNumber: String = "",
+                room: String = "", purchased: Day? = nil) {
+        self.record = record
+        self.name = name
+        self.valueCents = valueCents
+        self.currency = currency
+        self.serialNumber = serialNumber
+        self.room = room
+        self.purchased = purchased
+    }
+}
+
+extension ArchiveStore {
+    /// Everything in the home inventory, by room then name.
+    public func belongings() throws -> [Belonging] {
+        try db.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM belonging")
+            let records = try Record.fetchAll(db, keys: rows.map { $0["recordId"] as UUID })
+            let byId = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            return rows.compactMap { row -> Belonging? in
+                guard let record = byId[row["recordId"]] else { return nil }
+                let purchased: String? = row["purchased"]
+                return Belonging(record: record, name: row["name"], valueCents: row["valueCents"], currency: row["currency"],
+                                 serialNumber: row["serialNumber"], room: row["room"],
+                                 purchased: purchased.flatMap(Day.init(iso:)))
+            }
+            .sorted { ($0.room.isEmpty ? "~" : $0.room.lowercased(), $0.name.lowercased()) < ($1.room.isEmpty ? "~" : $1.room.lowercased(), $1.name.lowercased()) }
+        }
+    }
+
+    public func belonging(_ recordId: UUID) throws -> Belonging? {
+        try belongings().first { $0.id == recordId }
+    }
+
+    public func save(_ belonging: Belonging) throws {
+        try db.write { db in
+            try db.execute(sql: """
+                INSERT INTO belonging (recordId, name, valueCents, currency, serialNumber, room, purchased)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(recordId) DO UPDATE SET name = excluded.name, valueCents = excluded.valueCents,
+                    currency = excluded.currency, serialNumber = excluded.serialNumber, room = excluded.room,
+                    purchased = excluded.purchased
+                """, arguments: [belonging.record.id, belonging.name, belonging.valueCents, belonging.currency,
+                                 belonging.serialNumber, belonging.room, belonging.purchased?.iso])
+        }
+    }
+
+    public func removeBelonging(_ recordId: UUID) throws {
+        try db.write { db in
+            try db.execute(sql: "DELETE FROM belonging WHERE recordId = ?", arguments: [recordId])
+        }
+    }
+
+    /// A first draft from what's saved: the record's name, its total, its
+    /// date, and a serial number if one is printed.
+    public func suggestedBelonging(for recordId: UUID) throws -> Belonging? {
+        guard let record = try record(recordId) else { return nil }
+        let total = try recordTotals()[recordId]
+        let serial = try db.read { db in
+            Self.serialNumber(in: Extractor.rows(of: try Self.storedPages(of: recordId, in: db)))
+        }
+        return Belonging(record: record, name: record.title, valueCents: total?.cents, currency: total?.currency ?? "USD",
+                         serialNumber: serial ?? "", purchased: record.documentDate)
+    }
+
+    /// "S/N: QN65Q80D-1234", "Serial No. 8XK2…", "Serial Number ABC123".
+    static func serialNumber(in rows: [TextRow]) -> String? {
+        let regex = DayParser.regex("(?:s/n|serial\\s*(?:no\\.?|number|#)?)\\s*[:#.]?\\s*([A-Z0-9][A-Z0-9-]{3,})")
+        for row in rows {
+            let ns = row.text as NSString
+            if let match = regex.firstMatch(in: row.text, range: NSRange(location: 0, length: ns.length)) {
+                return ns.substring(with: match.range(at: 1))
+            }
         }
         return nil
     }

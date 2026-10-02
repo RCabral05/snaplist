@@ -20,6 +20,10 @@ struct ExtractedFacts: Equatable {
 /// recognisable total gets no amount, and the person can type it in.
 enum Extractor {
     static func extract(kind: RecordKind, pages: [RecognizedPage], recordId: UUID, merchant: String) -> ExtractedFacts {
+        // A bank's own export: its columns say what everything is.
+        if CSVStatement.looksLikeCSV(pages), let page = pages.first {
+            return CSVStatement.statement(page, recordId: recordId)
+        }
         let rows = rows(of: pages)
         switch kind {
         case .receipt: return receipt(rows, recordId: recordId, merchant: merchant)

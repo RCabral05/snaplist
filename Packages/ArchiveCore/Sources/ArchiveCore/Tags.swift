@@ -6,6 +6,11 @@ public enum TagKind: String, Codable, CaseIterable, Sendable {
     case person
     /// Where it's from: "Boston", "Lake house".
     case place
+    /// What it's for at tax time: "Business", "Medical", "Charity".
+    case tax
+
+    /// Offered first when tagging for taxes.
+    public static let taxSuggestions = ["Business", "Medical", "Charity", "Home office", "Tax deductible"]
 }
 
 /// A person or place a record can be tagged with. Names are unique per kind,

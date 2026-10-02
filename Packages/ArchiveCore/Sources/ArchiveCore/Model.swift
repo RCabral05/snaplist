@@ -16,6 +16,8 @@ public enum AssetType: String, Codable, Sendable {
     case image, pdf
     /// A voice note.
     case audio
+    /// A spreadsheet of transactions exported from a bank or card.
+    case csv
 }
 
 /// Where a page's text came from. A PDF's own text layer is exact; OCR is not,
@@ -24,6 +26,8 @@ public enum TextSource: String, Codable, Sendable {
     case pdfText, ocr
     /// Transcribed from a voice note.
     case speech
+    /// Read straight from a text file, such as a bank's CSV export: exact.
+    case file
 }
 
 /// Who named a record, which decides whether the app may rename it.

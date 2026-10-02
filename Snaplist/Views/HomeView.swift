@@ -44,7 +44,8 @@ struct HomeView: View {
             .navigationDestination(for: RecordListView.Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
-            .task(id: "\(model.records.count)-\(model.amountsRevision)") { load() }
+            // Records change as their text is read, not only when added.
+            .task(id: "\(model.records.hashValue)-\(model.amountsRevision)") { load() }
         }
     }
 

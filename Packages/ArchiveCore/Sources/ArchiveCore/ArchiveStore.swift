@@ -153,6 +153,25 @@ public struct ArchiveStore: Sendable {
                 CREATE INDEX recordTag_tagId ON recordTag(tagId);
                 """)
         }
+        migrator.registerMigration("v7-budgets-inventory") { db in
+            try db.execute(sql: """
+                -- A monthly limit per spending category; 'all' for everything.
+                CREATE TABLE budget (
+                    category TEXT PRIMARY KEY NOT NULL,
+                    limitCents INTEGER NOT NULL CHECK (limitCents > 0)
+                );
+                -- Records that are things owned, for the home inventory.
+                CREATE TABLE belonging (
+                    recordId BLOB PRIMARY KEY NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    valueCents INTEGER,
+                    currency TEXT NOT NULL DEFAULT 'USD',
+                    serialNumber TEXT NOT NULL DEFAULT '',
+                    room TEXT NOT NULL DEFAULT '',
+                    purchased TEXT
+                );
+                """)
+        }
         return migrator
     }
 
@@ -348,6 +367,7 @@ public struct ArchiveStore: Sendable {
             try db.execute(sql: "DELETE FROM merchantCategory")
             _ = try Record.deleteAll(db)
             try db.execute(sql: "DELETE FROM tag")
+            try db.execute(sql: "DELETE FROM budget")
         }
     }
 

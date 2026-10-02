@@ -140,8 +140,8 @@ extension ArchiveStore {
         }
         if !duplicates.isEmpty {
             notes.append(duplicates.count == 1
-                ? "1 purchase appears on both a receipt and a statement; it's counted once."
-                : "\(duplicates.count) purchases appear on both a receipt and a statement; each is counted once.")
+                ? "1 purchase appears twice (on a receipt and a statement, or on two statements); it's counted once."
+                : "\(duplicates.count) purchases appear twice (on a receipt and a statement, or on two statements); each is counted once.")
         }
         if unreadStatements > 0 {
             notes.append(unreadStatements == 1
@@ -271,6 +271,34 @@ extension ArchiveStore {
                 used.insert(match.id)
                 found.append(Duplicate(kept: match, dropped: line,
                                        decision: decisions.decision(match.transaction, line.transaction)))
+            }
+        }
+        return found + statementOverlaps(in: items, excluding: Set(found.map(\.dropped.id)), decisions: decisions,
+                                         honoringRejections: honoringRejections)
+    }
+
+    /// The same charge on two statements: a card's CSV export and its PDF
+    /// for the same month, or one statement imported twice. Same amount,
+    /// within two days, same merchant, on different records. The line from
+    /// the record imported first is kept.
+    static func statementOverlaps(in items: [Counted], excluding taken: Set<Int64>, decisions: DuplicateDecisions,
+                                  honoringRejections: Bool) -> [Duplicate] {
+        let lines = items.filter { $0.transaction.source == .statement && !taken.contains($0.id) }
+            .sorted { ($0.record.createdAt, $0.id) < ($1.record.createdAt, $1.id) }
+        var used = Set<Int64>()
+        var found: [Duplicate] = []
+        for (index, line) in lines.enumerated() where !used.contains(line.id) {
+            for other in lines[(index + 1)...] where !used.contains(other.id) && other.record.id != line.record.id {
+                guard other.transaction.amountCents == line.transaction.amountCents,
+                      other.transaction.currency == line.transaction.currency,
+                      (other.transaction.kind == .refund) == (line.transaction.kind == .refund) else { continue }
+                let decision = decisions.decision(line.transaction, other.transaction)
+                if decision == false, honoringRejections { continue }
+                guard decision == true || (abs(line.day.days(to: other.day)) <= 2 && sameMerchant(line.transaction, other.transaction))
+                else { continue }
+                used.insert(other.id)
+                found.append(Duplicate(kept: line, dropped: other, decision: decision))
+                break
             }
         }
         return found

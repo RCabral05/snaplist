@@ -55,7 +55,7 @@ struct OverviewView: View {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
             }
-            .task(id: "\(model.amountsRevision)-\(model.records.count)") { load() }
+            .task(id: "\(model.amountsRevision)-\(model.records.hashValue)") { load() }
         }
     }
 
@@ -74,6 +74,12 @@ struct OverviewView: View {
 private struct MonthChart: View {
     let overview: SpendingOverview
     @Binding var selection: Day?
+
+    private var xDomain: ClosedRange<Date> {
+        let last = overview.months.last?.range.start ?? Day(.now)
+        let first = min(overview.months.first?.range.start ?? last, last.addingMonths(-5))
+        return first.date()...last.addingMonths(1).date()
+    }
 
     var body: some View {
         let selected = selection ?? overview.months.last?.range.start
@@ -103,6 +109,8 @@ private struct MonthChart: View {
                     }
                 }
             }
+            // At least six months wide, so two months of data aren't two giant bars.
+            .chartXScale(domain: xDomain)
             .chartForegroundStyleScale(domain: SpendCategory.allCases.map(\.label),
                                        range: SpendCategory.allCases.map(\.tint))
             .chartLegend(.hidden)
