@@ -96,7 +96,8 @@ enum Extractor {
     static let billTotals = ["total amount due", "amount due", "total due", "balance due", "new balance",
                              "total current charges", "total"]
     static let notTotal = ["subtotal", "sub total", "sub-total", "total savings", "you saved", "total items",
-                           "items sold", "total qty", "tax total", "total tax", "points", "previous balance"]
+                           "items sold", "total qty", "tax total", "total tax", "points", "previous balance",
+                           "total discount", "discount total", "total grams", "total weight", "total units", "rounding"]
 
     static func receipt(_ rows: [TextRow], recordId: UUID, merchant: String) -> ExtractedFacts {
         let date = firstDate(in: rows, avoiding: ["exp", "valid", "return by", "due"])
@@ -117,7 +118,7 @@ enum Extractor {
                           "amex", "discover", "debit", "credit", "card", "balance", "payment", "due", "auth",
                           "approv", "saving", "saved", "discount", "coupon", "points", "reward", "tip", "gratuity",
                           "deposit", "refund", "price/", "/gal", "per gal", "items sold", "qty", "thank", "store #",
-                          "member", "acct", "account", "ref #", "trn", "reg#", "amount"]
+                          "member", "acct", "account", "ref #", "trn", "reg#", "amount", "unit price", "rounding"]
 
     /// "OLIVE OIL 2L" → "Olive Oil 2L"; short codes like "AA" and "KS" stay.
     static func itemName(_ text: String) -> String {

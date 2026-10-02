@@ -248,9 +248,11 @@ extension ArchiveStore {
     /// "90 day return policy". Days are counted from the purchase date.
     static func returnDeadline(in rows: [TextRow], purchased: Day?) -> Day? {
         let returnWords = ["return", "refund", "exchange"]
+        // "All sales final unless defective": no window for changing your mind.
+        if rows.contains(where: { $0.text.lowercased().contains("all sales final") }) { return nil }
         for row in rows {
             let lower = row.text.lowercased()
-            guard returnWords.contains(where: { lower.contains($0) }) else { continue }
+            guard returnWords.contains(where: { lower.contains($0) }), !lower.contains("defective") else { continue }
             if lower.contains(" by") || lower.contains("until") || lower.contains("before"),
                let day = DayParser.days(in: row.text).map(\.day).first(where: { $0 != purchased }) {
                 return day

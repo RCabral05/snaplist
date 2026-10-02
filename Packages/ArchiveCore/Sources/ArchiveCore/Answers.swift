@@ -114,13 +114,35 @@ extension ArchiveStore {
         // when a category says what was meant; on their own they stay, so
         // "at Starbucks" with no Starbucks is an honest nothing.
         var query = query
-        let unknown = Self.unknownTerms(query.merchantTerms, in: all)
+        // A word that isn't in any store's name may still be printed on the
+        // receipt: "Licensed cannabis dispensary" under a shop's own name.
+        var unknown: [String] = []
+        for term in Self.unknownTerms(query.merchantTerms, in: all) {
+            // A thing on a receipt's lines ("eggs") counts as that line, not the whole receipt.
+            if try !itemAmounts(matching: [term]).isEmpty { continue }
+            let printing = try recordsPrinting(term)
+            if printing.isEmpty { unknown.append(term) }
+            query.textMatchedRecords.formUnion(printing)
+        }
         if !unknown.isEmpty, !query.categories.isEmpty {
             query.merchantTerms.removeAll { unknown.contains($0) }
             query.notes.append("Didn't match \(Self.list(unknown.map { "“\($0)”" })) to any saved store, so \(unknown.count == 1 ? "it was" : "they were") left out.")
         }
 
         var matching = all.filter { matches($0, query) }
+        // "At the dispensary" read as pharmacy spending: when the place has
+        // amounts but none in that category, the place is what was meant.
+        if matching.isEmpty, !query.categories.isEmpty, !query.merchantTerms.isEmpty {
+            var anyCategory = query
+            anyCategory.categories = []
+            let found = all.filter { matches($0, anyCategory) }
+            if !found.isEmpty {
+                let names = query.categories.map(\.rawValue).sorted()
+                anyCategory.notes.append("Nothing at \(Self.list(query.merchantTerms.map { "“\($0)”" })) is filed as \(Self.list(names)), so everything there was counted.")
+                query = anyCategory
+                matching = found
+            }
+        }
         // "Eggs" isn't a store: lines on receipts that name it count too,
         // except on receipts whose whole total already matched.
         var itemCount = 0
@@ -186,7 +208,8 @@ extension ArchiveStore {
                               otherMonths: otherMonths)
     }
 
-    /// Merchant words that appear in no saved amount, its line or its record.
+    /// Merchant words that appear in no saved amount, its line, its record,
+    /// or the printed text of a receipt or bill.
     public func unknownMerchantTerms(_ terms: [String]) throws -> [String] {
         guard !terms.isEmpty else { return [] }
         return try db.read { db in
@@ -200,6 +223,7 @@ extension ArchiveStore {
                     """, arguments: [pattern, pattern, pattern, pattern]) ?? false)
             }
         }
+        .filter { try recordsPrinting($0).isEmpty }
     }
 
     func withTags(_ items: [Counted]) throws -> [Counted] {
@@ -267,6 +291,11 @@ extension ArchiveStore {
         }
     }
 
+    /// Receipts and bills (not statements) whose text has `term`.
+    func recordsPrinting(_ term: String) throws -> Set<UUID> {
+        Set(try search(term, limit: 500).map(\.record).filter { $0.kind != .statement }.map(\.id))
+    }
+
     private func matches(_ item: Counted, _ query: SpendingQuery) -> Bool {
         if let only = query.onlyRecords, !only.contains(item.record.id) {
             // A statement line can still belong by what it says.
@@ -277,7 +306,8 @@ extension ArchiveStore {
         if !query.categories.isEmpty, !query.categories.contains(item.transaction.category) { return false }
         if !query.merchantTerms.isEmpty {
             let haystack = item.haystack
-            if !query.merchantTerms.contains(where: { haystack.contains($0) }) { return false }
+            let printed = item.transaction.source != .statement && query.textMatchedRecords.contains(item.record.id)
+            if !printed, !query.merchantTerms.contains(where: { haystack.contains($0) }) { return false }
         }
         return true
     }

@@ -35,6 +35,10 @@ public struct SpendingQuery: Hashable, Sendable {
     public var lineKeywords: [String] = []
     /// The collection's name, for the answer's wording.
     public var scopeLabel: String?
+    /// Receipts and bills whose printed text has one of `merchantTerms`
+    /// though their store's name doesn't: "dispensary" on a receipt from
+    /// "Green Leaf Wellness". Filled in while answering.
+    var textMatchedRecords: Set<UUID> = []
 
     public init(categories: Set<SpendCategory> = [], merchantTerms: [String] = [], range: DayRange? = nil,
                 rangeLabel: String? = nil, notes: [String] = []) {

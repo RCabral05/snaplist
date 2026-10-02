@@ -89,6 +89,57 @@ import Testing
         #expect(answer.totals == [Money(cents: 879)], "counted \(answer.counted.count)")
     }
 
+    @Test func aPlaceNamedOnTheReceiptButNotInTheStoreName() throws {
+        // Made up: the shop's name is on top; "dispensary" only further down.
+        let receipt = try add([["GREEN LEAF WELLNESS", "Licensed Cannabis Dispensary", "Lic# C10-0000000-LIC",
+                                "09/26/2026 16:05", "Blue Dream 3.5g  35.00", "Pre-roll 1g  12.00", "SUBTOTAL  47.00",
+                                "Excise tax  7.05", "Sales tax  4.41", "TOTAL  58.46", "DEBIT ****1234"]])
+        #expect(try store.record(receipt)?.title == "Green Leaf Wellness")
+        let today = Day(year: 2026, month: 10, day: 1)!
+
+        // As the rules read it: a place.
+        guard case .spending(let query) = QuestionParser.parse("How much have I spent at the dispensary", today: today) else {
+            Issue.record("not a spending question"); return
+        }
+        #expect(try store.unknownMerchantTerms(query.merchantTerms).isEmpty)
+        #expect(try store.answer(query).totals == [Money(cents: 5846)])
+
+        // As Apple Intelligence read it on the phone: pharmacy at "dispensary".
+        let read = try store.answer(SpendingQuery(categories: [.pharmacy], merchantTerms: ["dispensary"]))
+        #expect(read.totals == [Money(cents: 5846)])
+        #expect(read.query.categories.isEmpty)
+        #expect(read.notes.contains { $0.contains("isn't filed") || $0.contains("is filed as") })
+
+        // A word on no receipt at all is still an honest nothing.
+        #expect(try store.answer(SpendingQuery(merchantTerms: ["casino"])).totals.isEmpty)
+    }
+
+    @Test func aDispensaryReceiptWithDiscountsAndAllotments() throws {
+        // Made up, laid out like a real dispensary receipt: discounts under
+        // each line, a discount total and grams above the total, the word
+        // "dispensary" only in the fine print.
+        let id = try add([["Bloom Example", "12 Sample St.", "Warwick, RI 02886", "10/2/2026 3:36:49 PM",
+                           "Order: 00000000", "F(Popcorn)-Example Strain-7.0g (7.00g)", "Unit Price", "--Multiple Discounts",
+                           "35.00", "-$10.15", "PR(Single)-Example Roll-1.0g-S (1.00g)", "Unit Price", "--Multiple Discounts",
+                           "5.00", "-$0.26", "Subtotal: $40.00", "RI Sales Tax: $2.07", "Total Tax: $2.07",
+                           "Total Discount: $10.41", "Rounding: $-0.01", "Total: $31.65", "Payment (Debit): $32.00",
+                           "Due Customer: $0.35", "Total Items: 2", "Total Grams: 8.00", "Starting Allotment: 40.87g",
+                           "Loyalty Points Earned: 32.00", "Thanks for shopping!", "All sales final unless defective.",
+                           "Defective product returns accepted within 14 day", "s with proof of defect. Products can only be ret",
+                           "urned at the dispensary where they were purchase", "d."]])
+        #expect(try total(id) == 3165, "\(lines(id))")
+        #expect(try store.record(id)?.documentDate == Day(year: 2026, month: 10, day: 2))
+        let items = try store.items(of: id).map(\.name)
+        #expect(!items.contains { $0.lowercased().contains("unit price") || $0.lowercased().contains("discount") }, "\(items)")
+        // Only defective items go back: no return reminder.
+        #expect(try store.upcomingDates(from: Day(year: 2026, month: 10, day: 2)!).isEmpty)
+        guard case .spending(let query) = QuestionParser.parse("How much have I spent at the dispensary",
+                                                               today: Day(year: 2026, month: 10, day: 3)!) else {
+            Issue.record("not a spending question"); return
+        }
+        #expect(try store.answer(query).totals == [Money(cents: 3165)])
+    }
+
     // MARK: Statements
 
     @Test func aStatementAcrossNewYear() throws {
