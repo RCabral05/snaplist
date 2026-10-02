@@ -330,6 +330,16 @@ extension ArchiveStore {
     }
 }
 
+extension MonthSpending {
+    /// Each budget against this month's spending, from the same totals the
+    /// month shows, so its bars always agree with the number above them.
+    public func budgetStatus(_ budgets: [Budget], currency: String) -> [BudgetStatus] {
+        budgets.map { budget in
+            BudgetStatus(budget: budget, spentCents: budget.category.map { byCategory[$0] ?? 0 } ?? totalCents, currency: currency)
+        }
+    }
+}
+
 // MARK: Serial numbers
 
 extension ArchiveStore {

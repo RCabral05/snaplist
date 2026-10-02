@@ -421,6 +421,19 @@ import Testing
         #expect(status.first { $0.budget.category == nil }?.spentCents == corpus.ledgerTotal(in: september))
     }
 
+    @Test func budgetsForEveryMonthMatchTheOverview() throws {
+        try store.setBudget(60_000, for: .groceries)
+        try store.setBudget(25_000, for: .dining)
+        try store.setBudget(500_000, for: nil)
+        let overview = try store.spendingOverview()
+        let budgets = try store.budgets()
+        for month in overview.months {
+            let fromMonth = month.budgetStatus(budgets, currency: overview.currency)
+            let fromStore = try store.budgetStatus(in: month.range)
+            #expect(fromMonth == fromStore, "\(month.label)")
+        }
+    }
+
     @Test func theWholeArchiveExports() throws {
         let folder = corpus.tmp.directory.appendingPathComponent("export")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

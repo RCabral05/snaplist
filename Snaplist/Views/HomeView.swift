@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var overview: SpendingOverview?
     @State private var comingUp: [ComingUp] = []
     @State private var budgets: [BudgetStatus] = []
+    @State private var budgetMonth: DayRange?
     @State private var inventory: InventorySummary?
     @State private var hasTaxRecords = false
     @State private var changes: [PriceChange] = []
@@ -170,10 +171,16 @@ struct HomeView: View {
         }
     }
 
+    /// "Budgets this month", or the month the spending card above shows.
+    private var budgetTitle: String {
+        guard let month = budgetMonth, month != model.budgetMonth else { return "Budgets this month" }
+        return "Budgets in \(month.start.date().formatted(.dateTime.month(.wide)))"
+    }
+
     private var budgetsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Budgets this month").font(Theme.display(.title3))
+                Text(budgetTitle).font(Theme.display(.title3))
                 Spacer()
                 Button("Spending") { open(.spending) }.font(.subheadline.weight(.semibold))
             }
@@ -271,7 +278,15 @@ struct HomeView: View {
         overview = model.spendingOverview()
         let today = Day(.now)
         let horizon = today.adding(days: 30)
-        budgets = model.budgetStatus()
+        // The month the spending card shows, so the bars match its total.
+        let current = model.budgetStatus()
+        if let overview, let month = overview.months.last(where: { $0.count > 0 }), !current.isEmpty {
+            budgets = month.budgetStatus(current.map(\.budget), currency: overview.currency)
+            budgetMonth = month.range
+        } else {
+            budgets = current
+            budgetMonth = nil
+        }
         changes = model.priceChanges()
         collections = model.collections()
         inventory = model.inventorySummary()

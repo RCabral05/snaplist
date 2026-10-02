@@ -75,15 +75,31 @@ struct OverviewView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
-                BudgetBars(statuses: budgets)
+                let (statuses, month) = shownBudgets
+                BudgetBars(statuses: statuses)
                     .padding(16)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
-                Text("This month, \(Day(.now).date().formatted(.dateTime.month(.wide))). Statements arrive after a month ends, so until then only receipts and bills count.")
+                Text(budgetCaption(month))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .sheet(isPresented: $isEditingBudgets) { BudgetEditor() }
+    }
+
+    /// Budgets against the month picked on the chart, so the bars match the
+    /// total above them; this month's when nothing's been spent yet.
+    private var shownBudgets: ([BudgetStatus], MonthSpending?) {
+        guard let overview, let month = selected(in: overview) else { return (budgets, nil) }
+        return (month.budgetStatus(budgets.map(\.budget), currency: overview.currency), month)
+    }
+
+    private func budgetCaption(_ month: MonthSpending?) -> String {
+        let thisMonth = Day(.now)
+        guard let month, !(month.range.start.year == thisMonth.year && month.range.start.month == thisMonth.month) else {
+            return "This month, \(thisMonth.date().formatted(.dateTime.month(.wide))). Statements arrive after a month ends, so until then only receipts and bills count."
+        }
+        return "\(month.label), the month picked above. Tap another month to see its budgets."
     }
 
     private func selected(in overview: SpendingOverview) -> MonthSpending? {
