@@ -10,80 +10,91 @@ final class ScreenshotTests: XCTestCase {
 
     @MainActor
     func testTour() throws {
-        for suffix in ["light", "dark"] {
-            let scheme = suffix == "dark" ? "-forceDark" : "-forceLight"
+        // Each theme, in light and dark where it has both. `-theme` lands in
+        // UserDefaults, where the app reads the theme from.
+        let looks: [(theme: String, scheme: String)] = [
+            ("ledger", "light"), ("ledger", "dark"), ("vault", "dark"), ("clarity", "light"), ("clarity", "dark"),
+        ]
+        for look in looks {
+            let suffix = "\(look.theme)-\(look.scheme)"
+            let flags = ["-theme", look.theme, look.scheme == "dark" ? "-forceDark" : "-forceLight"]
 
             let empty = XCUIApplication()
-            empty.launchArguments = ["-demoEmpty", scheme]
+            empty.launchArguments = ["-demoEmpty"] + flags
             empty.launch()
             sleep(2)
             snap("00-welcome-\(suffix)")
             empty.terminate()
 
             let app = XCUIApplication()
-            app.launchArguments = ["-demoData", scheme]
+            app.launchArguments = ["-demoData"] + flags
             app.launch()
 
-            let firstRecord = app.descendants(matching: .any).matching(identifier: "record").firstMatch
-            XCTAssertTrue(firstRecord.waitForExistence(timeout: 30), "no records appeared")
+            XCTAssertTrue(app.textFields["home-ask"].waitForExistence(timeout: 30), "home didn't appear")
             waitWhile(app.staticTexts["Reading"], timeout: 60)
-            sleep(1)
+            sleep(3)
             snap("01-home-\(suffix)")
             app.swipeUp()
             sleep(1)
             snap("01b-home-scrolled-\(suffix)")
-            app.swipeDown()
-            app.swipeDown()
 
-            firstRecord.tap()
-            sleep(2)
-            snap("02-detail-\(suffix)")
-            app.swipeUp()
+            tab(app, "Library")
+            let firstRecord = app.descendants(matching: .any).matching(identifier: "record").firstMatch
+            XCTAssertTrue(firstRecord.waitForExistence(timeout: 10), "no records appeared")
             sleep(1)
-            snap("03-detail-scrolled-\(suffix)")
-            app.swipeDown()
-            sleep(1)
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
-            sleep(2)
-            snap("05-zoom-\(suffix)")
-            if app.buttons["Done"].exists { app.buttons["Done"].tap() }
-            sleep(1)
-            app.navigationBars.buttons.firstMatch.tap()
-            sleep(1)
+            snap("02-library-\(suffix)")
 
             let receipts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Receipts'")).firstMatch
             if receipts.waitForExistence(timeout: 3) {
                 receipts.tap()
                 sleep(1)
-                snap("06-filtered-\(suffix)")
+                snap("03-filtered-\(suffix)")
                 receipts.tap()
             }
 
-            let ask = app.buttons["ask"]
-            if ask.waitForExistence(timeout: 3) {
-                ask.tap()
-                sleep(1)
-                snap("07-ask-\(suffix)")
-                askQuestion(app, "How much did I spend on gas last month?")
-                snap("08-ask-gas-\(suffix)")
-                app.swipeUp()
-                sleep(1)
-                snap("08b-ask-gas-scrolled-\(suffix)")
-                askQuestion(app, "Where did I put the spare HDMI cable?")
-                snap("09-ask-where-\(suffix)")
-                closeSheet(app)
-            }
+            firstRecord.tap()
+            sleep(2)
+            snap("04-detail-\(suffix)")
+            app.swipeUp()
+            sleep(1)
+            snap("05-detail-scrolled-\(suffix)")
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
 
+            tab(app, "Spending")
+            sleep(2)
+            snap("06-spending-\(suffix)")
+
+            tab(app, "Ask")
+            sleep(1)
+            snap("07-ask-\(suffix)")
+            askQuestion(app, "How much did I spend on gas last month?")
+            snap("08-ask-gas-\(suffix)")
+            askQuestion(app, "Where did I put the spare HDMI cable?")
+            snap("09-ask-where-\(suffix)")
+
+            tab(app, "Library")
             let search = app.searchFields.firstMatch
             if !search.waitForExistence(timeout: 3) { app.swipeDown() }
             if search.waitForExistence(timeout: 5) {
                 search.tap()
                 search.typeText("shell")
                 sleep(2)
-                snap("04-search-\(suffix)")
+                snap("10-search-\(suffix)")
             }
             app.terminate()
         }
+    }
+
+    @MainActor
+    private func tab(_ app: XCUIApplication, _ name: String) {
+        let button = app.tabBars.buttons[name]
+        if button.waitForExistence(timeout: 3) {
+            button.tap()
+        } else {
+            app.buttons[name].firstMatch.tap()
+        }
+        sleep(1)
     }
 
     @MainActor

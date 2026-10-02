@@ -13,9 +13,13 @@ struct AskView: View {
     @State private var isAnswering = false
     @FocusState private var isFocused: Bool
 
+    /// False when Ask is a tab rather than a sheet.
+    var showsDone = true
+
     /// Starts with `question` asked, e.g. one handed over by Siri.
-    init(question: String = "") {
+    init(question: String = "", showsDone: Bool = true) {
         _question = State(initialValue: question)
+        self.showsDone = showsDone
     }
 
     static let examples = [
@@ -47,15 +51,17 @@ struct AskView: View {
             }
             .background(Theme.background)
             .navigationTitle("Ask")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(showsDone ? .inline : .large)
             .navigationDestination(for: RecordListView.Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                if showsDone {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
             }
             .onAppear {
-                if question.isEmpty { isFocused = true } else { ask() }
+                if !question.isEmpty, answer == nil { ask() } else if showsDone { isFocused = true }
             }
         }
     }

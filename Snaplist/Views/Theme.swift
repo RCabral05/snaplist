@@ -1,25 +1,28 @@
 import ArchiveCore
 import SwiftUI
 
-/// The few decisions every screen shares: a serif for headings (Apple's New
-/// York, so nothing to bundle), one colour per category, and how records are
-/// grouped by date.
+/// What every screen draws with, read from the theme picked in Settings.
+/// Views that read these during `body` update by themselves when the theme
+/// changes, because `ThemeStore` is observable.
+@MainActor
 enum Theme {
+    static var current: AppTheme { ThemeStore.shared.theme }
+
+    /// Headings and big numbers, in the theme's typeface.
     static func display(_ style: Font.TextStyle, weight: Font.Weight = .semibold) -> Font {
-        .system(style, design: .serif, weight: weight)
+        .system(style, design: current.design, weight: current.weight(weight))
     }
 
-    static let cardRadius: CGFloat = 14
-
-    // Warm paper: cream and white by day, warm charcoal by night. No pure
-    // black or white backgrounds, and no system blue.
-
-    /// Amber: deep enough to read as text on cream, brighter on charcoal.
-    static let accent = Color(light: 0xB45309, dark: 0xF5B942)
+    static var cardRadius: CGFloat { current.cardRadius }
+    static var accent: Color { current.accent }
+    /// Text and icons on an accent fill.
+    static var onAccent: Color { current.onAccent }
     /// Behind everything.
-    static let background = Color(light: 0xF6F1E7, dark: 0x1C1A17)
+    static var background: Color { current.background }
     /// Cards, rows and fields that sit on the background.
-    static let surface = Color(light: 0xFFFDF8, dark: 0x2A2723)
+    static var surface: Color { current.surface }
+    /// Hairlines around cards; clear in themes that don't outline them.
+    static var border: Color { current.border }
 }
 
 extension Color {

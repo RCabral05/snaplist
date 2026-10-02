@@ -3,23 +3,15 @@ import PhotosUI
 import SwiftUI
 import VisionKit
 
-/// Home: everything saved as a grid of previews grouped by date, category
-/// filters above it, and search over all of it.
+/// The library: everything saved as a grid of previews grouped by date,
+/// category and people filters above it, and search over all of it.
 struct RecordListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AddFlow.self) private var addFlow
 
-    @State private var isScanning = false
-    @State private var isPickingPhotos = false
-    @State private var isPickingFiles = false
-    @State private var photoSelection: [PhotosPickerItem] = []
+    /// Owned by the tabs, so Spotlight and reminders can open a record here.
+    @Binding var path: [Destination]
     @State private var pendingDelete: Record?
-    @State private var isShowingSettings = false
-    @State private var isAsking = false
-    /// A question Siri handed over, asked as Ask opens.
-    @State private var handedQuestion = ""
-    @State private var path: [Destination] = []
-    @State private var isShowingOverview = false
-    @State private var isRecordingNote = false
 
     /// Where a card leads: the record, and for a search hit the page that matched.
     struct Destination: Hashable {
@@ -35,8 +27,9 @@ struct RecordListView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 if model.records.isEmpty {
-                    WelcomeView(canScan: canScan, scan: { isScanning = true },
-                                choosePhotos: { isPickingPhotos = true }, importFiles: { isPickingFiles = true })
+                    WelcomeView(canScan: addFlow.canScan, scan: { addFlow.isScanning = true },
+                                choosePhotos: { addFlow.isPickingPhotos = true },
+                                importFiles: { addFlow.isPickingFiles = true })
                 } else {
                     VStack(alignment: .leading, spacing: 16) {
                         KindFilterBar()
@@ -50,7 +43,7 @@ struct RecordListView: View {
                 }
             }
             .background(Theme.background)
-            .navigationTitle("Snaplist")
+            .navigationTitle("Library")
             .navigationSubtitle(subtitle)
             // Hidden on the welcome screen, where it would cover the buttons
             // and has nothing to search yet.
@@ -58,104 +51,12 @@ struct RecordListView: View {
             .navigationDestination(for: Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Settings", systemImage: "gearshape") { isShowingSettings = true }
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if !model.records.isEmpty {
-                        Button("Spending", systemImage: "chart.bar.xaxis") { isShowingOverview = true }
-                            .accessibilityIdentifier("spending")
-                        Button("Ask", systemImage: "sparkle.magnifyingglass") { isAsking = true }
-                            .accessibilityIdentifier("ask")
-                    }
-                    addMenu
-                }
-            }
-            .sheet(isPresented: $isShowingSettings) { SettingsView() }
-            .sheet(isPresented: $isShowingOverview) { OverviewView() }
-            .overlay(alignment: .bottom) {
-                if let notice = model.notice {
-                    Label(notice, systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .glassEffect(.regular, in: .capsule)
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .task(id: notice) {
-                            try? await Task.sleep(for: .seconds(2.5))
-                            withAnimation { model.notice = nil }
-                        }
-                }
-            }
-            .animation(.snappy, value: model.notice)
-            .sheet(isPresented: $isAsking, onDismiss: { handedQuestion = "" }) { AskView(question: handedQuestion) }
-            // From Siri, when the lock meant the answer had to be shown here.
-            .task(id: model.pendingQuestion) {
-                guard let question = model.pendingQuestion else { return }
-                model.pendingQuestion = nil
-                isShowingSettings = false
-                handedQuestion = question
-                isAsking = true
-            }
-            // From a Spotlight result.
-            .task(id: model.pendingRecordId) {
-                guard let id = model.pendingRecordId else { return }
-                guard let record = model.records.first(where: { $0.id == id }) else {
-                    // The list may not be loaded yet; try again when it is.
-                    return
-                }
-                model.pendingRecordId = nil
-                isAsking = false
-                isShowingSettings = false
-                isShowingOverview = false
-                path = [Destination(record: record)]
-            }
-            .onChange(of: model.records) {
-                if let id = model.pendingRecordId, let record = model.records.first(where: { $0.id == id }) {
-                    model.pendingRecordId = nil
-                    path = [Destination(record: record)]
-                }
-            }
-            .sheet(isPresented: $isRecordingNote) {
-                VoiceNoteRecorder { url in model.importVoiceNote(url) }
-            }
-            .fullScreenCover(isPresented: $isScanning) {
-                DocumentScanner { images in
-                    isScanning = false
-                    model.importScan(images)
-                } onCancel: {
-                    isScanning = false
-                }
-                .ignoresSafeArea()
-            }
-            .photosPicker(isPresented: $isPickingPhotos, selection: $photoSelection,
-                          maxSelectionCount: 20, matching: .images)
-            .onChange(of: photoSelection) { _, items in
-                guard !items.isEmpty else { return }
-                photoSelection = []
-                Task { await model.importPhotos(items) }
-            }
-            .fileImporter(isPresented: $isPickingFiles, allowedContentTypes: [.pdf, .image],
-                          allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls): model.importFiles(urls)
-                case .failure(let error): model.errorMessage = error.localizedDescription
-                }
-            }
             .confirmationDialog("Delete this record?", isPresented: isConfirmingDelete, titleVisibility: .visible,
                                 presenting: pendingDelete) { record in
                 Button("Delete \"\(record.title)\"", role: .destructive) { model.delete(record.id) }
             } message: { _ in
                 Text("The original and its text are removed from this iPhone. This can't be undone.")
             }
-            .alert("Something went wrong", isPresented: hasError) {
-                Button("OK") { model.errorMessage = nil }
-            } message: {
-                Text(model.errorMessage ?? "")
-            }
-            .sensoryFeedback(.success, trigger: model.records.count) { old, new in new > old }
         }
     }
 
@@ -228,24 +129,6 @@ struct RecordListView: View {
         Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = record }
     }
 
-    /// False on the simulator and on devices without a camera.
-    private var canScan: Bool { VNDocumentCameraViewController.isSupported }
-
-    private var addMenu: some View {
-        Menu {
-            if canScan {
-                Button("Scan Document", systemImage: "doc.viewfinder") { isScanning = true }
-            }
-            Button("Choose Photos", systemImage: "photo.on.rectangle") { isPickingPhotos = true }
-            Button("Import PDFs and Files", systemImage: "folder") { isPickingFiles = true }
-            Button("Voice Note", systemImage: "mic") { isRecordingNote = true }
-        } label: {
-            Label("Add", systemImage: "plus")
-        }
-        .buttonStyle(.glassProminent)
-        .accessibilityHint("Scan, photos, files or a voice note")
-    }
-
     private var subtitle: String {
         let count = model.records.count
         guard count > 0 else { return "" }
@@ -256,10 +139,6 @@ struct RecordListView: View {
 
     private var isConfirmingDelete: Binding<Bool> {
         Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
-    }
-
-    private var hasError: Binding<Bool> {
-        Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })
     }
 }
 

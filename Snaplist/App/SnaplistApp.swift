@@ -12,15 +12,6 @@ struct SnaplistApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationRouter.shared
-        // New York for navigation titles, to match the headings.
-        let appearance = UINavigationBar.appearance()
-        if let large = UIFont.preferredFont(forTextStyle: .largeTitle).fontDescriptor
-            .withDesign(.serif)?.withSymbolicTraits(.traitBold) {
-            appearance.largeTitleTextAttributes = [.font: UIFont(descriptor: large, size: 0)]
-        }
-        if let inline = UIFont.preferredFont(forTextStyle: .headline).fontDescriptor.withDesign(.serif) {
-            appearance.titleTextAttributes = [.font: UIFont(descriptor: inline, size: 0)]
-        }
     }
 
     var body: some Scene {
@@ -33,7 +24,7 @@ struct SnaplistApp: App {
                     if lock.isLocked {
                         LockView()
                     } else {
-                        RecordListView()
+                        MainTabs()
                     }
                 }
                 .overlay {
@@ -44,7 +35,7 @@ struct SnaplistApp: App {
                 .environment(model)
                 .environment(lock)
                 .tint(Theme.accent)
-                .preferredColorScheme(DemoData.forcedColorScheme)
+                .preferredColorScheme(Theme.current.colorScheme ?? DemoData.forcedColorScheme)
                 // On the container, so locking and unlocking doesn't restart it.
                 .task { await model.start() }
                 // Shared from another app; imported even while locked, since

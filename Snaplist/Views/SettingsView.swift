@@ -25,6 +25,17 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    NavigationLink {
+                        ThemePicker()
+                    } label: {
+                        LabeledContent("Theme", value: Theme.current.name)
+                    }
+                } header: {
+                    Text("Appearance")
+                }
+                .listRowBackground(Theme.surface)
+
+                Section {
                     Toggle("Require \(AppLock.methodName)", isOn: lockBinding)
                         .disabled(!AppLock.isAvailable)
                 } header: {

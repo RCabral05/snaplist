@@ -13,6 +13,8 @@ struct OverviewView: View {
     @State private var recurring: [RecurringCharge] = []
     @State private var upcoming: [UpcomingDate] = []
     @State private var selectedMonth: Day?
+    /// False when Spending is a tab rather than a sheet.
+    var showsDone = true
 
     var body: some View {
         NavigationStack {
@@ -38,7 +40,7 @@ struct OverviewView: View {
             }
             .background(Theme.background)
             .navigationTitle("Spending")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(showsDone ? .inline : .large)
             .navigationDestination(for: RecordListView.Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
@@ -49,9 +51,11 @@ struct OverviewView: View {
                 RecurringDetail(charge: charge)
             }
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                if showsDone {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
             }
-            .task(id: model.amountsRevision) { load() }
+            .task(id: "\(model.amountsRevision)-\(model.records.count)") { load() }
         }
     }
 
