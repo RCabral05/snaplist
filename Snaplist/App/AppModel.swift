@@ -362,7 +362,7 @@ final class AppModel {
         let rulesStruggled: Bool = switch question {
         case .search: true
         case .spending(let query): !((try? archive.store.unknownMerchantTerms(query.merchantTerms)) ?? []).isEmpty
-        case .whereIs, .expiry: false
+        case .whereIs, .expiry, .lastBought: false
         }
         if rulesStruggled, let interpretation = await QuestionInterpreter.interpret(text) {
             let reread = QuestionParser.question(from: interpretation, original: text, today: today)
