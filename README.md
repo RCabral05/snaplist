@@ -124,6 +124,7 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 9. ~~Spending overview by month and category, repeating charges, bill and
    warranty reminders (local notifications), Open in Snaplist from the share
    sheet for PDFs and images.~~
-10. People and places on records.
+10. ~~People and places on records: tags, filters, search, questions, and
+    (opt-in) town names from photo locations.~~
 
 Later: iCloud sync, household sharing, a paid tier.

@@ -10,13 +10,23 @@ struct KindFilterBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 Chip(title: "All", symbol: "square.grid.2x2", count: nil, tint: .accentColor,
-                     isSelected: model.kindFilter == nil) {
+                     isSelected: model.kindFilter == nil && model.tagFilter == nil) {
                     model.kindFilter = nil
+                    model.tagFilter = nil
                 }
                 ForEach(model.kindCounts, id: \.kind) { entry in
                     Chip(title: entry.kind.pluralLabel, symbol: entry.kind.symbol, count: entry.count,
                          tint: entry.kind.tint, isSelected: model.kindFilter == entry.kind) {
                         model.kindFilter = model.kindFilter == entry.kind ? nil : entry.kind
+                    }
+                }
+                if !model.tags.isEmpty {
+                    Divider().frame(height: 22)
+                    ForEach(model.tags) { tag in
+                        Chip(title: tag.name, symbol: tag.kind.symbol, count: model.recordCount(of: tag),
+                             tint: tag.kind.tint, isSelected: model.tagFilter?.id == tag.id) {
+                            model.tagFilter = model.tagFilter?.id == tag.id ? nil : tag
+                        }
                     }
                 }
             }
@@ -25,6 +35,7 @@ struct KindFilterBar: View {
         }
         .scrollClipDisabled()
         .sensoryFeedback(.selection, trigger: model.kindFilter)
+        .sensoryFeedback(.selection, trigger: model.tagFilter)
     }
 
     private struct Chip: View {

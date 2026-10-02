@@ -163,7 +163,11 @@ struct RecordListView: View {
 
     @ViewBuilder private var grid: some View {
         let groups = DateGroup.grouping(model.visibleRecords)
-        if groups.isEmpty, let kind = model.kindFilter {
+        if groups.isEmpty, let tag = model.tagFilter {
+            ContentUnavailableView("Nothing here", systemImage: tag.kind.symbol,
+                                   description: Text("Nothing \(model.kindFilter.map { "under \($0.pluralLabel) " } ?? "")is tagged \(tag.name)."))
+                .padding(.top, 40)
+        } else if groups.isEmpty, let kind = model.kindFilter {
             ContentUnavailableView("No \(kind.pluralLabel.lowercased())", systemImage: kind.symbol,
                                    description: Text("Nothing is filed under \(kind.pluralLabel) right now."))
                 .padding(.top, 40)

@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(QuestionInterpreter.settingKey) private var useAppleIntelligence = true
     @AppStorage(Spotlight.settingKey) private var showInSpotlight = false
     @AppStorage(Reminders.settingKey) private var remindersEnabled = false
+    @AppStorage(PhotoPlaces.settingKey) private var namePlaces = false
     @State private var remindersDenied = false
 
     @State private var export: ExportState = .idle
@@ -85,6 +86,15 @@ struct SettingsView: View {
                     Text(remindersDenied
                          ? "Notifications are off for Snaplist. Turn them on in the Settings app under Notifications, then try again."
                          : "A notification 3 days before a bill is due and 30 days before a warranty ends, using dates read from what you've saved. The bill's name and amount show in the notification.")
+                }
+                .listRowBackground(Theme.surface)
+
+                Section {
+                    Toggle("Name Places from Photos", isOn: $namePlaces)
+                } header: {
+                    Text("People and places")
+                } footer: {
+                    Text("When a photo you add has a location saved in it, tag it with the town, like Boston. Finding the town's name sends that location (never the photo) to Apple's map service; nothing else leaves your iPhone.")
                 }
                 .listRowBackground(Theme.surface)
 

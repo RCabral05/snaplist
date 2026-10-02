@@ -126,6 +126,8 @@ enum AskResult {
     case whereIs([SearchHit], terms: [String])
     case expiry([ExpiryFinding], terms: [String])
     case search([SearchHit], text: String)
+    /// Records tagged with the people and places a question named.
+    case records(TaggedRecords)
 
     /// Changes whenever the answer does, for animation.
     var id: String {
@@ -134,6 +136,7 @@ enum AskResult {
         case .whereIs(let hits, let terms): "w\(hits.map(\.id))\(terms)"
         case .expiry(let found, let terms): "e\(found.map(\.day))\(terms)"
         case .search(let hits, let text): "q\(hits.map(\.id))\(text)"
+        case .records(let tagged): "r\(tagged.records.map(\.id))"
         }
     }
 }
@@ -150,6 +153,7 @@ struct AnswerView: View {
         case .spending(let answer): SpendingAnswerView(answer: answer, reask: reask, decided: decided)
         case .whereIs(let hits, let terms): WhereAnswerView(hits: hits, terms: terms)
         case .expiry(let found, let terms): ExpiryAnswerView(found: found, terms: terms)
+        case .records(let tagged): TaggedAnswerView(tagged: tagged)
         case .search(let hits, let text):
             if hits.isEmpty {
                 NotFound(text: "Nothing in your archive mentions “\(text)”.")
@@ -382,5 +386,47 @@ private struct NotFound: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+    }
+}
+
+/// "Warranties for Mom": the records with those tags, as cards.
+private struct TaggedAnswerView: View {
+    let tagged: TaggedRecords
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tagged.headline).font(Theme.display(.title3))
+            if tagged.records.isEmpty {
+                NotFound(text: "Nothing saved is tagged with all of those.")
+            } else {
+                Text(tagged.records.count == 1 ? "1 record" : "\(tagged.records.count) records")
+                    .font(.footnote).foregroundStyle(.secondary)
+                ForEach(tagged.records) { record in
+                    NavigationLink(value: RecordListView.Destination(record: record)) {
+                        HStack(spacing: 12) {
+                            RecordThumbnail(record: record, pagePosition: nil, style: .square(44))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(record.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                                Text("\(record.kind.label) · \(record.effectiveDay.date().formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .padding(12)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+extension TaggedRecords {
+    /// "Warranties · Mom", "Everything · Boston".
+    var headline: String {
+        "\(kind?.pluralLabel ?? "Everything") · \(tags.map(\.name).joined(separator: " and "))"
     }
 }

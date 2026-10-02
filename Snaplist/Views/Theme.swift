@@ -134,3 +134,26 @@ extension SpendCategory {
         }
     }
 }
+
+extension TagKind {
+    var symbol: String {
+        switch self {
+        case .person: "person.fill"
+        case .place: "mappin.and.ellipse"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .person: Color(light: 0x3F7F86, dark: 0x86C3C9)  // teal
+        case .place: Color(light: 0x8A6A1F, dark: 0xD9B661)   // ochre
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .person: "Person"
+        case .place: "Place"
+        }
+    }
+}

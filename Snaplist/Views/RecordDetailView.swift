@@ -50,6 +50,7 @@ struct RecordDetailView: View {
                     header
                     statusBanner
                     details
+                    TagsSection(record: current)
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
                     textSection

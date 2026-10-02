@@ -36,8 +36,10 @@ enum DemoData {
 
         model.add(kind: .statement, title: "Chase Visa · September",
                   items: [pdf(pages: [statementPage1, statementPage2])], at: now - 1 * day)
-        model.add(kind: .receipt, title: "Shell",
-                  items: [image(receipt(shell))], at: now - 2 * day)
+        if let shell = model.add(kind: .receipt, title: "Shell",
+                                 items: [image(receipt(shell))], at: now - 2 * day) {
+            model.addTag("San Jose", kind: .place, to: shell.id)
+        }
         // Placeholder names, as a scan gets: these should come back named.
         model.add(title: "Scan · Sep 25", nameSource: .automatic,
                   items: [image(receipt(costco))], at: now - 5 * day)
@@ -47,8 +49,10 @@ enum DemoData {
                   items: [image(receipt(traderJoes))], at: now - 12 * day)
         model.add(kind: .bill, title: "PG&E · August",
                   items: [image(receipt(pge, width: 1000))], at: now - 33 * day)
-        model.add(kind: .warranty, title: "Samsung TV warranty",
-                  items: [image(receipt(samsung, width: 1000))], at: now - 160 * day)
+        if let tv = model.add(kind: .warranty, title: "Samsung TV warranty",
+                              items: [image(receipt(samsung, width: 1000))], at: now - 160 * day) {
+            model.addTag("Mom", kind: .person, to: tv.id)
+        }
     }
 
     // MARK: Content

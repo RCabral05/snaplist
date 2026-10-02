@@ -23,6 +23,13 @@ final class AppModel {
     var kindFilter: RecordKind? {
         didSet { search() }
     }
+    /// A person or place chip, combined with the category. Applies to search too.
+    var tagFilter: Tag? {
+        didSet { search() }
+    }
+    /// Every person and place, and each record's.
+    private(set) var tags: [Tag] = []
+    private(set) var tagsByRecord: [UUID: [Tag]] = [:]
     var errorMessage: String?
     /// Each receipt's and bill's total, for its card.
     private(set) var totals: [UUID: Money] = [:]
@@ -46,8 +53,19 @@ final class AppModel {
     }
 
     var visibleRecords: [Record] {
-        guard let kindFilter else { return records }
-        return records.filter { $0.kind == kindFilter }
+        records.filter { record in
+            (kindFilter == nil || record.kind == kindFilter) && hasTagFilter(record.id)
+        }
+    }
+
+    private func hasTagFilter(_ recordId: UUID) -> Bool {
+        guard let tagFilter else { return true }
+        return tagsByRecord[recordId]?.contains { $0.id == tagFilter.id } ?? false
+    }
+
+    /// How many records each tag has, for the filter chips.
+    func recordCount(of tag: Tag) -> Int {
+        tagsByRecord.values.count { $0.contains { $0.id == tag.id } }
     }
 
     /// Categories in use, in the enum's order. The selected one stays even at
@@ -103,6 +121,7 @@ final class AppModel {
         do {
             for try await list in archive.store.recordUpdates() {
                 records = list
+                refreshTags()
                 refreshTotals()
                 updateSpotlight()
                 updateReminders()
@@ -127,7 +146,7 @@ final class AppModel {
             return
         }
         do {
-            hits = try archive.store.search(text, kind: kindFilter)
+            hits = try archive.store.search(text, kind: kindFilter).filter { hasTagFilter($0.id) }
         } catch {
             hits = []
             errorMessage = "Search failed: \(error.localizedDescription)"
@@ -150,8 +169,15 @@ final class AppModel {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
                 let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
-                add(title: "Photo · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))", nameSource: .automatic,
-                    items: [ImportItem(type: .image, source: .data(data), fileExtension: ext)])
+                let record = add(title: "Photo · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))", nameSource: .automatic,
+                                 items: [ImportItem(type: .image, source: .data(data), fileExtension: ext)])
+                if let record, PhotoPlaces.isEnabled, let location = PhotoPlaces.location(in: data) {
+                    Task {
+                        if let place = await PhotoPlaces.name(for: location) {
+                            addTag(place, kind: .place, to: record.id)
+                        }
+                    }
+                }
             } catch {
                 errorMessage = "Couldn't load a photo: \(error.localizedDescription)"
             }
@@ -188,14 +214,17 @@ final class AppModel {
     }
 
     /// Imports start as a plain document; the person files them afterwards.
+    @discardableResult
     func add(kind: RecordKind = .document, title: String, nameSource: NameSource = .person,
-             items: [ImportItem], at date: Date = .now) {
+             items: [ImportItem], at date: Date = .now) -> Record? {
         do {
             let record = try archive.add(kind: kind, title: title, nameSource: nameSource, items: items, at: date)
             let ingestor = ingestor
             Task { await ingestor.process(record.id) }
+            return record
         } catch {
             errorMessage = "Couldn't save that: \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -279,6 +308,11 @@ final class AppModel {
     func ask(_ text: String) async -> AskResult {
         let today = Day(.now)
         var question = QuestionParser.parse(text, today: today)
+        // "Mom's warranties", "receipts from the Boston trip": people and
+        // places the person saved come before any guessing.
+        if case .search = question, let tagged = try? archive.store.taggedRecords(matching: text) {
+            return .records(tagged)
+        }
         var readByModel = false
         // The model gets a turn when the rules didn't follow the question,
         // or took words for store names that match nothing saved.
@@ -331,6 +365,38 @@ final class AppModel {
         } catch {
             errorMessage = "Couldn't answer that: \(error.localizedDescription)"
             return .search([], text: query.rangeLabel ?? "")
+        }
+    }
+
+    // MARK: People and places
+
+    func refreshTags() {
+        tags = (try? archive.store.tags()) ?? []
+        tagsByRecord = (try? archive.store.tagsByRecord()) ?? [:]
+        if let tagFilter, !tags.contains(where: { $0.id == tagFilter.id }) {
+            self.tagFilter = nil
+        }
+    }
+
+    func addTag(_ name: String, kind: TagKind, to recordId: UUID) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            try archive.store.addTag(name, kind: kind, to: recordId)
+            refreshTags()
+            updateSpotlight()
+        } catch {
+            errorMessage = "Couldn't add that: \(error.localizedDescription)"
+        }
+    }
+
+    func removeTag(_ tag: Tag, from recordId: UUID) {
+        guard let id = tag.id else { return }
+        do {
+            try archive.store.removeTag(id, from: recordId)
+            refreshTags()
+        } catch {
+            errorMessage = "Couldn't remove that: \(error.localizedDescription)"
         }
     }
 
@@ -438,6 +504,8 @@ final class AppModel {
             thumbnails.removeAllObjects()
             query = ""
             kindFilter = nil
+            tagFilter = nil
+            refreshTags()
             amountsChanged()
             try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appending(path: "Export"))
             await Spotlight.removeAll()

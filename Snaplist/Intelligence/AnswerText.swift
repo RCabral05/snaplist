@@ -49,6 +49,14 @@ enum AnswerText {
             return first.isCalculated
                 ? "“\(first.record.title)” runs out around \(day), worked out from the purchase date and the coverage printed on it."
                 : "“\(first.record.title)” expires on \(day)."
+        case .records(let tagged):
+            switch tagged.records.count {
+            case 0: return "Nothing is tagged with \(tagged.tags.map(\.name).joined(separator: " and "))."
+            case 1: return "One record: “\(tagged.records[0].title)”."
+            default:
+                let names = tagged.records.prefix(3).map { "“\($0.title)”" }.joined(separator: ", ")
+                return "\(tagged.records.count) records, including \(names)."
+            }
         case .search(let hits, let text):
             switch hits.count {
             case 0: return "Nothing in your archive mentions “\(text)”."
