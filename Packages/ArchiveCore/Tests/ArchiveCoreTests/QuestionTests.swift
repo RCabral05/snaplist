@@ -119,8 +119,11 @@ private let today = Day(year: 2026, month: 10, day: 1)!
         let tmp = try archive(sample)
         let answer = try tmp.archive.store.answer(SpendingQuery(range: DayRange.month(9, of: 2026), rangeLabel: "September 2026"))
         #expect(!answer.counted.contains { $0.transaction.kind == .payment })
-        // Bill paid on the card counted once; Costco receipt and its line counted once.
-        #expect(answer.duplicates.count == 2)
+        // The August bill paid on the card in September, the Costco receipt
+        // and the Shell receipt: each with its card line, each counted once.
+        // The bill belongs to August, so September doesn't count it again.
+        #expect(answer.duplicates.count == 3)
+        #expect(!answer.counted.contains { $0.transaction.amountCents == 16043 })
     }
 
     @Test func missingStatementsAreSaid() throws {

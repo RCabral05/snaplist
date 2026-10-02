@@ -128,9 +128,12 @@ enum DayParser {
         (regex("(?<!\\d)(\\d{4})-(\\d{1,2})-(\\d{1,2})(?!\\d)"), { m, s in
             Day(year: int(m, 1, s), month: int(m, 2, s), day: int(m, 3, s))
         }),
-        // 09/28/2026, 9-28-26 (US order)
+        // 09/28/2026, 9-28-26 (US order); 14/07/2026 when the first number
+        // can't be a month.
         (regex("(?<![\\d/])(\\d{1,2})[/.-](\\d{1,2})[/.-](\\d{4}|\\d{2})(?![\\d/])"), { m, s in
-            Day(year: fullYear(int(m, 3, s)), month: int(m, 1, s), day: int(m, 2, s))
+            let first = int(m, 1, s), second = int(m, 2, s)
+            let dayFirst = first > 12 && second <= 12
+            return Day(year: fullYear(int(m, 3, s)), month: dayFirst ? second : first, day: dayFirst ? first : second)
         }),
         // September 28, 2026 / Sep 28 2026
         (regex("\\b\(monthPattern)\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b"), { m, s in

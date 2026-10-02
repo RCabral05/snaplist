@@ -130,7 +130,19 @@ extension ArchiveStore {
             itemCount = items.count
             matching += items
         }
-        let duplicates = Self.duplicates(in: matching, decisions: decisions)
+        // Duplicates are looked for across all dates: a receipt from the
+        // 30th and its card line posted on the 2nd are one purchase, made in
+        // the receipt's month.
+        var pool = matching
+        if query.range != nil {
+            var anyDate = query
+            anyDate.range = nil
+            // Receipt items (negative ids) are already in `matching`.
+            pool = all.filter { matches($0, anyDate) } + matching.filter { $0.id < 0 }
+        }
+        let matchingIds = Set(matching.map(\.id))
+        let duplicates = Self.duplicates(in: pool, decisions: decisions)
+            .filter { matchingIds.contains($0.dropped.id) }
         let droppedIds = Set(duplicates.map(\.dropped.id))
         matching.removeAll { droppedIds.contains($0.id) }
         matching.sort { ($0.day, $0.id) > ($1.day, $1.id) }
@@ -302,8 +314,38 @@ extension ArchiveStore {
                                        decision: decisions.decision(match.transaction, line.transaction)))
             }
         }
-        return found + statementOverlaps(in: items, excluding: Set(found.map(\.dropped.id)), decisions: decisions,
+        let overlaps = statementOverlaps(in: items, excluding: Set(found.map(\.dropped.id)), decisions: decisions,
                                          honoringRejections: honoringRejections)
+        let taken = Set((found + overlaps).flatMap { [$0.kept.id, $0.dropped.id] })
+        return found + overlaps + repeatedReceipts(in: items, excluding: taken, decisions: decisions,
+                                                   honoringRejections: honoringRejections)
+    }
+
+    /// The same receipt or bill saved twice: photographed again, or shared
+    /// in after a scan. Same total, same day, same store, different records.
+    /// The one saved first is kept.
+    static func repeatedReceipts(in items: [Counted], excluding taken: Set<Int64>, decisions: DuplicateDecisions,
+                                 honoringRejections: Bool) -> [Duplicate] {
+        let originals = items.filter { ($0.transaction.source == .receipt || $0.transaction.source == .bill) && $0.id >= 0
+            && !taken.contains($0.id) }
+            .sorted { ($0.record.createdAt, $0.id) < ($1.record.createdAt, $1.id) }
+        var used = Set<Int64>()
+        var found: [Duplicate] = []
+        for (index, first) in originals.enumerated() where !used.contains(first.id) {
+            for other in originals[(index + 1)...] where !used.contains(other.id) && other.record.id != first.record.id {
+                guard other.transaction.amountCents == first.transaction.amountCents,
+                      other.transaction.currency == first.transaction.currency,
+                      other.transaction.kind == first.transaction.kind else { continue }
+                let decision = decisions.decision(first.transaction, other.transaction)
+                if decision == false, honoringRejections { continue }
+                guard decision == true || (first.day == other.day && sameMerchant(first.transaction, other.transaction))
+                else { continue }
+                used.insert(other.id)
+                found.append(Duplicate(kept: first, dropped: other, decision: decision))
+                break
+            }
+        }
+        return found
     }
 
     /// The same charge on two statements: a card's CSV export and its PDF

@@ -29,7 +29,7 @@ enum MoneyParser {
     private static let pattern = DayParser.regex(
         "(?<![\\d.,/])(?<neg>[-−(])?\\s?(?<cur>[$€£])?\\s?" +
         "(?:(?<num>\\d{1,3}(?:[,.]\\d{3})+[.,]\\d{2}|\\d+[.,]\\d{2})|(?<whole>(?<=[$€£])\\d+))" +
-        "(?![\\d.,]*\\d)(?<close>\\))?(?:\\s?(?<cr>CR)\\b)?")
+        "(?![\\d.,]*\\d)(?<close>\\))?(?:\\s?(?<after>[€£]))?(?:\\s?(?<cr>CR)\\b)?")
 
     static func amounts(in line: String) -> [ParsedAmount] {
         let ns = line as NSString
@@ -47,7 +47,8 @@ enum MoneyParser {
             } else {
                 return nil
             }
-            let currency = group("cur").map { ["$": "USD", "€": "EUR", "£": "GBP"][$0] ?? "USD" }
+            // "$12.00", or "12,00 €" as Europe prints it.
+            let currency = (group("cur") ?? group("after")).map { ["$": "USD", "€": "EUR", "£": "GBP"][$0] ?? "USD" }
             let isCredit = group("neg") != nil || group("cr") != nil
             return ParsedAmount(cents: cents, currency: currency, isCredit: isCredit, range: m.range)
         }

@@ -105,7 +105,8 @@ enum Extractor {
         }
         let transaction = Amount(
             recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
-            merchant: merchant, memo: row.text, amountCents: amount.cents, currency: amount.currency ?? "USD",
+            merchant: merchant, memo: row.text, amountCents: amount.cents,
+            currency: amount.currency ?? printedCurrency(rows) ?? "USD",
             kind: amount.isCredit ? .refund : .purchase, source: .receipt)
         return ExtractedFacts(documentDate: date, transactions: [transaction],
                               items: lineItems(rows, recordId: recordId, before: row, totalCents: amount.cents))
@@ -116,7 +117,7 @@ enum Extractor {
                           "amex", "discover", "debit", "credit", "card", "balance", "payment", "due", "auth",
                           "approv", "saving", "saved", "discount", "coupon", "points", "reward", "tip", "gratuity",
                           "deposit", "refund", "price/", "/gal", "per gal", "items sold", "qty", "thank", "store #",
-                          "member", "acct", "account", "ref #", "trn", "reg#"]
+                          "member", "acct", "account", "ref #", "trn", "reg#", "amount"]
 
     /// "OLIVE OIL 2L" → "Olive Oil 2L"; short codes like "AA" and "KS" stay.
     static func itemName(_ text: String) -> String {
@@ -166,12 +167,24 @@ enum Extractor {
                               items: lineItems(rows, recordId: recordId, before: row, totalCents: amount.cents, keepTaxes: true))
     }
 
+    /// The currency most amounts on the page print, when the total itself
+    /// doesn't: "TOTAL 14,50" under lines in euros.
+    static func printedCurrency(_ rows: [TextRow]) -> String? {
+        let currencies = rows.flatMap { MoneyParser.amounts(in: $0.text).compactMap(\.currency) }
+        return Dictionary(grouping: currencies, by: { $0 }).max { $0.value.count < $1.value.count }?.key
+    }
+
+    /// Lowercased, with OCR's zero-for-O inside words undone: "T0TAL" → "total".
+    static func label(_ text: String) -> String {
+        text.lowercased().replacingOccurrences(of: "(?<=[a-z])0(?=[a-z])", with: "o", options: .regularExpression)
+    }
+
     /// The amount on the row with the best label, or on the row after it when
     /// OCR split the label and the number onto separate lines.
     static func labelledAmount(in rows: [TextRow], labels: [String]) -> (ParsedAmount, TextRow)? {
         for label in labels {
             for (index, row) in rows.enumerated() {
-                let lower = row.text.lowercased()
+                let lower = Self.label(row.text)
                 guard lower.contains(label), !notTotal.contains(where: { lower.contains($0) }) else { continue }
                 if let amount = MoneyParser.amounts(in: row.text).last {
                     return (amount, row)
@@ -213,6 +226,11 @@ enum Extractor {
     static func statement(_ rows: [TextRow], recordId: UUID) -> ExtractedFacts {
         let rows = joiningAmountLines(rows)
         let closing = statementClosingDate(rows)
+        // A checking or savings account prints money out as negative, the
+        // opposite of a card.
+        let all = rows.map { $0.text.lowercased() }.joined(separator: "\n")
+        let isBankAccount = ["beginning balance", "ending balance", "opening balance", "deposits and other",
+                             "withdrawals and other"].contains { all.contains($0) }
         var transactions: [Amount] = []
 
         for row in rows {
@@ -245,7 +263,7 @@ enum Extractor {
             }
             guard let date = Day(year: year, month: leading.month, day: leading.day) else { continue }
 
-            let kind = statementKind(description, amount: amount)
+            let kind = isBankAccount ? bankKind(description, amount: amount) : statementKind(description, amount: amount)
             transactions.append(Amount(
                 recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
                 merchant: merchantName(description), memo: description, amountCents: amount.cents,
@@ -353,6 +371,19 @@ enum Extractor {
             return amount.isCredit ? .refund : .fee
         }
         return amount.isCredit ? .refund : .purchase
+    }
+
+    /// On a bank account: money in is pay or a transfer unless it says it's
+    /// a refund; money out is spending unless it went to another account or
+    /// paid off a card.
+    static func bankKind(_ description: String, amount: ParsedAmount) -> AmountKind {
+        let lower = description.lowercased()
+        if amount.isCredit {
+            if CSVStatement.movedOut.contains(where: { lower.contains($0) }) { return .payment }
+            if lower.contains(" fee") || lower.hasPrefix("fee") { return .fee }
+            return .purchase
+        }
+        return ["refund", "return", "reversal"].contains(where: { lower.contains($0) }) ? .refund : .payment
     }
 
     /// "SHELL OIL 57442" → "Shell"; "TRADER JOE'S #231" → "Trader Joe's";

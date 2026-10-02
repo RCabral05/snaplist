@@ -53,7 +53,8 @@ private let appleCardCSV = [
             "2026-08-05,PAYROLL DEPOSIT,2500.00",
         ])
         let lines = try tmp.archive.store.transactions(of: id)
-        #expect(lines.map(\.kind) == [.purchase, .purchase, .refund])
+        // A paycheck is money in, but not a refund: it doesn't lower spending.
+        #expect(lines.map(\.kind) == [.purchase, .purchase, .payment])
         #expect(lines.first?.amountCents == 2172)
         #expect(lines.first?.date == Day(year: 2026, month: 8, day: 2))
     }

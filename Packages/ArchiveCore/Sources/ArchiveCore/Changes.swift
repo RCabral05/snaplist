@@ -63,19 +63,32 @@ extension ArchiveStore {
         let bills = amounts.filter { $0.transaction.source == .bill }
         for (_, group) in Dictionary(grouping: bills, by: { Self.merchantKey($0.transaction.merchant) }) where group.count >= 2 {
             let sorted = group.sorted { ($0.day, $0.id) < ($1.day, $1.id) }
-            let previous = sorted[sorted.count - 2], latest = sorted[sorted.count - 1]
-            guard Self.isMeaningful(previous.transaction.amountCents, latest.transaction.amountCents) else { continue }
+            guard let (previous, latest) = Self.lastStep(in: sorted, steadyBefore: true) else { continue }
             changes.append(PriceChange(kind: .bill, merchant: latest.transaction.merchant, previous: previous, latest: latest,
                                        lines: try lineChanges(from: previous.record.id, to: latest.record.id)))
         }
 
-        for charge in try recurringCharges() where charge.charges.count >= 2 {
-            let previous = charge.charges[charge.charges.count - 2], latest = charge.latest
-            guard latest.transaction.source != .bill,
-                  Self.isMeaningful(previous.transaction.amountCents, latest.transaction.amountCents) else { continue }
+        for charge in try recurringCharges() where charge.charges.count >= 2 && charge.latest.transaction.source != .bill {
+            guard let (previous, latest) = Self.lastStep(in: charge.charges, steadyBefore: false) else { continue }
             changes.append(PriceChange(kind: .subscription, merchant: charge.merchant, previous: previous, latest: latest, lines: []))
         }
         return changes.sorted { ($0.latest.day, $0.id) > ($1.latest.day, $1.id) }
+    }
+
+    /// The most recent time the amount moved, if it was within the last
+    /// three charges: a raise in August is still news in September, and
+    /// still shown, but not a year later. With `steadyBefore`, only when the
+    /// amount had held steady before it: an electric bill that changes with
+    /// use every month hasn't had a price change.
+    static func lastStep(in charges: [Counted], steadyBefore: Bool) -> (Counted, Counted)? {
+        let amounts = charges.map(\.transaction.amountCents)
+        guard let step = amounts.indices.dropFirst().last(where: { isMeaningful(amounts[$0 - 1], amounts[$0]) }),
+              amounts.count - step <= 3 else { return nil }
+        if steadyBefore {
+            let before = amounts[..<step].suffix(3)
+            guard before.allSatisfy({ !isMeaningful($0, amounts[step - 1]) }) else { return nil }
+        }
+        return (charges[step - 1], charges[step])
     }
 
     static func isMeaningful(_ before: Int64, _ after: Int64) -> Bool {

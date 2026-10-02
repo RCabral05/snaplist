@@ -20,6 +20,10 @@ enum Suggester {
         if pages.allSatisfy({ $0.source == .speech }) {
             return Suggestion(title: noteTitle(pages.map(\.text).joined(separator: " ")), kind: .item)
         }
+        // A bank or card export: its first rows name merchants, not who it's from.
+        if CSVStatement.looksLikeCSV(pages) {
+            return Suggestion(title: nil, kind: .statement)
+        }
         let pages = pages.map(withoutScreenChrome)
         let text = pages.map(\.text).joined(separator: "\n").lowercased()
         let kind = kind(of: text)
@@ -30,6 +34,10 @@ enum Suggester {
             return Suggestion(title: "Wi-Fi Network", kind: kind)
         }
 
+        // An ID is named for what it is: "Passport", not the country on top.
+        if kind == .identity, let type = identityName(text) {
+            return Suggestion(title: type, kind: kind)
+        }
         guard let name = name(in: pages) else {
             return Suggestion(title: nil, kind: kind)
         }
@@ -92,11 +100,20 @@ enum Suggester {
         if text.contains("warranty") {
             return .warranty
         }
+        // Utility and phone bills print a "statement date" and the last
+        // balance too; only card and bank statements print these.
+        let cardWords = count(["minimum payment", "new balance", "credit limit", "available credit", "statement period",
+                               "closing date", "beginning balance", "ending balance"])
+        let billWords = count(["amount due", "due date", "billing period", "service period", "account number", "pay by",
+                               "kwh", "therms", "gallons used"])
+        if billWords >= 2, cardWords == 0 {
+            return .bill
+        }
         if text.contains("statement"),
-           count(["balance", "payment due", "minimum payment", "statement period", "closing date"]) > 0 {
+           cardWords > 0 || count(["balance", "payment due"]) > 0 {
             return .statement
         }
-        if count(["amount due", "due date", "billing period", "service period", "account number", "pay by"]) >= 2 {
+        if billWords >= 2 {
             return .bill
         }
         if count(["passport", "driver license", "driver's license", "drivers license", "identification card",
@@ -112,6 +129,19 @@ enum Suggester {
             return .manual
         }
         return nil
+    }
+
+    /// What kind of ID or policy: the name it's filed under.
+    static func identityName(_ text: String) -> String? {
+        let names: [([String], String)] = [
+            (["passport"], "Passport"),
+            (["driver license", "driver's license", "drivers license"], "Driver's License"),
+            (["vehicle registration", "registration card"], "Vehicle Registration"),
+            (["insurance card", "declarations page"], "Insurance Card"),
+            (["lease agreement", "residential lease"], "Lease"),
+            (["identification card", "id card"], "ID Card"),
+        ]
+        return names.first { $0.0.contains { text.contains($0) } }?.1
     }
 
     /// "Chase" alone says less than "Chase Statement" in a list of names.
@@ -221,7 +251,10 @@ enum Suggester {
 
     /// Strips decoration OCR picks up around a name: "♥CVS pharmacy*" → "CVS pharmacy".
     static func clean(_ text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        // "JIFFY LUBE #2291", "STARBUCKS STORE 10442": the store number isn't the name.
+        let numbered = text.replacingOccurrences(of: "\\s+(#\\s*|store\\s*#?\\s*|no\\.?\\s*)\\d+\\s*$", with: "",
+                                                 options: [.regularExpression, .caseInsensitive])
+        let trimmed = numbered.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         let collapsed = trimmed.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return collapsed.isEmpty ? nil : String(collapsed.prefix(40))
     }
@@ -244,6 +277,8 @@ enum Suggester {
     static func titleCased(_ text: String) -> String {
         text.split(separator: " ").map { word in
             let w = String(word)
+            // Its own capitals, like "JetBlue" or "iPhone": as written.
+            if w != w.uppercased(), w != w.lowercased(), w.dropFirst() != w.dropFirst().lowercased() { return w }
             if w.count <= 3, w == w.uppercased(), w.contains(where: \.isLetter),
                !shortWords.contains(w.lowercased()) { return w }
             return w.prefix(1).uppercased() + w.dropFirst().lowercased()

@@ -53,6 +53,27 @@ enum DemoData {
                               items: [image(receipt(samsung, width: 1000))], at: now - 160 * day) {
             model.addTag("Mom", kind: .person, to: tv.id)
         }
+
+        // Five earlier months of statements, so Spending, Overview, Changes
+        // and Recurring have a history: Netflix goes up in August.
+        for (index, month) in (4...8).enumerated() {
+            model.add(title: "Statement", nameSource: .automatic,
+                      items: [pdf(pages: earlierStatement(month: month))], at: now - Double(150 - index * 30) * day)
+        }
+        // A phone bill that went up, with its lines.
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(verizon(month: 8), width: 1000))], at: now - 55 * day)
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(verizon(month: 9), width: 1000))], at: now - 25 * day)
+        // IDs, a TV receipt, the car.
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(passport, width: 1000))], at: now - 200 * day)
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(registration, width: 1000))], at: now - 120 * day)
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(bestBuy))], at: now - 170 * day)
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(jiffyLube))], at: now - 50 * day)
+        model.add(title: "Scan", nameSource: .automatic, items: [image(receipt(marios))], at: now - 15 * day)
+
+        model.setBudget(60_000, for: .groceries)
+        model.setBudget(25_000, for: .dining)
+        if let car = Collection.presets.first(where: { $0.name == "Car" }) { model.save(car) }
+        if let home = Collection.presets.first(where: { $0.name == "Home" }) { model.save(home) }
     }
 
     // MARK: Content
@@ -106,6 +127,57 @@ enum DemoData {
         "09/18  TRADER JOE'S #231             21.72", "09/20  NETFLIX.COM                   15.49",
         "09/25  COSTCO WHSE #423              72.65", "09/28  SHELL OIL 57442               39.82",
         "09/28  AMAZON MKTPL                 472.10",
+    ]
+
+    static func earlierStatement(month: Int) -> [[String]] {
+        let netflix = month >= 8 ? "17.99" : "15.49"
+        let mm = String(format: "%02d", month)
+        return [
+            ["CHASE", "Freedom Visa Statement", "Account ending 4421", "Statement period \(mm)/01/2026 - \(mm)/28/2026",
+             "New balance $612.40", "Payment due date \(String(format: "%02d", month + 1))/23/2026"],
+            ["Transactions", "",
+             "\(mm)/03  NETFLIX.COM                   \(netflix)", "\(mm)/05  SPOTIFY USA                   11.99",
+             "\(mm)/07  SHELL OIL 57442               4\(month).20", "\(mm)/11  DOORDASH*THAI BASIL           3\(month).75",
+             "\(mm)/14  COSTCO WHSE #423             1\(month)8.31", "\(mm)/19  STARBUCKS STORE 10442          6.45",
+             "\(mm)/21  TRADER JOE'S #231             4\(month).12", "\(mm)/24  AMAZON MKTPL                  2\(month).99",
+             "\(mm)/26  PAYMENT THANK YOU           -500.00"],
+        ]
+    }
+
+    static func verizon(month: Int) -> [String] {
+        let raised = month >= 9
+        return ["VERIZON", "Account number 0442-1180-0001", "Bill date \(month == 8 ? "Aug" : "Sep") 5, 2026", "",
+                "Unlimited Plus           \(raised ? "90.00" : "80.00")", "Device payment           41.67",
+                raised ? "Disney Bundle            10.00" : "", "Taxes and fees           \(raised ? "24.33" : "20.33")", "",
+                "Total amount due        $\(raised ? "166.00" : "142.00")", "Pay by \(month == 8 ? "Aug" : "Sep") 25, 2026"]
+    }
+
+    static let passport = [
+        "UNITED STATES OF AMERICA", "PASSPORT", "", "Surname SAMPLE", "Given names ALEX", "",
+        "Date of issue 14 Mar 2017", "Date of expiration 13 Mar 2027", "Passport No. X00000000",
+    ]
+
+    static let registration = [
+        "VEHICLE REGISTRATION", "2019 HONDA CIVIC", "", "Plate 0SAMPLE0", "Registration expires 05/31/2027",
+    ]
+
+    static let bestBuy = [
+        "BEST BUY", "STORE 0187", "", "04/14/2026", "",
+        "SAMSUNG QN65Q80D TV    1,299.99", "S/N: 0A1B2C3D4E", "", "SUBTOTAL    1,299.99", "TAX          121.87",
+        "TOTAL       $1,421.86", "", "VISA ****4421", "Return within 15 days",
+    ]
+
+    static let jiffyLube = [
+        "JIFFY LUBE #2291", "Service Invoice", "", "08/12/2026", "Vehicle: 2019 Honda Civic", "",
+        "Synthetic oil change    72.99", "Tire rotation           10.00", "", "TOTAL                 $82.99", "",
+        "VISA ****4421",
+    ]
+
+    static let marios = [
+        "MARIO'S PIZZERIA", "41 ELM STREET", "", "09/18/2026 19:42", "",
+        "LARGE MARGHERITA        21.99", "GARLIC KNOTS             6.99", "SUBTOTAL                28.98",
+        "TAX                      2.72", "TIP                      5.00", "TOTAL                   36.70", "",
+        "VISA ****4421", "CUSTOMER COPY",
     ]
 
     // MARK: Drawing

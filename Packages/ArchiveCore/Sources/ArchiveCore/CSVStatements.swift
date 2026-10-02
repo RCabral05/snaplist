@@ -128,7 +128,8 @@ enum CSVStatement {
             let type = row.type.lowercased()
             let text = "\(row.description) \(row.merchant)".lowercased()
             let kind: AmountKind
-            if type.contains("payment") || (!out && ["payment", "autopay", "thank you", "transfer from", "ach deposit"].contains { text.contains($0) }) {
+            if type.contains("payment") || (!out && Self.moneyIn.contains { text.contains($0) })
+                || (out && Self.movedOut.contains { text.contains($0) }) {
                 kind = .payment
             } else if type.contains("interest") || type.contains("fee") {
                 kind = .fee
@@ -149,6 +150,15 @@ enum CSVStatement {
         }
         return ExtractedFacts(documentDate: rows.map(\.date).max(), transactions: transactions)
     }
+
+    /// Money in that isn't a refund: pay, interest, transfers, paying a card off.
+    static let moneyIn = ["payment", "autopay", "thank you", "transfer from", "ach deposit", "payroll", "direct dep",
+                          "dir dep", "salary", "deposit", "interest paid", "zelle from", "from savings", "from checking",
+                          "cashout", "cash out"]
+    /// Money out that isn't spending: moving it to another account or
+    /// paying off a card (the card's own statement has the purchases).
+    static let movedOut = ["transfer to", "to savings", "to checking", "credit crd", "credit card payment", "crd autopay",
+                           "card autopay", "cardmember serv", "card pmt", "applecard gsbank", "apple card payment"]
 
     /// "-1,234.56", "$12.00", "(5.00)" → signed cents.
     static func cents(_ text: String) -> Int64? {

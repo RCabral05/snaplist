@@ -55,6 +55,12 @@ public enum QuestionParser {
         if text.contains(" where ") || text.contains(" where's ") {
             return .whereIs(terms: terms(in: text, dropping: whereWords))
         }
+        // "Last time I bought eggs" is when; "what I paid last time" is how much.
+        let bought = [" buy ", " bought ", " purchase ", " purchased ", " get ", " got "]
+        let money = [" pay ", " paid ", " cost ", " costs ", " price ", " spend ", " spent ", " much "]
+        if text.contains(" last time "), bought.contains(where: { text.contains($0) }), !money.contains(where: { text.contains($0) }) {
+            return .lastBought(terms: terms(in: text, dropping: lastBoughtWords))
+        }
         if priceWords.contains(where: { text.contains($0) }) {
             var categories: Set<SpendCategory> = []
             var rest = text
@@ -69,7 +75,7 @@ public enum QuestionParser {
                 return .priceHistory(terms: terms, categories: categories)
             }
         }
-        if text.contains(" when "), [" buy ", " bought ", " purchase ", " purchased ", " get ", " got "].contains(where: { text.contains($0) }) {
+        if text.contains(" when "), bought.contains(where: { text.contains($0) }) {
             return .lastBought(terms: terms(in: text, dropping: lastBoughtWords))
         }
         if text.contains("expire") || text.contains("expiration") || (text.contains("warranty") && text.contains(" when ")) {

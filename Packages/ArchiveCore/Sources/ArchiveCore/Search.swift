@@ -123,6 +123,9 @@ extension ArchiveStore {
     static let spellings: [String: [String]] = [
         "wifi": ["wi fi"], "wi-fi": ["wifi"], "email": ["e mail"], "e-mail": ["email"],
         "login": ["log in"], "username": ["user name"], "zipcode": ["zip code"],
+        // "Passport No.", "Policy #", "Acct Nbr".
+        "number": ["no", "num", "nbr"], "license": ["licence", "lic"], "licence": ["license"],
+        "account": ["acct"], "phone": ["tel"],
     ]
 
     private static func termExpression(_ term: String) -> String {

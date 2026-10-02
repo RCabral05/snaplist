@@ -111,11 +111,18 @@ struct DuplicateCard: View {
 
     private var explanation: String {
         let money = duplicate.kept.transaction.money.formatted
+        let kept = duplicate.kept.record.kind.label.lowercased()
+        let other = duplicate.dropped.transaction.source == .statement ? "statement" : duplicate.dropped.record.kind.label.lowercased()
+        let saved = duplicate.dropped.transaction.source != .statement && duplicate.kept.transaction.source != .statement
         switch duplicate.decision {
         case nil:
-            return "\(money) is on both a \(duplicate.kept.record.kind.label.lowercased()) and a statement within a few days. Until you say otherwise, answers count it once."
+            return saved
+                ? "Two \(kept)s from the same day for \(money): probably the same one saved twice. Until you say otherwise, answers count it once."
+                : "\(money) is on both a \(kept) and a \(other) within a few days. Until you say otherwise, answers count it once."
         case true?:
-            return "You said these are the same \(money). Answers count the \(duplicate.kept.record.kind.label.lowercased()), not the statement line."
+            return saved
+                ? "You said these are the same \(money). Answers count the one saved first."
+                : "You said these are the same \(money). Answers count the \(kept), not the \(other) line."
         case false?:
             return "You said these are two separate charges of \(money), so answers count both."
         }
