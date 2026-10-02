@@ -95,13 +95,13 @@ enum Extractor {
                                 "fuel total", "sale total", "order total", "total", "amount"]
     static let billTotals = ["total amount due", "amount due", "total due", "balance due", "new balance",
                              "total current charges", "total"]
-    static let notTotal = ["subtotal", "sub total", "sub-total", "total savings", "you saved", "total items",
+    static let notTotal = ["subtotal", "sub total", "sub-total", "su total", "sub tota", "total savings", "you saved", "total items",
                            "items sold", "total qty", "tax total", "total tax", "points", "previous balance",
                            "total discount", "discount total", "total grams", "total weight", "total units", "rounding"]
 
     static func receipt(_ rows: [TextRow], recordId: UUID, merchant: String) -> ExtractedFacts {
         let date = firstDate(in: rows, avoiding: ["exp", "valid", "return by", "due"])
-        guard let (amount, row) = labelledAmount(in: rows, labels: receiptTotals) else {
+        guard let (amount, row) = labelledAmount(in: rows, labels: receiptTotals, lastOf: ["total"]) else {
             return ExtractedFacts(documentDate: date)
         }
         let transaction = Amount(
@@ -181,20 +181,29 @@ enum Extractor {
     }
 
     /// The amount on the row with the best label, or on the row after it when
-    /// OCR split the label and the number onto separate lines.
-    static func labelledAmount(in rows: [TextRow], labels: [String]) -> (ParsedAmount, TextRow)? {
+    /// OCR split the label and the number onto separate lines. A label must
+    /// start a word, so a subtotal OCR misread as "Su5total" isn't a total.
+    /// For labels in `lastOf` the last such row wins: the total comes after
+    /// the subtotal, however the subtotal's label came out.
+    static func labelledAmount(in rows: [TextRow], labels: [String], lastOf: Set<String> = []) -> (ParsedAmount, TextRow)? {
         for label in labels {
+            let word = DayParser.regex("(?<![a-z0-9])" + NSRegularExpression.escapedPattern(for: label))
+            var found: (ParsedAmount, TextRow)?
             for (index, row) in rows.enumerated() {
                 let lower = Self.label(row.text)
-                guard lower.contains(label), !notTotal.contains(where: { lower.contains($0) }) else { continue }
+                guard word.firstMatch(in: lower, range: NSRange(location: 0, length: (lower as NSString).length)) != nil,
+                      !notTotal.contains(where: { lower.contains($0) }) else { continue }
                 if let amount = MoneyParser.amounts(in: row.text).last {
-                    return (amount, row)
+                    found = (amount, row)
+                } else if index + 1 < rows.count, MoneyParser.amounts(in: rows[index + 1].text).count == 1,
+                          let amount = MoneyParser.amounts(in: rows[index + 1].text).first {
+                    found = (amount, rows[index + 1])
+                } else {
+                    continue
                 }
-                if index + 1 < rows.count, MoneyParser.amounts(in: rows[index + 1].text).count == 1,
-                   let amount = MoneyParser.amounts(in: rows[index + 1].text).first {
-                    return (amount, rows[index + 1])
-                }
+                if !lastOf.contains(label) { return found }
             }
+            if let found { return found }
         }
         return nil
     }

@@ -140,6 +140,17 @@ import Testing
         #expect(try store.answer(query).totals == [Money(cents: 3165)])
     }
 
+    @Test func aSubtotalTheCameraMisread() throws {
+        // A faint "b": the subtotal came out as something that isn't "subtotal".
+        for subtotal in ["Su total: $239.00", "Su5total: $239.00", "Sutotal: $239.00", "Su btotal: $239.00", "Subtota1: $239.00"] {
+            let id = try add([["Example Shop", "10/2/2026 3:36:49 PM", "Item  239.00", subtotal, "RI Sales Tax: $12.37",
+                               "Tctal Tax: $12.37", "Total Discount: $62.30", "Rounding: $-0.02", "Total: $189.05",
+                               "Payment (Debit): $190.00", "Due Customer: $0.95", "Total Items: 7", "Total Grams: 37.00",
+                               "Loyalty Points Total: 244.00"]])
+            #expect(try total(id) == 18905, "\(subtotal): \(lines(id))")
+        }
+    }
+
     // MARK: Statements
 
     @Test func aStatementAcrossNewYear() throws {
