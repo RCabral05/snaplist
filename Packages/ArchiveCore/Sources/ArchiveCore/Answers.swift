@@ -5,7 +5,14 @@ import GRDB
 public struct Counted: Hashable, Identifiable, Sendable {
     public var transaction: Amount
     public var record: Record
+    /// The record's people and places, so "spent in Boston" can match.
+    public var tagNames: [String] = []
     public var id: Int64 { transaction.id ?? -1 }
+
+    /// What merchant words are looked for in.
+    var haystack: String {
+        ([transaction.merchant, transaction.memo, record.title] + tagNames).joined(separator: " ").lowercased()
+    }
 
     /// The amount's own date, else the record's.
     public var day: Day { transaction.date ?? record.effectiveDay }
@@ -87,7 +94,7 @@ extension ArchiveStore {
                 AND NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id)
                 """, arguments: [RecordKind.statement.rawValue, IngestStatus.ready.rawValue]) ?? 0
         }
-        let all = try db.read { db -> [Counted] in
+        let untagged = try db.read { db -> [Counted] in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT txn.* FROM txn JOIN record ON record.id = txn.recordId
                 WHERE txn.kind != 'payment'
@@ -100,6 +107,7 @@ extension ArchiveStore {
                 return byId[transaction.recordId].map { Counted(transaction: transaction, record: $0) }
             }
         }
+        let all = try withTags(untagged)
         let decisions = try duplicateDecisions()
 
         // Words that aren't any saved merchant ("set back over") are dropped
@@ -162,16 +170,26 @@ extension ArchiveStore {
                 let pattern = "%\(term)%"
                 return try !(Bool.fetchOne(db, sql: """
                     SELECT EXISTS (SELECT 1 FROM txn JOIN record ON record.id = txn.recordId
-                    WHERE txn.merchant LIKE ? OR txn.memo LIKE ? OR record.title LIKE ?)
-                    """, arguments: [pattern, pattern, pattern]) ?? false)
+                    WHERE txn.merchant LIKE ? OR txn.memo LIKE ? OR record.title LIKE ?
+                       OR EXISTS (SELECT 1 FROM recordTag JOIN tag ON tag.id = recordTag.tagId
+                                  WHERE recordTag.recordId = record.id AND tag.name LIKE ?))
+                    """, arguments: [pattern, pattern, pattern, pattern]) ?? false)
             }
         }
     }
 
-    static func unknownTerms(_ terms: [String], in items: [Counted]) -> [String] {
-        terms.filter { term in
-            !items.contains { "\($0.transaction.merchant) \($0.transaction.memo) \($0.record.title)".lowercased().contains(term) }
+    func withTags(_ items: [Counted]) throws -> [Counted] {
+        let tags = try tagsByRecord()
+        guard !tags.isEmpty else { return items }
+        return items.map { item in
+            var item = item
+            item.tagNames = tags[item.record.id]?.map(\.name) ?? []
+            return item
         }
+    }
+
+    static func unknownTerms(_ terms: [String], in items: [Counted]) -> [String] {
+        terms.filter { term in !items.contains { $0.haystack.contains(term) } }
     }
 
     /// The same question without the date, month by month, deduplicated the
@@ -217,7 +235,7 @@ extension ArchiveStore {
         if let range = query.range, !range.contains(item.day) { return false }
         if !query.categories.isEmpty, !query.categories.contains(item.transaction.category) { return false }
         if !query.merchantTerms.isEmpty {
-            let haystack = "\(item.transaction.merchant) \(item.transaction.memo) \(item.record.title)".lowercased()
+            let haystack = item.haystack
             if !query.merchantTerms.contains(where: { haystack.contains($0) }) { return false }
         }
         return true

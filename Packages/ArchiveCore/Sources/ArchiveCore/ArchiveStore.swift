@@ -137,6 +137,22 @@ public struct ArchiveStore: Sendable {
                 );
                 """)
         }
+        migrator.registerMigration("v6-tags") { db in
+            try db.execute(sql: """
+                CREATE TABLE tag (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE,
+                    UNIQUE (kind, name)
+                );
+                CREATE TABLE recordTag (
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    tagId INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+                    PRIMARY KEY (recordId, tagId)
+                );
+                CREATE INDEX recordTag_tagId ON recordTag(tagId);
+                """)
+        }
         return migrator
     }
 
@@ -214,9 +230,7 @@ public struct ArchiveStore: Sendable {
         try db.write { db in
             let previousKind = try Record.fetchOne(db, key: record.id)?.kind
             try record.update(db, columns: ["kind", "title", "nameSource"])
-            try db.execute(
-                sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
-                arguments: [record.title, record.id])
+            try Self.reindexTitle(of: record.id, in: db)
             if previousKind != record.kind, record.status == .ready {
                 try Self.applyExtraction(to: &record, pages: try Self.storedPages(of: record.id, in: db), in: db)
                 try record.update(db, columns: ["documentDate"])
@@ -253,7 +267,7 @@ public struct ArchiveStore: Sendable {
                         try row.insert(db)
                     }
                     try db.execute(sql: "INSERT INTO searchIndex(rowid, title, body) VALUES (?, ?, ?)",
-                                   arguments: [pageId, record.title, page.text])
+                                   arguments: [pageId, try Self.indexTitle(of: record, in: db), page.text])
                 }
             }
 
@@ -333,6 +347,7 @@ public struct ArchiveStore: Sendable {
             try db.execute(sql: "DELETE FROM searchIndex")
             try db.execute(sql: "DELETE FROM merchantCategory")
             _ = try Record.deleteAll(db)
+            try db.execute(sql: "DELETE FROM tag")
         }
     }
 
@@ -359,9 +374,7 @@ public struct ArchiveStore: Sendable {
                 let transactionsAfter = try Amount.filter(Column("recordId") == record.id).fetchCount(db)
                 guard record != before || transactionsBefore != transactionsAfter else { continue }
                 try record.update(db, columns: ["kind", "title", "documentDate"])
-                try db.execute(
-                    sql: "UPDATE searchIndex SET title = ? WHERE rowid IN (SELECT id FROM page WHERE recordId = ?)",
-                    arguments: [record.title, record.id])
+                try Self.reindexTitle(of: record.id, in: db)
                 changed += 1
             }
             return changed

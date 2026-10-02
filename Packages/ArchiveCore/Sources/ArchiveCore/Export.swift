@@ -28,7 +28,8 @@ public enum ArchiveExporter {
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
 
         let records = try archive.store.records()
-        var recordRows = [["Name", "Category", "Date", "Added", "Files", "Status"]]
+        var recordRows = [["Name", "Category", "Date", "Added", "People and places", "Files", "Status"]]
+        let tagsByRecord = try archive.store.tagsByRecord()
         var amountRows = [["Date", "Merchant", "Amount", "Currency", "Type", "Spending category", "Record",
                            "Printed as", "Corrected by you"]]
         var usedNames = Set<String>()
@@ -59,7 +60,8 @@ public enum ArchiveExporter {
             }
 
             recordRows.append([record.title, record.kind.rawValue.capitalized, record.documentDate?.iso ?? "",
-                               Day(record.createdAt).iso, written.joined(separator: "; "), record.status.rawValue])
+                               Day(record.createdAt).iso, (tagsByRecord[record.id] ?? []).map(\.name).joined(separator: "; "),
+                               written.joined(separator: "; "), record.status.rawValue])
 
             for amount in try archive.store.transactions(of: record.id) {
                 amountRows.append([amount.date?.iso ?? record.documentDate?.iso ?? "", amount.merchant,
