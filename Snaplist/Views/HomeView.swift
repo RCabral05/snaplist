@@ -22,7 +22,9 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                if model.records.isEmpty {
+                if !model.hasLoaded {
+                    Color.clear
+                } else if model.records.isEmpty {
                     WelcomeView(canScan: addFlow.canScan, scan: { addFlow.isScanning = true },
                                 choosePhotos: { addFlow.isPickingPhotos = true },
                                 importFiles: { addFlow.isPickingFiles = true })
@@ -52,7 +54,7 @@ struct HomeView: View {
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
             // Records change as their text is read, not only when added.
-            .task(id: "\(model.records.hashValue)-\(model.amountsRevision)") { load() }
+            .task(id: model.derivedRevision) { load() }
         }
     }
 
@@ -131,9 +133,14 @@ struct HomeView: View {
         }
     }
 
-    /// The home inventory and the tax report, one tap from Home.
+    /// The home inventory, IDs and policies, and the tax report, one tap from Home.
     private var toolsSection: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            NavigationLink {
+                ImportantDocumentsView()
+            } label: {
+                tool("IDs & policies", "person.text.rectangle", idsDetail)
+            }
             NavigationLink {
                 InventoryView()
             } label: {
@@ -147,6 +154,17 @@ struct HomeView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// "Passport expires in 40 days", else how many there are.
+    private var idsDetail: String {
+        let documents = model.importantDocuments()
+        let today = Day(.now)
+        if let soon = documents.first(where: { ($0.expires.map { today.days(to: $0) } ?? 999) <= 90 }), let expires = soon.expires {
+            let days = today.days(to: expires)
+            return days < 0 ? "\(soon.record.title) expired" : "\(soon.record.title) in \(days)d"
+        }
+        return documents.isEmpty ? "Passport, licence…" : "\(documents.count) saved"
     }
 
     private func tool(_ title: String, _ symbol: String, _ detail: String) -> some View {
@@ -374,6 +392,7 @@ extension UpcomingDate {
         case .billDue: "\(record.title) due"
         case .warrantyEnds: "\(record.title) warranty ends"
         case .returnBy: "Return \(record.title) by"
+        case .renewal: "\(record.title) expires"
         }
     }
 
@@ -382,6 +401,7 @@ extension UpcomingDate {
         case .billDue: "calendar.badge.clock"
         case .warrantyEnds: "checkmark.shield"
         case .returnBy: "arrow.uturn.backward"
+        case .renewal: "person.text.rectangle"
         }
     }
 }

@@ -13,6 +13,8 @@ struct TextRow: Equatable {
 struct ExtractedFacts: Equatable {
     var documentDate: Day?
     var transactions: [Amount] = []
+    /// A receipt's lines: "ORGANIC EGGS 24  8.79".
+    var items: [LineItem] = []
 }
 
 /// Reads dates and amounts from receipts, bills and statements with plain
@@ -29,6 +31,9 @@ enum Extractor {
         case .receipt: return receipt(rows, recordId: recordId, merchant: merchant)
         case .bill: return bill(rows, recordId: recordId, merchant: merchant)
         case .statement: return statement(rows, recordId: recordId)
+        case .identity:
+            // Not the first date: on IDs that's often a date of birth.
+            return ExtractedFacts(documentDate: labelledDate(in: rows, labels: ["date of issue", "issue date", "issued", "iss "]))
         case .warranty, .manual, .document, .item, .other:
             return ExtractedFacts(documentDate: rows.lazy.compactMap { DayParser.firstDay(in: $0.text) }.first)
         }
@@ -102,7 +107,46 @@ enum Extractor {
             recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
             merchant: merchant, memo: row.text, amountCents: amount.cents, currency: amount.currency ?? "USD",
             kind: amount.isCredit ? .refund : .purchase, source: .receipt)
-        return ExtractedFacts(documentDate: date, transactions: [transaction])
+        return ExtractedFacts(documentDate: date, transactions: [transaction],
+                              items: lineItems(rows, recordId: recordId, before: row, totalCents: amount.cents))
+    }
+
+    /// Words on a receipt's rows that aren't things bought.
+    static let notItem = ["total", "subtotal", "sub total", "tax", "change", "cash", "tend", "visa", "mastercard",
+                          "amex", "discover", "debit", "credit", "card", "balance", "payment", "due", "auth",
+                          "approv", "saving", "saved", "discount", "coupon", "points", "reward", "tip", "gratuity",
+                          "deposit", "refund", "price/", "/gal", "per gal", "items sold", "qty", "thank", "store #",
+                          "member", "acct", "account", "ref #", "trn", "reg#"]
+
+    /// "OLIVE OIL 2L" → "Olive Oil 2L"; short codes like "AA" and "KS" stay.
+    static func itemName(_ text: String) -> String {
+        guard text == text.uppercased() else { return text }
+        return text.split(separator: " ").map { word in
+            word.count(where: \.isLetter) <= 2 || word.contains(where: \.isNumber) ? String(word) : word.capitalized
+        }.joined(separator: " ")
+    }
+
+    /// Rows above the total that end in an amount and name something.
+    static func lineItems(_ rows: [TextRow], recordId: UUID, before total: TextRow, totalCents: Int64) -> [LineItem] {
+        var items: [LineItem] = []
+        for row in rows {
+            if (row.pagePosition, row.linePosition) >= (total.pagePosition, total.linePosition) { break }
+            let lower = row.text.lowercased()
+            guard !notItem.contains(where: { lower.contains($0) }), DayParser.firstDay(in: row.text) == nil,
+                  let amount = MoneyParser.amounts(in: row.text).last, !amount.isCredit,
+                  amount.cents > 0, amount.cents <= totalCents else { continue }
+            let ns = row.text as NSString
+            // Only a tax flag ("T", "N F") may follow the price.
+            let after = ns.substring(from: amount.range.location + amount.range.length).trimmingCharacters(in: .whitespaces)
+            guard after.count <= 3 else { continue }
+            let name = ns.substring(to: amount.range.location)
+                .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "$*#:-")))
+            guard name.count(where: \.isLetter) >= 3 else { continue }
+            items.append(LineItem(recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition,
+                                  name: itemName(name), amountCents: amount.cents,
+                                  currency: amount.currency ?? "USD"))
+        }
+        return items
     }
 
     static func bill(_ rows: [TextRow], recordId: UUID, merchant: String) -> ExtractedFacts {

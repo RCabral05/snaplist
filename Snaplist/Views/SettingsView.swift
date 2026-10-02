@@ -81,7 +81,7 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section {
-                    Toggle("Bills and Warranties", isOn: $remindersEnabled)
+                    Toggle("Bills, Renewals and Budgets", isOn: $remindersEnabled)
                         .onChange(of: remindersEnabled) { _, enabled in
                             Task {
                                 if enabled, !(await Reminders.requestPermission()) {
@@ -96,7 +96,7 @@ struct SettingsView: View {
                 } footer: {
                     Text(remindersDenied
                          ? "Notifications are off for Snaplist. Turn them on in the Settings app under Notifications, then try again."
-                         : "A notification 3 days before a bill is due and 30 days before a warranty ends, using dates read from what you've saved. The bill's name and amount show in the notification.")
+                         : "Notifications before a bill is due or a return window closes (3 days), a warranty ends (30 days) or an ID or policy needs renewing (60 days), and when a budget passes 80% or 100%. Names and amounts can show on the Lock Screen; with the lock on, budget amounts don't.")
                 }
                 .listRowBackground(Theme.surface)
 

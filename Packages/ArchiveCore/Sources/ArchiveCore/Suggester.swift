@@ -65,6 +65,11 @@ enum Suggester {
         if count(["amount due", "due date", "billing period", "service period", "account number", "pay by"]) >= 2 {
             return .bill
         }
+        if count(["passport", "driver license", "driver's license", "drivers license", "identification card",
+                  "vehicle registration", "registration card", "insurance card", "declarations page",
+                  "lease agreement", "residential lease", "id card"]) >= 1 {
+            return .identity
+        }
         if count(["subtotal", "total", "tax", "change due", "cash", "visa", "mastercard", "debit", "card #",
                   "auth", "approved", "thank you", "receipt", "reg#", "trn#", "cashier", "qty"]) >= 2 {
             return .receipt

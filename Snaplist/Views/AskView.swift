@@ -40,7 +40,10 @@ struct AskView: View {
                     } else if let answer {
                         AnswerView(result: answer, reask: { query in
                             self.answer = model.answer(query)
-                        }, decided: ask)
+                        }, decided: {
+                            // The same question, period and all, with the decision applied.
+                            if case .spending(let shown) = self.answer { self.answer = model.answer(shown.query) }
+                        })
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     } else {
                         examples
@@ -134,6 +137,8 @@ enum AskResult {
     case search([SearchHit], text: String)
     /// Records tagged with the people and places a question named.
     case records(TaggedRecords)
+    /// Receipt lines naming something, newest first.
+    case lastBought([Counted], terms: [String])
 
     /// Changes whenever the answer does, for animation.
     var id: String {
@@ -143,6 +148,7 @@ enum AskResult {
         case .expiry(let found, let terms): "e\(found.map(\.day))\(terms)"
         case .search(let hits, let text): "q\(hits.map(\.id))\(text)"
         case .records(let tagged): "r\(tagged.records.map(\.id))"
+        case .lastBought(let found, let terms): "l\(found.map(\.id))\(terms)"
         }
     }
 }
@@ -160,6 +166,7 @@ struct AnswerView: View {
         case .whereIs(let hits, let terms): WhereAnswerView(hits: hits, terms: terms)
         case .expiry(let found, let terms): ExpiryAnswerView(found: found, terms: terms)
         case .records(let tagged): TaggedAnswerView(tagged: tagged)
+        case .lastBought(let found, let terms): LastBoughtView(found: found, terms: terms)
         case .search(let hits, let text):
             if hits.isEmpty {
                 NotFound(text: "Nothing in your archive mentions “\(text)”.")
@@ -434,5 +441,41 @@ extension TaggedRecords {
     /// "Warranties · Mom", "Everything · Boston".
     var headline: String {
         "\(kind?.pluralLabel ?? "Everything") · \(tags.map(\.name).joined(separator: " and "))"
+    }
+}
+
+/// "When did I last buy eggs?": the latest receipt line, then earlier ones.
+private struct LastBoughtView: View {
+    let found: [Counted]
+    let terms: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let latest = found.first {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Last bought").font(.subheadline).foregroundStyle(.secondary)
+                    Text(latest.day.date().formatted(date: .long, time: .omitted))
+                        .font(Theme.display(.title, weight: .bold))
+                    Text("\(latest.transaction.memo) at \(latest.transaction.merchant), \(latest.transaction.money.formatted)")
+                        .font(.subheadline)
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(found.prefix(10).enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Divider().padding(.leading) }
+                        NavigationLink(value: RecordListView.Destination(record: item.record, pagePosition: item.transaction.pagePosition)) {
+                            CountedRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                Label("From the lines on your saved receipts.", systemImage: "info.circle")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                Text("No saved receipt lists “\(terms.joined(separator: " "))”. Only receipts that print each item can answer this.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }

@@ -3,7 +3,11 @@ import GRDB
 
 /// What a record is. Drives filters now and, later, which extractor runs on it.
 public enum RecordKind: String, Codable, CaseIterable, Sendable {
-    case receipt, statement, bill, warranty, manual, document, item, other
+    case receipt, statement, bill, warranty, manual
+    /// Passports, licences, registrations, insurance policies, leases:
+    /// things that expire and need renewing.
+    case identity
+    case document, item, other
 }
 
 /// Where a record is in the import pipeline. A record is listed and openable from

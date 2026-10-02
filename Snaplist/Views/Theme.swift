@@ -45,6 +45,7 @@ extension RecordKind {
         case .bill: Color(light: 0xA65A33, dark: 0xE09A72)       // clay
         case .warranty: Color(light: 0x77588A, dark: 0xBBA0CB)   // plum
         case .manual: Color(light: 0x7D6142, dark: 0xC7A57F)     // walnut
+        case .identity: Color(light: 0x2F6F8F, dark: 0x8CC4E0)   // harbour blue
         case .document: Color(light: 0x6E6A62, dark: 0xADA79B)   // stone
         case .item: Color(light: 0xA2505F, dark: 0xDC93A1)       // rose
         case .other: Color(light: 0x7A766E, dark: 0x9C978D)      // ash

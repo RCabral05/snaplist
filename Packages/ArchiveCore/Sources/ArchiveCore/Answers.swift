@@ -121,6 +121,15 @@ extension ArchiveStore {
         }
 
         var matching = all.filter { matches($0, query) }
+        // "Eggs" isn't a store: lines on receipts that name it count too,
+        // except on receipts whose whole total already matched.
+        var itemCount = 0
+        if !query.merchantTerms.isEmpty {
+            let whole = Set(matching.filter { $0.transaction.source != .statement }.map(\.record.id))
+            let items = try itemAmounts(matching: query.merchantTerms, except: whole).filter { matches($0, query) }
+            itemCount = items.count
+            matching += items
+        }
         let duplicates = Self.duplicates(in: matching, decisions: decisions)
         let droppedIds = Set(duplicates.map(\.dropped.id))
         matching.removeAll { droppedIds.contains($0.id) }
@@ -128,6 +137,9 @@ extension ArchiveStore {
         let totals = Self.totals(of: matching)
 
         var notes = query.notes
+        if itemCount > 0 {
+            notes.append(itemCount == 1 ? "Includes 1 item from a receipt's lines." : "Includes \(itemCount) items from receipts' lines.")
+        }
         let refunds = matching.filter { $0.transaction.kind == .refund }
         if !refunds.isEmpty {
             notes.append(refunds.count == 1 ? "Includes 1 refund, subtracted." : "Includes \(refunds.count) refunds, subtracted.")
@@ -398,13 +410,37 @@ extension ArchiveStore {
         }
     }
 
-    static func expiry(in rows: [TextRow], record: Record) -> ExpiryFinding? {
+    /// Words that come before an end date. "exp" needs a gap or a colon
+    /// after it so "expenses" doesn't count.
+    static let expiryLabels = ["expir", "exp ", "exp:", "exp.", "valid until", "valid thru", "valid through",
+                               "coverage ends", "warranty ends", "ends on", "renew by", "renewal date", "date of expiration"]
+    /// Labels for a period whose end is the expiry: "Policy period
+    /// 10/01/2026 to 10/01/2027".
+    static let periodLabels = ["policy period", "coverage period", "policy term", "lease term", "term:", "effective"]
+
+    /// The date after an expiry label (not an issue date earlier on the same
+    /// row), or the last date of a labelled period.
+    static func printedExpiry(in rows: [TextRow]) -> (day: Day, row: String)? {
         for row in rows {
             let lower = row.text.lowercased()
-            if ["expir", "valid until", "valid thru", "coverage ends", "warranty ends", "ends on"].contains(where: { lower.contains($0) }),
-               let day = DayParser.firstDay(in: row.text) {
-                return ExpiryFinding(record: record, day: day, evidence: row.text, isCalculated: false)
+            let days = DayParser.days(in: row.text)
+            guard !days.isEmpty else { continue }
+            if let label = expiryLabels.compactMap({ lower.range(of: $0) }).min(by: { $0.lowerBound < $1.lowerBound }) {
+                let offset = lower.distance(from: lower.startIndex, to: label.lowerBound)
+                if let day = days.first(where: { $0.range.location >= offset })?.day ?? days.last?.day {
+                    return (day, row.text)
+                }
             }
+            if periodLabels.contains(where: { lower.contains($0) }), days.count >= 2, let last = days.map(\.day).max() {
+                return (last, row.text)
+            }
+        }
+        return nil
+    }
+
+    static func expiry(in rows: [TextRow], record: Record) -> ExpiryFinding? {
+        if let printed = printedExpiry(in: rows) {
+            return ExpiryFinding(record: record, day: printed.day, evidence: printed.row, isCalculated: false)
         }
         let purchased = rows.first { $0.text.lowercased().contains("purchase") }.flatMap { DayParser.firstDay(in: $0.text) }
             ?? record.documentDate

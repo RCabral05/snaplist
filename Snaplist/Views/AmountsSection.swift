@@ -13,6 +13,7 @@ struct AmountsSection: View {
     var showOnPage: (Amount) -> Void
 
     @State private var editing: Amount?
+    @State private var items: [LineItem] = []
     @State private var isEditingDate = false
     @State private var isShowingAllLines = false
 
@@ -21,8 +22,11 @@ struct AmountsSection: View {
             switch record.kind {
             case .receipt, .bill: totalCard
             case .statement: statementCard
-            case .warranty, .manual, .document, .item, .other: EmptyView()
+            case .warranty, .manual, .identity, .document, .item, .other: EmptyView()
             }
+        }
+        .task(id: "\(record.id)-\(record.kind)-\(transactions.count)-\(model.amountsRevision)") {
+            items = record.kind == .receipt ? model.items(of: record.id) : []
         }
         .sheet(item: $editing) { transaction in
             AmountEditor(transaction: transaction, isNew: transaction.id == nil)
@@ -80,6 +84,10 @@ struct AmountsSection: View {
             .font(.subheadline)
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
 
+            if !items.isEmpty {
+                itemsCard
+            }
+
             HStack {
                 Label(total == nil ? "No total was found on this one. Add it to count it in answers."
                                    : "Read automatically. Tap a value to correct it.",
@@ -95,6 +103,29 @@ struct AmountsSection: View {
             .padding(.horizontal, 4)
         }
         .padding(.horizontal)
+    }
+
+    /// What the receipt lists, line by line, as read.
+    private var itemsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(items.count) \(items.count == 1 ? "item" : "items")")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 { Divider().padding(.leading) }
+                    HStack {
+                        Text(item.name).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        Text(item.money.formatted).font(.subheadline).monospacedDigit()
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 9)
+                }
+            }
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        }
     }
 
     // MARK: Statements

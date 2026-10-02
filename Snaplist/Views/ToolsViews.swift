@@ -164,7 +164,7 @@ struct InventoryView: View {
         }
         .background(Theme.background)
         .navigationTitle("Home Inventory")
-        .task(id: model.amountsRevision) { items = model.belongings() }
+        .task(id: model.derivedRevision) { items = model.belongings() }
     }
 
     private var rooms: [String] {
@@ -229,7 +229,7 @@ struct BelongingSection: View {
         .sheet(item: $editing) { item in
             BelongingEditor(belonging: item, isNew: belonging == nil)
         }
-        .task(id: "\(record.id)-\(model.amountsRevision)") { belonging = model.belonging(record.id) }
+        .task(id: "\(record.id)-\(model.derivedRevision)") { belonging = model.belonging(record.id) }
     }
 }
 
@@ -364,12 +364,11 @@ struct TaxReportView: View {
         .background(Theme.background)
         .navigationTitle("Tax Report")
         .onChange(of: year) { load() }
-        .task(id: model.amountsRevision) {
+        .task(id: model.derivedRevision) {
             years = model.taxYears()
             if let latest = years.first, !years.contains(year) { year = latest }
             load()
         }
-        .onChange(of: model.tags) { years = model.taxYears(); load() }
     }
 
     private func load() {
@@ -418,5 +417,79 @@ struct ReportExportButton: View {
         if case .failed(let message) = state {
             Text("Couldn't export: \(message)").font(.footnote).foregroundStyle(.red)
         }
+    }
+}
+
+// MARK: Important documents
+
+/// Passports, licences, registrations, policies and leases, by when they
+/// run out. Kept out of Spotlight; behind the app lock like everything else.
+struct ImportantDocumentsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var documents: [ImportantDocument] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if documents.isEmpty {
+                    ContentUnavailableView("No IDs or policies yet", systemImage: "person.text.rectangle",
+                                           description: Text("Scan a passport, driver's licence, car registration, insurance card or lease. Snaplist reads when it expires and reminds you two months before."))
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(documents.enumerated()), id: \.element.id) { index, document in
+                            if index > 0 { Divider().padding(.leading, 70) }
+                            NavigationLink(value: RecordListView.Destination(record: document.record)) {
+                                HStack(spacing: 12) {
+                                    RecordThumbnail(record: document.record, pagePosition: nil, style: .square(44))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(document.record.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                                        Text(status(document))
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(color(document))
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
+                    Label("Expiry dates are read from the document. If one is missing or wrong, the document may print it in an unusual way; open it to check.",
+                          systemImage: "info.circle")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Label("Never shown in Spotlight.", systemImage: "lock.shield")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+        }
+        .background(Theme.background)
+        .navigationTitle("IDs & Policies")
+        .task(id: model.derivedRevision) { documents = model.importantDocuments() }
+    }
+
+    private func days(_ document: ImportantDocument) -> Int? {
+        document.expires.map { Day(.now).days(to: $0) }
+    }
+
+    private func status(_ document: ImportantDocument) -> String {
+        guard let expires = document.expires, let days = days(document) else { return "No expiry date found" }
+        let date = expires.date().formatted(date: .abbreviated, time: .omitted)
+        if days < 0 { return "Expired \(date)" }
+        if days == 0 { return "Expires today" }
+        if days <= 90 { return "Expires in \(days) days · \(date)" }
+        return "Expires \(date)"
+    }
+
+    private func color(_ document: ImportantDocument) -> Color {
+        guard let days = days(document) else { return .secondary }
+        if days < 0 { return .red }
+        if days <= 90 { return .orange }
+        return .secondary
     }
 }

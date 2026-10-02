@@ -1,4 +1,5 @@
 import ArchiveCore
+import CoreLocation
 import Foundation
 import Observation
 import PhotosUI
@@ -43,6 +44,14 @@ final class AppModel {
     private var spotlightTask: Task<Void, Never>?
     private var remindersTask: Task<Void, Never>?
     var widgetTask: Task<Void, Never>?
+    var derivedTask: Task<Void, Never>?
+    /// Worked out from the whole archive in the background; see Derived.
+    var derived = Derived()
+    /// Bumped each time `derived` is recomputed, for views to reload on.
+    var derivedRevision = 0
+    /// False until the record list has loaded once, so launch doesn't
+    /// flash the welcome screen or play the "added" haptic.
+    private(set) var hasLoaded = false
     /// Where a widget asked to go: snaplist://scan and the like.
     var pendingLink: SnaplistLink?
     /// "Added 2 files", shown briefly after something arrives from another app.
@@ -119,17 +128,20 @@ final class AppModel {
         _ = try? archive.store.queueStatementsNeedingImageReading()
         // Names records read before naming existed, e.g. "Scan Sep 30…".
         _ = try? archive.store.refreshSuggestions()
+        // Once: receipts read before items were get their lines.
+        if !UserDefaults.standard.bool(forKey: "readReceiptItems") {
+            _ = try? archive.store.refreshItems()
+            UserDefaults.standard.set(true, forKey: "readReceiptItems")
+        }
         resumePending()
 
         do {
             for try await list in archive.store.recordUpdates() {
                 records = list
+                hasLoaded = true
                 refreshTags()
                 refreshTotals()
-                updateSpotlight()
-                updateReminders()
-                checkBudgets()
-                updateWidgets()
+                refreshDerived()
                 // A record that just became ready may now match.
                 search()
             }
@@ -170,6 +182,7 @@ final class AppModel {
 
     /// One record per photo: picking five receipts means five receipts.
     func importPhotos(_ selection: [PhotosPickerItem]) async {
+        var located: [(UUID, CLLocation)] = []
         for item in selection {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
@@ -177,14 +190,27 @@ final class AppModel {
                 let record = add(title: "Photo · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))", nameSource: .automatic,
                                  items: [ImportItem(type: .image, source: .data(data), fileExtension: ext)])
                 if let record, PhotoPlaces.isEnabled, let location = PhotoPlaces.location(in: data) {
-                    Task {
-                        if let place = await PhotoPlaces.name(for: location) {
-                            addTag(place, kind: .place, to: record.id)
-                        }
-                    }
+                    located.append((record.id, location))
                 }
             } catch {
                 errorMessage = "Couldn't load a photo: \(error.localizedDescription)"
+            }
+        }
+        // One lookup at a time: Apple's geocoder turns away bursts. Photos
+        // taken in the same spot share the answer.
+        guard !located.isEmpty else { return }
+        Task {
+            var names: [String: String] = [:]
+            for (recordId, location) in located {
+                let key = String(format: "%.2f,%.2f", location.coordinate.latitude, location.coordinate.longitude)
+                let name: String?
+                if let known = names[key] {
+                    name = known
+                } else {
+                    name = await PhotoPlaces.name(for: location)
+                    names[key] = name
+                }
+                if let name { addTag(name, kind: .place, to: recordId) }
             }
         }
     }
@@ -241,6 +267,10 @@ final class AppModel {
     }
 
     // MARK: Amounts
+
+    func items(of recordId: UUID) -> [LineItem] {
+        (try? archive.store.items(of: recordId)) ?? []
+    }
 
     func transactions(of recordId: UUID) -> [Amount] {
         (try? archive.store.transactions(of: recordId)) ?? []
@@ -305,8 +335,7 @@ final class AppModel {
     func amountsChanged() {
         amountsRevision += 1
         refreshTotals()
-        checkBudgets()
-        updateWidgets()
+        refreshDerived()
     }
 
     private func refreshTotals() {
@@ -324,7 +353,7 @@ final class AppModel {
         var question = QuestionParser.parse(text, today: today)
         // "Mom's warranties", "receipts from the Boston trip": people and
         // places the person saved come before any guessing.
-        if case .search = question, let tagged = try? archive.store.taggedRecords(matching: text) {
+        if case .search = question, let tagged = try? archive.store.taggedRecords(matching: text), tagged.otherWords.isEmpty {
             return .records(tagged)
         }
         var readByModel = false
@@ -354,6 +383,8 @@ final class AppModel {
                 return .whereIs(try archive.store.whereIs(terms), terms: terms)
             case .expiry(let terms):
                 return .expiry(try archive.store.expiries(terms), terms: terms)
+            case .lastBought(let terms):
+                return .lastBought(try archive.store.lastBought(terms), terms: terms)
             case .search(let text):
                 return .search(try archive.store.search(text, limit: 10), text: text)
             }
@@ -398,7 +429,7 @@ final class AppModel {
         do {
             try archive.store.addTag(name, kind: kind, to: recordId)
             refreshTags()
-            updateSpotlight()
+            refreshDerived()
         } catch {
             errorMessage = "Couldn't add that: \(error.localizedDescription)"
         }
@@ -409,6 +440,7 @@ final class AppModel {
         do {
             try archive.store.removeTag(id, from: recordId)
             refreshTags()
+            refreshDerived()
         } catch {
             errorMessage = "Couldn't remove that: \(error.localizedDescription)"
         }
@@ -470,6 +502,7 @@ final class AppModel {
     func delete(_ recordId: UUID) {
         do {
             try archive.delete(recordId)
+            amountsChanged()
         } catch {
             errorMessage = "Couldn't delete that: \(error.localizedDescription)"
         }
@@ -531,27 +564,15 @@ final class AppModel {
 
     // MARK: Overview
 
-    func spendingOverview() -> SpendingOverview? {
-        (try? archive.store.spendingOverview())
-    }
+    func spendingOverview() -> SpendingOverview? { derived.overview }
+    func recurringCharges() -> [RecurringCharge] { derived.recurring }
+    func upcomingDates() -> [UpcomingDate] { derived.upcoming }
 
-    func recurringCharges() -> [RecurringCharge] {
-        (try? archive.store.recurringCharges()) ?? []
-    }
-
-    func upcomingDates() -> [UpcomingDate] {
-        (try? archive.store.upcomingDates(from: Day(.now))) ?? []
-    }
-
-    /// Keeps scheduled reminders in step with the records. Coalesced.
+    /// After reminders are turned on or off.
     func updateReminders() {
         remindersTask?.cancel()
-        let dates = upcomingDates()
-        remindersTask = Task {
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            await Reminders.schedule(dates)
-        }
+        let dates = derived.upcoming
+        remindersTask = Task { await Reminders.schedule(dates) }
     }
 
     // MARK: From other apps

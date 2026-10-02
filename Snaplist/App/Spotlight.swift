@@ -16,7 +16,8 @@ enum Spotlight {
 
     /// Replaces what's indexed with `records`. Cheap: Spotlight updates by id.
     static func index(_ records: [Record], totals: [UUID: Money]) async {
-        let items = records.filter { $0.status == .ready }.map { record in
+        // IDs and policies stay out of Spotlight entirely.
+        let items = records.filter { $0.status == .ready && $0.kind != .identity }.map { record in
             let attributes = CSSearchableItemAttributeSet(contentType: .content)
             attributes.title = record.title
             var description = "\(record.kind.label) · \(record.effectiveDay.date().formatted(date: .abbreviated, time: .omitted))"

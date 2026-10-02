@@ -69,6 +69,8 @@ struct WidgetSnapshot: Codable, Sendable {
 /// Links widgets open: snaplist://scan, snaplist://ask, snaplist://spending.
 enum SnaplistLink: String, Sendable {
     case scan, ask, spending, home
+    /// The library, with whatever filter was just set.
+    case library
 
     var url: URL { URL(string: "snaplist://\(rawValue)")! }
 }

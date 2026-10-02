@@ -64,6 +64,8 @@ public struct UpcomingDate: Hashable, Identifiable, Sendable {
         case billDue, warrantyEnds
         /// The last day a purchase can be returned.
         case returnBy
+        /// A passport, licence, registration, policy or lease runs out.
+        case renewal
     }
 
     public var kind: Kind
@@ -202,6 +204,11 @@ extension ArchiveStore {
         }
         for finding in try expiries([]) where finding.day >= today {
             dates.append(UpcomingDate(kind: .warrantyEnds, record: finding.record, day: finding.day))
+        }
+        for document in try importantDocuments() {
+            if let expires = document.expires, expires >= today {
+                dates.append(UpcomingDate(kind: .renewal, record: document.record, day: expires))
+            }
         }
         // Receipts, and anything not yet filed that may be one.
         let receipts = try records().filter { [.receipt, .document, .other].contains($0.kind) && $0.status == .ready }
@@ -406,5 +413,38 @@ extension ArchiveStore {
             }
         }
         return nil
+    }
+}
+
+// MARK: Important documents
+
+/// A passport, licence, registration, policy or lease, and when it runs out.
+public struct ImportantDocument: Hashable, Identifiable, Sendable {
+    public var record: Record
+    public var expires: Day?
+    /// The printed line the date came from.
+    public var evidence: String?
+    public var id: UUID { record.id }
+}
+
+extension ArchiveStore {
+    /// Every ID and policy, soonest to expire first, ones without a date last.
+    public func importantDocuments() throws -> [ImportantDocument] {
+        let records = try records(kind: .identity)
+        return try db.read { db in
+            try records.map { record in
+                let rows = Extractor.rows(of: try Self.storedPages(of: record.id, in: db))
+                let printed = Self.printedExpiry(in: rows)
+                return ImportantDocument(record: record, expires: printed?.day, evidence: printed?.row)
+            }
+        }
+        .sorted { a, b in
+            switch (a.expires, b.expires) {
+            case let (x?, y?): x < y
+            case (_?, nil): true
+            case (nil, _?): false
+            case (nil, nil): a.record.title < b.record.title
+            }
+        }
     }
 }

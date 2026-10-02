@@ -26,7 +26,9 @@ struct RecordListView: View {
 
         NavigationStack(path: $path) {
             ScrollView {
-                if model.records.isEmpty {
+                if !model.hasLoaded {
+                    Color.clear
+                } else if model.records.isEmpty {
                     WelcomeView(canScan: addFlow.canScan, scan: { addFlow.isScanning = true },
                                 choosePhotos: { addFlow.isPickingPhotos = true },
                                 importFiles: { addFlow.isPickingFiles = true })
@@ -298,6 +300,7 @@ extension RecordKind {
         case .bill: "Bill"
         case .warranty: "Warranty"
         case .manual: "Manual"
+        case .identity: "ID or policy"
         case .document: "Document"
         case .item: "Item"
         case .other: "Other"
@@ -311,6 +314,7 @@ extension RecordKind {
         case .bill: "Bills"
         case .warranty: "Warranties"
         case .manual: "Manuals"
+        case .identity: "IDs & policies"
         case .document: "Documents"
         case .item: "Items"
         case .other: "Other"
@@ -324,6 +328,7 @@ extension RecordKind {
         case .bill: "envelope"
         case .warranty: "checkmark.shield"
         case .manual: "book.closed"
+        case .identity: "person.text.rectangle"
         case .document: "doc.text"
         case .item: "shippingbox"
         case .other: "square.dashed"

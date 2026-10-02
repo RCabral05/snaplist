@@ -49,6 +49,9 @@ enum AnswerText {
             return first.isCalculated
                 ? "“\(first.record.title)” runs out around \(day), worked out from the purchase date and the coverage printed on it."
                 : "“\(first.record.title)” expires on \(day)."
+        case .lastBought(let found, let terms):
+            guard let latest = found.first else { return "No saved receipt lists \(terms.joined(separator: " "))." }
+            return "You last bought \(latest.transaction.memo) on \(latest.day.date().formatted(date: .long, time: .omitted)) at \(latest.transaction.merchant), for \(latest.transaction.money.formatted)."
         case .records(let tagged):
             switch tagged.records.count {
             case 0: return "Nothing is tagged with \(tagged.tags.map(\.name).joined(separator: " and "))."

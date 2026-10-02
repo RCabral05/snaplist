@@ -172,6 +172,21 @@ public struct ArchiveStore: Sendable {
                 );
                 """)
         }
+        migrator.registerMigration("v8-line-items") { db in
+            try db.execute(sql: """
+                -- What a receipt lists: name and price per line.
+                CREATE TABLE lineItem (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    pagePosition INTEGER NOT NULL,
+                    linePosition INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    amountCents INTEGER NOT NULL,
+                    currency TEXT NOT NULL
+                );
+                CREATE INDEX lineItem_recordId ON lineItem(recordId);
+                """)
+        }
         return migrator
     }
 
@@ -420,6 +435,11 @@ public struct ArchiveStore: Sendable {
         let facts = Extractor.extract(kind: record.kind, pages: pages, recordId: record.id, merchant: merchant)
         if !record.documentDateEdited {
             record.documentDate = facts.documentDate
+        }
+        // Items are always re-read: they're never edited by hand.
+        try db.execute(sql: "DELETE FROM lineItem WHERE recordId = ?", arguments: [record.id])
+        for var item in facts.items {
+            try item.insert(db)
         }
         let hasEdits = try Bool.fetchOne(
             db, sql: "SELECT EXISTS (SELECT 1 FROM txn WHERE recordId = ? AND isEdited)", arguments: [record.id]) ?? false

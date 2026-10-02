@@ -94,6 +94,7 @@ public enum ArchiveExporter {
         case .bill: "Bills"
         case .warranty: "Warranties"
         case .manual: "Manuals"
+        case .identity: "IDs and Policies"
         case .document: "Documents"
         case .item: "Notes"
         case .other: "Other"

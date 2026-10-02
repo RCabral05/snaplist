@@ -10,6 +10,8 @@ public enum Question: Equatable, Sendable {
     case whereIs(terms: [String])
     /// "When does the warranty on my TV expire?"
     case expiry(terms: [String])
+    /// "When did I last buy printer ink?"
+    case lastBought(terms: [String])
     /// Anything else: a plain search.
     case search(String)
 }
@@ -43,6 +45,9 @@ public enum QuestionParser {
 
         if text.contains(" where ") || text.contains(" where's ") {
             return .whereIs(terms: terms(in: text, dropping: whereWords))
+        }
+        if text.contains(" when "), [" buy ", " bought ", " purchase ", " purchased ", " get ", " got "].contains(where: { text.contains($0) }) {
+            return .lastBought(terms: terms(in: text, dropping: lastBoughtWords))
         }
         if text.contains("expire") || text.contains("expiration") || (text.contains("warranty") && text.contains(" when ")) {
             return .expiry(terms: terms(in: text, dropping: expiryWords))
@@ -108,6 +113,8 @@ public enum QuestionParser {
                                               "bought", "buy", "dollars", "amount"])
     static let whereFiller = filler.union(["where", "where's", "wheres", "left", "store", "stored", "find", "can"])
     static let whereWords = whereFiller
+    static let lastBoughtWords = filler.union(["when", "last", "buy", "bought", "purchase", "purchased", "get", "got",
+                                               "time", "recently", "some", "new", "more"])
     static let expiryWords = filler.union(["expire", "expires", "expiring", "expiration", "date", "end", "ends",
                                            "run", "out", "warranty", "warranties", "coverage", "covered", "until",
                                            "valid", "still"])

@@ -22,6 +22,7 @@ struct TagsSection: View {
                         Button("Show All Tagged \(tag.name)", systemImage: "line.3.horizontal.decrease") {
                             model.kindFilter = nil
                             model.tagFilter = tag
+                            model.pendingLink = .library
                         }
                         Button("Remove", systemImage: "xmark", role: .destructive) {
                             model.removeTag(tag, from: record.id)

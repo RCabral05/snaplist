@@ -11,9 +11,7 @@ extension AppModel {
         return DayRange.month(today.month, of: today.year) ?? DayRange(today, today)
     }
 
-    func budgetStatus() -> [BudgetStatus] {
-        (try? archive.store.budgetStatus(in: budgetMonth)) ?? []
-    }
+    func budgetStatus() -> [BudgetStatus] { derived.budgets }
 
     func setBudget(_ cents: Int64?, for category: SpendCategory?) {
         do {
@@ -72,9 +70,9 @@ extension AppModel {
         }
     }
 
-    func inventorySummary() -> InventorySummary? {
-        try? archive.store.inventorySummary()
-    }
+    func inventorySummary() -> InventorySummary? { derived.inventory }
+
+    func importantDocuments() -> [ImportantDocument] { derived.importantDocuments }
 
     /// A zip of the inventory's spreadsheet, a PDF summary, and every photo
     /// and receipt.
@@ -101,9 +99,7 @@ extension AppModel {
 
     // MARK: Tax report
 
-    func taxYears() -> [Int] {
-        (try? archive.store.taxYears()) ?? []
-    }
+    func taxYears() -> [Int] { derived.taxYears }
 
     func taxReport(year: Int) -> TaxReport? {
         try? archive.store.taxReport(year: year)
@@ -133,7 +129,9 @@ extension AppModel {
     @concurrent
     private static func writeReport(_ archive: Archive, pdf: ReportPDF.Document, pdfName: String,
                                     write: @Sendable (Archive, URL) throws -> URL) async throws -> URL {
+        // One folder per kind of report, so exporting one doesn't delete the other's zip.
         let parent = FileManager.default.temporaryDirectory.appending(path: "Reports", directoryHint: .isDirectory)
+            .appending(path: (pdfName as NSString).deletingPathExtension, directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: parent)
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         let folder = try write(archive, parent)

@@ -107,7 +107,7 @@ struct MainTabs: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
-        .sensoryFeedback(.success, trigger: model.records.count) { old, new in new > old }
+        .sensoryFeedback(.success, trigger: model.records.count) { old, new in new > old && old > 0 }
         // From Siri, when the lock meant the answer had to be shown here.
         .task(id: model.pendingQuestion) {
             guard let question = model.pendingQuestion else { return }
@@ -126,6 +126,9 @@ struct MainTabs: View {
             case .ask: selection = .ask
             case .spending: selection = .spending
             case .home: selection = .home
+            case .library:
+                libraryPath = []
+                selection = .library
             }
         }
         // From Spotlight or a reminder.

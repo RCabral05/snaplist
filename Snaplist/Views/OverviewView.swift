@@ -58,7 +58,7 @@ struct OverviewView: View {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
             }
-            .task(id: "\(model.amountsRevision)-\(model.records.hashValue)") { load() }
+            .task(id: model.derivedRevision) { load() }
         }
     }
 
@@ -297,7 +297,7 @@ private struct UpcomingSection: View {
                                 .background(date.record.kind.tint.opacity(0.14), in: .circle)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(date.record.title).font(.subheadline).lineLimit(1)
-                                Text("\(date.kind == .billDue ? "Due" : date.kind == .returnBy ? "Return by" : "Warranty ends") \(date.day.date().formatted(date: .abbreviated, time: .omitted))")
+                                Text("\(date.title) \(date.day.date().formatted(date: .abbreviated, time: .omitted))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -361,7 +361,9 @@ struct AnswerScreen: View {
     var body: some View {
         ScrollView {
             if let result {
-                AnswerView(result: result, reask: { self.result = model.answer($0) }, decided: { self.result = model.answer(query) })
+                AnswerView(result: result, reask: { self.result = model.answer($0) }, decided: {
+                    if case .spending(let shown) = self.result { self.result = model.answer(shown.query) }
+                })
                     .padding()
             }
         }

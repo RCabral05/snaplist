@@ -75,6 +75,10 @@ private func add(_ tmp: TemporaryArchive, kind: RecordKind, title: String, lines
         #expect(Set(boston.records.map(\.id)) == [dinner, parking])
         #expect(try store.taggedRecords(matching: "mom in boston")?.records.map(\.id) == [dinner])
         #expect(try store.taggedRecords(matching: "momentum") == nil)
+        // Only the tags and a category: the question is about them.
+        #expect(try store.taggedRecords(matching: "show me Mom's warranties")?.otherWords == [])
+        // Other words too: probably about something else, so a text search.
+        #expect(try store.taggedRecords(matching: "boston cream pie recipe")?.otherWords == ["cream", "pie", "recipe"])
         #expect(try store.taggedRecords(matching: "where is my passport") == nil)
     }
 

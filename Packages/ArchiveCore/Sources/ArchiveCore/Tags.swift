@@ -38,6 +38,10 @@ public struct TaggedRecords: Sendable {
     public var kind: RecordKind?
     /// Newest first.
     public var records: [Record]
+    /// Words in the question besides the tags, the category and filler:
+    /// "cards" in "business cards". When there are any, the question is
+    /// probably about something else that happens to share a tag's name.
+    public var otherWords: [String] = []
 }
 
 extension ArchiveStore {
@@ -151,8 +155,17 @@ extension ArchiveStore {
                 ORDER BY COALESCE(documentDate, substr(createdAt, 1, 10)) DESC, createdAt DESC
                 """, arguments: StatementArguments(ids) + [ids.count, kind?.rawValue, kind?.rawValue])
         }
-        return TaggedRecords(tags: named, kind: kind, records: records)
+        var others = QuestionParser.terms(in: text, dropping: QuestionParser.filler.union(Self.taggedFiller))
+        let tagWords = Set(named.flatMap { $0.name.lowercased().split(separator: " ").map(String.init) })
+        let kindWordSet = Set(Self.kindWords.flatMap(\.0).flatMap { $0.split(separator: " ").map(String.init) })
+        others.removeAll { tagWords.contains($0) || kindWordSet.contains($0) }
+        return TaggedRecords(tags: named, kind: kind, records: records, otherWords: others)
     }
+
+    /// Words that only frame the question: "show me Mom's stuff", "all my
+    /// receipts from the Boston trip".
+    static let taggedFiller: Set<String> = ["show", "list", "find", "see", "trip", "everything", "anything", "things",
+                                            "records", "documents", "docs", "saved", "tagged", "related", "visit"]
 
     static let kindWords: [([String], RecordKind)] = [
         (["receipt", "receipts"], .receipt),
@@ -160,6 +173,7 @@ extension ArchiveStore {
         (["bill", "bills"], .bill),
         (["warranty", "warranties"], .warranty),
         (["manual", "manuals"], .manual),
+        (["passport", "license", "licence", "registration", "insurance", "policy", "policies", "lease", "ids"], .identity),
         (["note", "notes", "voice note", "voice notes"], .item),
     ]
 }
