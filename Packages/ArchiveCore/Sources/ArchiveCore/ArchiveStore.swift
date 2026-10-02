@@ -187,6 +187,58 @@ public struct ArchiveStore: Sendable {
                 CREATE INDEX lineItem_recordId ON lineItem(recordId);
                 """)
         }
+        migrator.registerMigration("v9-things-collections") { db in
+            try db.execute(sql: """
+                -- Things owned, and the records about each.
+                CREATE TABLE thing (
+                    id BLOB PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    valueCents INTEGER,
+                    currency TEXT NOT NULL DEFAULT 'USD',
+                    store TEXT NOT NULL DEFAULT '',
+                    purchased TEXT,
+                    serialNumber TEXT NOT NULL DEFAULT '',
+                    room TEXT NOT NULL DEFAULT '',
+                    warrantyEnds TEXT,
+                    createdAt DATETIME NOT NULL
+                );
+                CREATE TABLE thingRecord (
+                    thingId BLOB NOT NULL REFERENCES thing(id) ON DELETE CASCADE,
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL,
+                    PRIMARY KEY (thingId, recordId)
+                );
+                CREATE INDEX thingRecord_recordId ON thingRecord(recordId);
+
+                -- Collections: a name, an icon, and words that pull records in;
+                -- records added or left out by hand override the words.
+                CREATE TABLE collection (
+                    id BLOB PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    keywords TEXT NOT NULL DEFAULT '',
+                    createdAt DATETIME NOT NULL
+                );
+                CREATE TABLE collectionRecord (
+                    collectionId BLOB NOT NULL REFERENCES collection(id) ON DELETE CASCADE,
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE,
+                    included BOOLEAN NOT NULL,
+                    PRIMARY KEY (collectionId, recordId)
+                );
+                """)
+            // Home inventory items become things, linked to their record.
+            for row in try Row.fetchAll(db, sql: "SELECT belonging.*, record.kind, record.createdAt AS added FROM belonging JOIN record ON record.id = belonging.recordId") {
+                let id = UUID()
+                try db.execute(sql: """
+                    INSERT INTO thing (id, name, valueCents, currency, serialNumber, room, purchased, createdAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, arguments: [id, row["name"], row["valueCents"], row["currency"], row["serialNumber"],
+                                     row["room"], row["purchased"], row["added"]])
+                let kind = RecordKind(rawValue: row["kind"]) ?? .other
+                try db.execute(sql: "INSERT INTO thingRecord (thingId, recordId, role) VALUES (?, ?, ?)",
+                               arguments: [id, row["recordId"], ThingRole.of(kind).rawValue])
+            }
+        }
         return migrator
     }
 
@@ -383,6 +435,8 @@ public struct ArchiveStore: Sendable {
             _ = try Record.deleteAll(db)
             try db.execute(sql: "DELETE FROM tag")
             try db.execute(sql: "DELETE FROM budget")
+            try db.execute(sql: "DELETE FROM thing")
+            try db.execute(sql: "DELETE FROM collection")
         }
     }
 

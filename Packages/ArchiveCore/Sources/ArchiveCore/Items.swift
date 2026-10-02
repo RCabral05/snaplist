@@ -69,13 +69,13 @@ extension ArchiveStore {
     @discardableResult
     public func refreshItems() throws -> Int {
         try db.write { db in
-            let receipts = try Record.filter(Column("kind") == RecordKind.receipt.rawValue
+            let receipts = try Record.filter([RecordKind.receipt.rawValue, RecordKind.bill.rawValue].contains(Column("kind"))
                                              && Column("status") == IngestStatus.ready.rawValue).fetchAll(db)
             var changed = 0
             for record in receipts {
                 let pages = try Self.storedPages(of: record.id, in: db)
                 let merchant = Suggester.name(in: pages) ?? record.title
-                let items = Extractor.extract(kind: .receipt, pages: pages, recordId: record.id, merchant: merchant).items
+                let items = Extractor.extract(kind: record.kind, pages: pages, recordId: record.id, merchant: merchant).items
                 try db.execute(sql: "DELETE FROM lineItem WHERE recordId = ?", arguments: [record.id])
                 for var item in items { try item.insert(db) }
                 if !items.isEmpty { changed += 1 }

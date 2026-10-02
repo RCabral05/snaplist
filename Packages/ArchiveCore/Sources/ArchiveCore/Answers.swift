@@ -200,6 +200,18 @@ extension ArchiveStore {
         }
     }
 
+    /// `word` in `text` as a whole word or phrase: "car wash" yes, "card" no.
+    static func containsWord(_ text: String, _ word: String) -> Bool {
+        var range = text.startIndex..<text.endIndex
+        while let found = text.range(of: word, options: .caseInsensitive, range: range) {
+            let before = found.lowerBound == text.startIndex ? nil : text[text.index(before: found.lowerBound)]
+            let after = found.upperBound == text.endIndex ? nil : text[found.upperBound]
+            if !(before?.isLetter ?? false) && !(after?.isLetter ?? false) { return true }
+            range = found.upperBound..<text.endIndex
+        }
+        return false
+    }
+
     static func unknownTerms(_ terms: [String], in items: [Counted]) -> [String] {
         terms.filter { term in !items.contains { $0.haystack.contains(term) } }
     }
@@ -244,6 +256,11 @@ extension ArchiveStore {
     }
 
     private func matches(_ item: Counted, _ query: SpendingQuery) -> Bool {
+        if let only = query.onlyRecords, !only.contains(item.record.id) {
+            // A statement line can still belong by what it says.
+            guard item.transaction.source == .statement,
+                  query.lineKeywords.contains(where: { Self.containsWord(item.haystack, $0) }) else { return false }
+        }
         if let range = query.range, !range.contains(item.day) { return false }
         if !query.categories.isEmpty, !query.categories.contains(item.transaction.category) { return false }
         if !query.merchantTerms.isEmpty {

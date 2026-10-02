@@ -127,7 +127,10 @@ enum Extractor {
     }
 
     /// Rows above the total that end in an amount and name something.
-    static func lineItems(_ rows: [TextRow], recordId: UUID, before total: TextRow, totalCents: Int64) -> [LineItem] {
+    static func lineItems(_ rows: [TextRow], recordId: UUID, before total: TextRow, totalCents: Int64,
+                          keepTaxes: Bool = false) -> [LineItem] {
+        // On a bill, taxes and fees are charges like any other.
+        let notItem = keepTaxes ? Self.notItem.filter { $0 != "tax" } : Self.notItem
         var items: [LineItem] = []
         for row in rows {
             if (row.pagePosition, row.linePosition) >= (total.pagePosition, total.linePosition) { break }
@@ -159,7 +162,8 @@ enum Extractor {
             recordId: recordId, pagePosition: row.pagePosition, linePosition: row.linePosition, date: date,
             merchant: merchant, memo: row.text, amountCents: amount.cents, currency: amount.currency ?? "USD",
             kind: .bill, category: SpendCategories.classify(merchant: merchant, memo: "utility"), source: .bill)
-        return ExtractedFacts(documentDate: date, transactions: [transaction])
+        return ExtractedFacts(documentDate: date, transactions: [transaction],
+                              items: lineItems(rows, recordId: recordId, before: row, totalCents: amount.cents, keepTaxes: true))
     }
 
     /// The amount on the row with the best label, or on the row after it when

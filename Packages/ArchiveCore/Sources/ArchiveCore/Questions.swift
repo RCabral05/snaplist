@@ -12,6 +12,8 @@ public enum Question: Equatable, Sendable {
     case expiry(terms: [String])
     /// "When did I last buy printer ink?"
     case lastBought(terms: [String])
+    /// "What do I usually pay for eggs?", "Cheapest place I've bought Tide?"
+    case priceHistory(terms: [String], categories: Set<SpendCategory>)
     /// Anything else: a plain search.
     case search(String)
 }
@@ -26,6 +28,13 @@ public struct SpendingQuery: Hashable, Sendable {
     public var rangeLabel: String?
     /// Caveats about how the words were read, shown with the answer.
     public var notes: [String] = []
+    /// Only amounts on these records count: a collection like Car.
+    public var onlyRecords: Set<UUID>?
+    /// Statement lines count too when they mention one of these (a
+    /// collection's words): "JIFFY LUBE" for Car.
+    public var lineKeywords: [String] = []
+    /// The collection's name, for the answer's wording.
+    public var scopeLabel: String?
 
     public init(categories: Set<SpendCategory> = [], merchantTerms: [String] = [], range: DayRange? = nil,
                 rangeLabel: String? = nil, notes: [String] = []) {
@@ -45,6 +54,20 @@ public enum QuestionParser {
 
         if text.contains(" where ") || text.contains(" where's ") {
             return .whereIs(terms: terms(in: text, dropping: whereWords))
+        }
+        if priceWords.contains(where: { text.contains($0) }) {
+            var categories: Set<SpendCategory> = []
+            var rest = text
+            for (words, found, _) in categoryWords {
+                if let word = words.first(where: { rest.contains(" \($0) ") }) {
+                    categories.formUnion(found)
+                    rest = rest.replacingOccurrences(of: " \(word) ", with: " ")
+                }
+            }
+            let terms = terms(in: text, dropping: priceFiller)
+            if !terms.isEmpty || !categories.isEmpty {
+                return .priceHistory(terms: terms, categories: categories)
+            }
         }
         if text.contains(" when "), [" buy ", " bought ", " purchase ", " purchased ", " get ", " got "].contains(where: { text.contains($0) }) {
             return .lastBought(terms: terms(in: text, dropping: lastBoughtWords))
@@ -113,6 +136,15 @@ public enum QuestionParser {
                                               "bought", "buy", "dollars", "amount"])
     static let whereFiller = filler.union(["where", "where's", "wheres", "left", "store", "stored", "find", "can"])
     static let whereWords = whereFiller
+    /// Questions about a price rather than a total.
+    static let priceWords = [" last time ", " usually ", " normally ", " typically ", " on average ", " average ",
+                             " cheapest ", " cheaper ", " gone up ", " went up ", " go up ", " increased ", " increase ",
+                             " price of ", " price for ", " prices ", " price history ", " cost per "]
+    static let priceFiller = filler.union(["last", "time", "usually", "normally", "typically", "average", "cheapest",
+                                           "cheaper", "gone", "went", "go", "increased", "increase", "price", "prices",
+                                           "history", "pay", "paid", "cost", "costs", "per", "place", "where", "store",
+                                           "bought", "buy", "spend", "spent", "much", "for", "the", "what", "whats",
+                                           "what's", "has", "have", "i've", "ive", "my", "is", "do", "did"])
     static let lastBoughtWords = filler.union(["when", "last", "buy", "bought", "purchase", "purchased", "get", "got",
                                                "time", "recently", "some", "new", "more"])
     static let expiryWords = filler.union(["expire", "expires", "expiring", "expiration", "date", "end", "ends",

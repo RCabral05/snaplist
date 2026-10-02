@@ -205,6 +205,13 @@ extension ArchiveStore {
         for finding in try expiries([]) where finding.day >= today {
             dates.append(UpcomingDate(kind: .warrantyEnds, record: finding.record, day: finding.day))
         }
+        // Things whose warranty end was typed in; linked warranties already
+        // count above.
+        for profile in try thingProfiles() where profile.thing.warrantyEnds != nil && profile.links(.warranty).isEmpty {
+            if let end = profile.warrantyEnds, end >= today, let record = profile.links.first?.record {
+                dates.append(UpcomingDate(kind: .warrantyEnds, record: record, day: end))
+            }
+        }
         for document in try importantDocuments() {
             if let expires = document.expires, expires >= today {
                 dates.append(UpcomingDate(kind: .renewal, record: document.record, day: expires))
@@ -323,86 +330,9 @@ extension ArchiveStore {
     }
 }
 
-// MARK: Home inventory
-
-/// Something owned, for insurance: what it is, what it cost, its serial
-/// number, and the record (photo, receipt or warranty) that shows it.
-public struct Belonging: Hashable, Identifiable, Sendable {
-    public var record: Record
-    public var name: String
-    public var valueCents: Int64?
-    public var currency: String
-    public var serialNumber: String
-    public var room: String
-    public var purchased: Day?
-
-    public var id: UUID { record.id }
-
-    public init(record: Record, name: String, valueCents: Int64?, currency: String = "USD", serialNumber: String = "",
-                room: String = "", purchased: Day? = nil) {
-        self.record = record
-        self.name = name
-        self.valueCents = valueCents
-        self.currency = currency
-        self.serialNumber = serialNumber
-        self.room = room
-        self.purchased = purchased
-    }
-}
+// MARK: Serial numbers
 
 extension ArchiveStore {
-    /// Everything in the home inventory, by room then name.
-    public func belongings() throws -> [Belonging] {
-        try db.read { db in
-            let rows = try Row.fetchAll(db, sql: "SELECT * FROM belonging")
-            let records = try Record.fetchAll(db, keys: rows.map { $0["recordId"] as UUID })
-            let byId = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
-            return rows.compactMap { row -> Belonging? in
-                guard let record = byId[row["recordId"]] else { return nil }
-                let purchased: String? = row["purchased"]
-                return Belonging(record: record, name: row["name"], valueCents: row["valueCents"], currency: row["currency"],
-                                 serialNumber: row["serialNumber"], room: row["room"],
-                                 purchased: purchased.flatMap(Day.init(iso:)))
-            }
-            .sorted { ($0.room.isEmpty ? "~" : $0.room.lowercased(), $0.name.lowercased()) < ($1.room.isEmpty ? "~" : $1.room.lowercased(), $1.name.lowercased()) }
-        }
-    }
-
-    public func belonging(_ recordId: UUID) throws -> Belonging? {
-        try belongings().first { $0.id == recordId }
-    }
-
-    public func save(_ belonging: Belonging) throws {
-        try db.write { db in
-            try db.execute(sql: """
-                INSERT INTO belonging (recordId, name, valueCents, currency, serialNumber, room, purchased)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(recordId) DO UPDATE SET name = excluded.name, valueCents = excluded.valueCents,
-                    currency = excluded.currency, serialNumber = excluded.serialNumber, room = excluded.room,
-                    purchased = excluded.purchased
-                """, arguments: [belonging.record.id, belonging.name, belonging.valueCents, belonging.currency,
-                                 belonging.serialNumber, belonging.room, belonging.purchased?.iso])
-        }
-    }
-
-    public func removeBelonging(_ recordId: UUID) throws {
-        try db.write { db in
-            try db.execute(sql: "DELETE FROM belonging WHERE recordId = ?", arguments: [recordId])
-        }
-    }
-
-    /// A first draft from what's saved: the record's name, its total, its
-    /// date, and a serial number if one is printed.
-    public func suggestedBelonging(for recordId: UUID) throws -> Belonging? {
-        guard let record = try record(recordId) else { return nil }
-        let total = try recordTotals()[recordId]
-        let serial = try db.read { db in
-            Self.serialNumber(in: Extractor.rows(of: try Self.storedPages(of: recordId, in: db)))
-        }
-        return Belonging(record: record, name: record.title, valueCents: total?.cents, currency: total?.currency ?? "USD",
-                         serialNumber: serial ?? "", purchased: record.documentDate)
-    }
-
     /// "S/N: QN65Q80D-1234", "Serial No. 8XK2…", "Serial Number ABC123".
     static func serialNumber(in rows: [TextRow]) -> String? {
         let regex = DayParser.regex("(?:s/n|serial\\s*(?:no\\.?|number|#)?)\\s*[:#.]?\\s*([A-Z0-9][A-Z0-9-]{3,})")
@@ -415,7 +345,6 @@ extension ArchiveStore {
         return nil
     }
 }
-
 // MARK: Important documents
 
 /// A passport, licence, registration, policy or lease, and when it runs out.

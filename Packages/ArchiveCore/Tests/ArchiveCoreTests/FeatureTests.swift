@@ -135,29 +135,26 @@ private let appleCardCSV = [
 }
 
 @Suite struct Inventory {
-    @Test func belongingsWithSuggestions() throws {
+    @Test func thingsExportForInsurance() throws {
         let tmp = try TemporaryArchive()
-        let tv = try add(tmp, kind: .receipt, title: "Samsung TV", lines: ["BEST BUY", "03/01/2026", "QN65Q80D S/N: 0ABC1234XYZ",
-                                                                            "TOTAL $1,299.99"])
+        let tv = try add(tmp, kind: .receipt, title: "Best Buy", lines: ["BEST BUY", "03/01/2026", "QN65Q80D S/N: 0ABC1234XYZ",
+                                                                          "TOTAL $1,299.99"])
         let store = tmp.archive.store
-        var item = try #require(try store.suggestedBelonging(for: tv))
-        #expect(item.name == "Samsung TV")
-        #expect(item.valueCents == 129999)
-        #expect(item.serialNumber == "0ABC1234XYZ")
-        #expect(item.purchased == Day(year: 2026, month: 3, day: 1))
-
-        item.room = "Living room"
-        try store.save(item)
-        #expect(try store.belongings().map(\.room) == ["Living room"])
+        var thing = try #require(try store.draftThing(from: tv))
+        #expect(thing.valueCents == 129999)
+        #expect(thing.serialNumber == "0ABC1234XYZ")
+        #expect(thing.purchased == Day(year: 2026, month: 3, day: 1))
+        thing.name = "Samsung TV"
+        thing.room = "Living room"
+        try store.createThing(thing, from: tv)
         #expect(try store.inventorySummary().totalCents == 129999)
 
-        let out = tmp.directory.appendingPathComponent("out")
-        let folder = try ArchiveExporter.exportInventory(tmp.archive, into: out)
+        let folder = try ArchiveExporter.exportInventory(tmp.archive, into: tmp.directory.appendingPathComponent("out"))
         let csv = String(decoding: try Data(contentsOf: folder.appendingPathComponent("Inventory.csv")).dropFirst(3), as: UTF8.self)
         #expect(csv.contains("Samsung TV,Living room,1299.99,USD,0ABC1234XYZ,2026-03-01"))
 
         try tmp.archive.delete(tv)
-        #expect(try store.belongings().isEmpty)
+        #expect(try store.thingProfiles().first?.links.isEmpty == true)
     }
 }
 

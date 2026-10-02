@@ -194,11 +194,7 @@ extension ArchiveStore {
     }
 
     public func inventorySummary() throws -> InventorySummary {
-        let items = try belongings()
-        let currency = items.first?.currency ?? "USD"
-        return InventorySummary(count: items.count,
-                                totalCents: items.filter { $0.currency == currency }.reduce(0) { $0 + ($1.valueCents ?? 0) },
-                                currency: currency)
+        try thingsSummary()
     }
 }
 
@@ -229,25 +225,33 @@ extension ArchiveExporter {
         return folder
     }
 
-    /// The home inventory for an insurer: `Inventory.csv` and each item's
-    /// photos and receipts. Returns the folder.
-    public static func exportInventory(_ archive: Archive, into parent: URL) throws -> URL {
-        let items = try archive.store.belongings()
-        let folder = parent.appendingPathComponent("Snaplist Home Inventory", isDirectory: true)
+    /// The home inventory for an insurer: `Inventory.csv` and each thing's
+    /// photos, receipts and warranties. Only `selected` things when given
+    /// (a claim packet). Returns the folder.
+    public static func exportInventory(_ archive: Archive, into parent: URL, selected: Set<UUID>? = nil,
+                                       name: String = "Snaplist Home Inventory") throws -> URL {
+        let profiles = try archive.store.thingProfiles().filter { selected?.contains($0.id) ?? true }
+        let folder = parent.appendingPathComponent(name, isDirectory: true)
         let fm = FileManager.default
         if fm.fileExists(atPath: folder.path) { try fm.removeItem(at: folder) }
         let files = folder.appendingPathComponent("Photos and Receipts", isDirectory: true)
         try fm.createDirectory(at: files, withIntermediateDirectories: true)
 
-        var rows = [["Item", "Room", "Value", "Currency", "Serial number", "Purchased", "Files"]]
+        var rows = [["Item", "Room", "Value", "Currency", "Serial number", "Bought", "Store", "Warranty ends", "Files"]]
         var used = Set<String>()
-        for item in items {
-            let copied = try copyOriginals(of: item.record, archive: archive, to: files, used: &used, name: item.name)
+        for profile in profiles {
+            let item = profile.thing
+            var copied: [String] = []
+            for link in profile.links {
+                copied += try copyOriginals(of: link.record, archive: archive, to: files, used: &used,
+                                            name: "\(item.name) \(link.role.rawValue)")
+            }
             rows.append([item.name, item.room, item.valueCents.map(decimal) ?? "", item.currency, item.serialNumber,
-                         item.purchased?.iso ?? "", copied.map { "\(files.lastPathComponent)/\($0)" }.joined(separator: "; ")])
+                         item.purchased?.iso ?? "", item.store, profile.warrantyEnds?.iso ?? "",
+                         copied.map { "\(files.lastPathComponent)/\($0)" }.joined(separator: "; ")])
         }
-        let total = items.reduce(Int64(0)) { $0 + ($1.valueCents ?? 0) }
-        rows.append(["Total", "", decimal(total), items.first?.currency ?? "USD", "", "", ""])
+        let total = profiles.reduce(Int64(0)) { $0 + ($1.thing.valueCents ?? 0) }
+        rows.append(["Total", "", decimal(total), profiles.first?.thing.currency ?? "USD", "", "", "", "", ""])
         try csv(rows).write(to: folder.appendingPathComponent("Inventory.csv"))
         return folder
     }
