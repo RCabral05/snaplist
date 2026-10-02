@@ -52,6 +52,33 @@ enum AnswerText {
         case .lastBought(let found, let terms):
             guard let latest = found.first else { return "No saved receipt lists \(terms.joined(separator: " "))." }
             return "You last bought \(latest.transaction.memo) on \(latest.day.date().formatted(date: .long, time: .omitted)) at \(latest.transaction.merchant), for \(latest.transaction.money.formatted)."
+        case .thing(let answer):
+            guard let profile = answer.profiles.first else {
+                return answer.isOutOfWarrantyList ? "Everything you've saved is still covered." : "I couldn't find that."
+            }
+            if answer.isOutOfWarrantyList {
+                return "\(answer.profiles.count) things are out of warranty, including \(profile.thing.name)."
+            }
+            switch answer.topic {
+            case .bought:
+                return profile.thing.purchased.map { "You bought \(profile.thing.name) on \($0.date().formatted(date: .long, time: .omitted))\(profile.thing.store.isEmpty ? "" : " at \(profile.thing.store)")." }
+                    ?? "There's no purchase date saved for \(profile.thing.name)."
+            case .warranty:
+                switch profile.warranty(on: Day(.now)) {
+                case .covered(let until): return "Yes, \(profile.thing.name) is covered until \(until.date().formatted(date: .long, time: .omitted))."
+                case .ended(let on): return "No, the warranty on \(profile.thing.name) ended on \(on.date().formatted(date: .long, time: .omitted))."
+                case .unknown: return "There's no warranty date saved for \(profile.thing.name)."
+                }
+            case .value:
+                return profile.thing.value.map { "\(profile.thing.name) cost \($0.formatted)." } ?? "There's no price saved for \(profile.thing.name)."
+            case .documents, .overview:
+                return "\(profile.thing.name) has \(profile.links.count) documents in Snaplist. Open the app to see them."
+            }
+        case .priceHistory(let history, let terms):
+            guard let history, let latest = history.latest else { return "No saved receipt lists \(terms.joined(separator: " "))." }
+            return "Last time, \(latest.transaction.money.formatted) at \(latest.transaction.merchant). On average \(Money(cents: history.averageCents, currency: history.currency).formatted) over \(history.points.count) times."
+        case .collection(let collection, let records):
+            return "\(collection.name) has \(records.count) records."
         case .records(let tagged):
             switch tagged.records.count {
             case 0: return "Nothing is tagged with \(tagged.tags.map(\.name).joined(separator: " and "))."

@@ -14,6 +14,7 @@ struct AmountsSection: View {
 
     @State private var editing: Amount?
     @State private var items: [LineItem] = []
+    @State private var thingDraft: Thing?
     @State private var isEditingDate = false
     @State private var isShowingAllLines = false
 
@@ -27,6 +28,9 @@ struct AmountsSection: View {
         }
         .task(id: "\(record.id)-\(record.kind)-\(transactions.count)-\(model.amountsRevision)") {
             items = record.kind == .receipt ? model.items(of: record.id) : []
+        }
+        .sheet(item: $thingDraft) { thing in
+            ThingEditor(thing: thing, sourceRecord: record.id)
         }
         .sheet(item: $editing) { transaction in
             AmountEditor(transaction: transaction, isNew: transaction.id == nil)
@@ -108,7 +112,7 @@ struct AmountsSection: View {
     /// What the receipt lists, line by line, as read.
     private var itemsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(items.count) \(items.count == 1 ? "item" : "items")")
+            Text("\(items.count) \(items.count == 1 ? "item" : "items") · tap + to keep track of one as a Thing")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
@@ -119,6 +123,14 @@ struct AmountsSection: View {
                         Text(item.name).font(.subheadline).lineLimit(1)
                         Spacer()
                         Text(item.money.formatted).font(.subheadline).monospacedDigit()
+                        // Something worth keeping track of: a TV, not eggs.
+                        Button {
+                            thingDraft = model.draftThing(from: record.id, item: item)
+                        } label: {
+                            Image(systemName: "plus.circle").foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Make \(item.name) a Thing")
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 9)

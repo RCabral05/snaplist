@@ -38,35 +38,66 @@ extension AppModel {
         }
     }
 
-    // MARK: Home inventory
+    // MARK: Things
 
-    func belongings() -> [Belonging] {
-        (try? archive.store.belongings()) ?? []
+    func thingProfiles() -> [ThingProfile] {
+        (try? archive.store.thingProfiles()) ?? []
     }
 
-    func belonging(_ recordId: UUID) -> Belonging? {
-        try? archive.store.belonging(recordId)
+    func thingProfile(_ id: UUID) -> ThingProfile? {
+        try? archive.store.thingProfile(id)
     }
 
-    func suggestedBelonging(for recordId: UUID) -> Belonging? {
-        try? archive.store.suggestedBelonging(for: recordId)
+    func things(linkedTo recordId: UUID) -> [Thing] {
+        (try? archive.store.things(linkedTo: recordId)) ?? []
     }
 
-    func save(_ belonging: Belonging) {
+    func draftThing(from recordId: UUID, item: LineItem? = nil) -> Thing? {
+        try? archive.store.draftThing(from: recordId, item: item)
+    }
+
+    func suggestedLinks(for thingId: UUID) -> [Record] {
+        (try? archive.store.suggestedLinks(for: thingId)) ?? []
+    }
+
+    /// Saves a thing; a new one is linked to the record it came from.
+    func save(_ thing: Thing, from recordId: UUID? = nil) {
         do {
-            try archive.store.save(belonging)
+            if let recordId {
+                try archive.store.createThing(thing, from: recordId)
+            } else {
+                try archive.store.save(thing)
+            }
             amountsChanged()
         } catch {
             errorMessage = "Couldn't save that: \(error.localizedDescription)"
         }
     }
 
-    func removeBelonging(_ recordId: UUID) {
+    func deleteThing(_ id: UUID) {
         do {
-            try archive.store.removeBelonging(recordId)
+            try archive.store.delete(thing: id)
             amountsChanged()
         } catch {
-            errorMessage = "Couldn't remove that: \(error.localizedDescription)"
+            errorMessage = "Couldn't delete that: \(error.localizedDescription)"
+        }
+    }
+
+    func link(_ recordId: UUID, to thingId: UUID) {
+        do {
+            try archive.store.link(recordId, to: thingId)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't link that: \(error.localizedDescription)"
+        }
+    }
+
+    func unlink(_ recordId: UUID, from thingId: UUID) {
+        do {
+            try archive.store.unlink(recordId, from: thingId)
+            amountsChanged()
+        } catch {
+            errorMessage = "Couldn't unlink that: \(error.localizedDescription)"
         }
     }
 
@@ -74,27 +105,83 @@ extension AppModel {
 
     func importantDocuments() -> [ImportantDocument] { derived.importantDocuments }
 
-    /// A zip of the inventory's spreadsheet, a PDF summary, and every photo
-    /// and receipt.
-    func exportInventory() async throws -> URL {
+    /// A zip for an insurer: a PDF list, a spreadsheet, and every photo,
+    /// receipt and warranty. Only `selected` things for a claim packet.
+    func exportInventory(selected: Set<UUID>? = nil) async throws -> URL {
+        let profiles = thingProfiles().filter { selected?.contains($0.id) ?? true }
+        let isClaim = selected != nil
         let summary = ReportPDF.Document(
-            title: "Home Inventory",
-            subtitle: "Made with Snaplist on \(Date.now.formatted(date: .long, time: .omitted))",
-            sections: Dictionary(grouping: belongings(), by: { $0.room.isEmpty ? "Unassigned" : $0.room })
+            title: isClaim ? "Claim Packet" : "Home Inventory",
+            subtitle: "\(profiles.count) \(profiles.count == 1 ? "item" : "items"), made with Snaplist on \(Date.now.formatted(date: .long, time: .omitted))",
+            sections: Dictionary(grouping: profiles, by: { $0.thing.room.isEmpty ? "Unassigned" : $0.thing.room })
                 .sorted { $0.key < $1.key }
                 .map { room, items in
-                    ReportPDF.Section(heading: room, rows: items.map { item in
-                        ReportPDF.Row(left: item.name,
-                                      detail: [item.serialNumber.isEmpty ? nil : "S/N \(item.serialNumber)",
-                                               item.purchased.map { "Bought \($0.date().formatted(date: .abbreviated, time: .omitted))" }]
-                                        .compactMap { $0 }.joined(separator: " · "),
-                                      right: item.valueCents.map { Money(cents: $0, currency: item.currency).formatted } ?? "")
-                    }, total: Money(cents: items.reduce(0) { $0 + ($1.valueCents ?? 0) }, currency: items.first?.currency ?? "USD").formatted)
+                    ReportPDF.Section(heading: room, rows: items.map { profile in
+                        let item = profile.thing
+                        return ReportPDF.Row(
+                            left: item.name,
+                            detail: [item.serialNumber.isEmpty ? nil : "S/N \(item.serialNumber)",
+                                     item.purchased.map { "Bought \($0.date().formatted(date: .abbreviated, time: .omitted))" + (item.store.isEmpty ? "" : " at \(item.store)") },
+                                     profile.warrantyEnds.map { "Warranty to \($0.date().formatted(date: .abbreviated, time: .omitted))" },
+                                     profile.links.isEmpty ? nil : "\(profile.links.count) documents"]
+                                .compactMap { $0 }.joined(separator: " · "),
+                            right: item.value?.formatted ?? "")
+                    }, total: Money(cents: items.reduce(0) { $0 + ($1.thing.valueCents ?? 0) }, currency: items.first?.thing.currency ?? "USD").formatted)
                 },
-            grandTotal: inventorySummary().map { Money(cents: $0.totalCents, currency: $0.currency).formatted })
-        return try await Self.writeReport(archive, pdf: summary, pdfName: "Inventory.pdf") { archive, parent in
-            try ArchiveExporter.exportInventory(archive, into: parent)
+            grandTotal: Money(cents: profiles.reduce(0) { $0 + ($1.thing.valueCents ?? 0) },
+                              currency: profiles.first?.thing.currency ?? "USD").formatted)
+        let folderName = isClaim ? "Snaplist Claim Packet" : "Snaplist Home Inventory"
+        return try await Self.writeReport(archive, pdf: summary, pdfName: isClaim ? "Claim.pdf" : "Inventory.pdf") { archive, parent in
+            try ArchiveExporter.exportInventory(archive, into: parent, selected: selected, name: folderName)
         }
+    }
+
+    // MARK: Changes and prices
+
+    func priceChanges() -> [PriceChange] { derived.priceChanges }
+
+    // MARK: Collections
+
+    func collections() -> [Collection] { derived.collections }
+
+    func records(in collection: Collection) -> [Record] {
+        (try? archive.store.records(in: collection)) ?? []
+    }
+
+    func statementLines(in collection: Collection) -> [Counted] {
+        (try? archive.store.statementLines(in: collection)) ?? []
+    }
+
+    func save(_ collection: Collection) {
+        do {
+            try archive.store.save(collection)
+            refreshDerived()
+        } catch {
+            errorMessage = "Couldn't save the collection: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteCollection(_ id: UUID) {
+        do {
+            try archive.store.delete(collection: id)
+            refreshDerived()
+        } catch {
+            errorMessage = "Couldn't delete the collection: \(error.localizedDescription)"
+        }
+    }
+
+    func setRecord(_ recordId: UUID, in collectionId: UUID, included: Bool?) {
+        do {
+            try archive.store.setRecord(recordId, in: collectionId, included: included)
+            refreshDerived()
+        } catch {
+            errorMessage = "Couldn't change the collection: \(error.localizedDescription)"
+        }
+    }
+
+    /// Everything a collection's records and lines add up to.
+    func spending(in collection: Collection) -> SpendingAnswer? {
+        try? archive.store.answer(SpendingQuery().within(collection, records: records(in: collection)))
     }
 
     // MARK: Tax report

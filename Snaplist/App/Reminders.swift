@@ -75,6 +75,21 @@ enum Reminders {
 }
 
 extension Reminders {
+    /// Right away: a new bill or subscription costs more (or less) than last time.
+    static func notifyPriceChange(_ change: PriceChange) async {
+        let content = UNMutableNotificationContent()
+        let up = change.deltaCents > 0
+        let delta = Money(cents: abs(change.deltaCents), currency: change.currency).formatted
+        content.title = "\(change.merchant) \(change.kind == .bill ? "bill" : "charge") \(up ? "went up" : "went down")"
+        content.body = await MainActor.run { AppLock.isEnabledSetting }
+            ? "Open Snaplist to see what changed."
+            : "\(up ? "Up" : "Down") \(delta) (\(abs(change.percent))%) from last time. Tap to see what changed."
+        content.sound = .default
+        content.userInfo = ["recordId": change.latest.record.id.uuidString]
+        let request = UNNotificationRequest(identifier: "snaplist.change.\(change.id)", content: content, trigger: nil)
+        try? await UNUserNotificationCenter.current().add(request)
+    }
+
     /// Right away: a budget passed 80% or 100% of its limit this month.
     static func notifyBudget(_ status: BudgetStatus, threshold: Int) async {
         let content = UNMutableNotificationContent()

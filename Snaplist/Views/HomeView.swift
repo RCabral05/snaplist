@@ -18,6 +18,9 @@ struct HomeView: View {
     @State private var budgets: [BudgetStatus] = []
     @State private var inventory: InventorySummary?
     @State private var hasTaxRecords = false
+    @State private var changes: [PriceChange] = []
+    @State private var collections: [Collection] = []
+    @State private var isAddingCollection = false
 
     var body: some View {
         NavigationStack {
@@ -38,9 +41,13 @@ struct HomeView: View {
                         if !budgets.isEmpty {
                             budgetsSection
                         }
+                        if !changes.isEmpty {
+                            changesSection
+                        }
                         if !comingUp.isEmpty {
                             comingUpSection
                         }
+                        collectionsSection
                         recentSection
                         toolsSection
                     }
@@ -119,6 +126,50 @@ struct HomeView: View {
         }
     }
 
+    /// Bills and subscriptions that cost something different from last time.
+    private var changesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Changes").font(Theme.display(.title3))
+            VStack(spacing: 0) {
+                ForEach(Array(changes.prefix(3).enumerated()), id: \.element.id) { index, change in
+                    if index > 0 { Divider().padding(.leading, 58) }
+                    NavigationLink { PriceChangeView(change: change) } label: { PriceChangeRow(change: change) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
+        }
+    }
+
+    private var collectionsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Collections").font(Theme.display(.title3))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(collections) { collection in
+                        NavigationLink { CollectionView(collectionId: collection.id) } label: { CollectionCard(collection: collection) }
+                            .buttonStyle(.plain)
+                    }
+                    Button { isAddingCollection = true } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(systemName: "plus").font(.title3).foregroundStyle(Theme.accent)
+                            Text(collections.isEmpty ? "Car, Home…" : "New").font(.subheadline.weight(.semibold))
+                        }
+                        .padding(14)
+                        .frame(width: 110, alignment: .leading)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.accent.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .scrollClipDisabled()
+        }
+        .sheet(isPresented: $isAddingCollection) {
+            CollectionEditor(collection: Collection(name: "", symbol: "folder", keywords: []), isNew: true)
+        }
+    }
+
     private var budgetsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
@@ -142,10 +193,10 @@ struct HomeView: View {
                 tool("IDs & policies", "person.text.rectangle", idsDetail)
             }
             NavigationLink {
-                InventoryView()
+                ThingsView()
             } label: {
-                tool("Home inventory", "sofa",
-                     inventory.map { $0.count == 0 ? "For insurance" : "\($0.count) · \(Money(cents: $0.totalCents, currency: $0.currency).formattedWhole)" } ?? "For insurance")
+                tool("Things", "sofa",
+                     inventory.map { $0.count == 0 ? "What you own" : "\($0.count) · \(Money(cents: $0.totalCents, currency: $0.currency).formattedWhole)" } ?? "What you own")
             }
             NavigationLink {
                 TaxReportView()
@@ -221,6 +272,8 @@ struct HomeView: View {
         let today = Day(.now)
         let horizon = today.adding(days: 30)
         budgets = model.budgetStatus()
+        changes = model.priceChanges()
+        collections = model.collections()
         inventory = model.inventorySummary()
         hasTaxRecords = !model.taxYears().isEmpty
         var items = model.upcomingDates().filter { $0.day <= horizon.addingMonths(12) }.map { date in

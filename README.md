@@ -130,7 +130,9 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 11. ~~Budgets, return windows, Apple Card CSV import, tax report, home inventory.~~
 12. ~~Receipt line items ("when did I last buy eggs"), IDs & policies with renewal reminders, and a
     polish pass from a code review.~~
-13. Widgets: written (`SnaplistWidgets/`, `Shared/`) but switched off; see below.
+13. ~~Things (item profiles with linked receipt, warranty, manual and photos; claim packets),
+    bill and subscription changes, price memory, and collections (Home, Car, Taxes…).~~
+14. Widgets: written (`SnaplistWidgets/`, `Shared/`) but switched off; see below.
 
 Later: iCloud sync, household sharing, a paid tier.
 

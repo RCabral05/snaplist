@@ -53,7 +53,7 @@ struct RecordDetailView: View {
                     TagsSection(record: current)
                     // Things owned: not statements, bills, IDs or screenshots.
                     if [.receipt, .warranty, .manual, .item, .other].contains(current.kind) {
-                        BelongingSection(record: current)
+                        ThingsSection(record: current)
                     }
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
@@ -78,6 +78,7 @@ struct RecordDetailView: View {
                 Menu {
                     Button("Edit", systemImage: "pencil") { isEditing = true }
                     CategoryMenu(record: current)
+                    CollectionMenu(record: current)
                     if current.status == .failed {
                         Button("Read Text Again", systemImage: "arrow.clockwise") { model.retry(current.id) }
                     }

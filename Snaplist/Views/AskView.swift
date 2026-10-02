@@ -139,6 +139,12 @@ enum AskResult {
     case records(TaggedRecords)
     /// Receipt lines naming something, newest first.
     case lastBought([Counted], terms: [String])
+    /// A saved thing: when it was bought, its warranty, its paperwork.
+    case thing(ThingAnswer)
+    /// What something has cost over time.
+    case priceHistory(PriceHistory?, terms: [String])
+    /// Everything in a collection.
+    case collection(Collection, [Record])
 
     /// Changes whenever the answer does, for animation.
     var id: String {
@@ -149,6 +155,9 @@ enum AskResult {
         case .search(let hits, let text): "q\(hits.map(\.id))\(text)"
         case .records(let tagged): "r\(tagged.records.map(\.id))"
         case .lastBought(let found, let terms): "l\(found.map(\.id))\(terms)"
+        case .thing(let answer): "t\(answer.profiles.map(\.id))\(answer.topic)"
+        case .priceHistory(let history, let terms): "p\(history?.points.map(\.id) ?? [])\(terms)"
+        case .collection(let collection, let records): "c\(collection.id)\(records.count)"
         }
     }
 }
@@ -167,6 +176,9 @@ struct AnswerView: View {
         case .expiry(let found, let terms): ExpiryAnswerView(found: found, terms: terms)
         case .records(let tagged): TaggedAnswerView(tagged: tagged)
         case .lastBought(let found, let terms): LastBoughtView(found: found, terms: terms)
+        case .thing(let answer): ThingAnswerView(answer: answer)
+        case .priceHistory(let history, let terms): PriceHistoryView(history: history, terms: terms)
+        case .collection(let collection, let records): CollectionAnswerView(collection: collection, records: records)
         case .search(let hits, let text):
             if hits.isEmpty {
                 NotFound(text: "Nothing in your archive mentions “\(text)”.")
@@ -475,6 +487,192 @@ private struct LastBoughtView: View {
                 Text("No saved receipt lists “\(terms.joined(separator: " "))”. Only receipts that print each item can answer this.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// A thing, with what the question was about first.
+private struct ThingAnswerView: View {
+    let answer: ThingAnswer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if answer.isOutOfWarrantyList {
+                Text(answer.profiles.isEmpty ? "Everything you've saved is still covered, or has no warranty date."
+                                             : "\(answer.profiles.count) \(answer.profiles.count == 1 ? "thing is" : "things are") out of warranty")
+                    .font(Theme.display(.title3))
+                ForEach(answer.profiles) { profile in card(profile) }
+            } else if let profile = answer.profiles.first {
+                Text(headline(profile)).font(Theme.display(.title2, weight: .bold))
+                if let detail = detail(profile) {
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                }
+                card(profile)
+                if answer.topic == .documents {
+                    ForEach(profile.links) { link in
+                        NavigationLink(value: RecordListView.Destination(record: link.record)) {
+                            HStack(spacing: 12) {
+                                RecordThumbnail(record: link.record, pagePosition: nil, style: .square(44))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(link.role.label).font(.caption.weight(.semibold)).foregroundStyle(link.record.kind.tint)
+                                    Text(link.record.title).font(.subheadline).lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            .padding(12)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func card(_ profile: ThingProfile) -> some View {
+        NavigationLink { ThingProfileView(thingId: profile.id) } label: {
+            HStack(spacing: 12) {
+                ThingThumbnail(profile: profile)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(profile.thing.name).font(.subheadline.weight(.semibold))
+                    WarrantyLabel(profile: profile).font(.caption)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func headline(_ profile: ThingProfile) -> String {
+        let thing = profile.thing
+        switch answer.topic {
+        case .bought:
+            return thing.purchased.map { "Bought \($0.date().formatted(date: .long, time: .omitted))" } ?? "No purchase date saved"
+        case .warranty:
+            switch profile.warranty(on: Day(.now)) {
+            case .covered(let until): return "Yes, covered until \(until.date().formatted(date: .long, time: .omitted))"
+            case .ended(let on): return "No, the warranty ended \(on.date().formatted(date: .long, time: .omitted))"
+            case .unknown: return "No warranty date saved"
+            }
+        case .value:
+            return thing.value.map { "Paid \($0.formatted)" } ?? "No price saved"
+        case .documents:
+            return profile.links.isEmpty ? "No documents linked yet" : "\(profile.links.count) \(profile.links.count == 1 ? "document" : "documents")"
+        case .overview:
+            return thing.name
+        }
+    }
+
+    private func detail(_ profile: ThingProfile) -> String? {
+        let thing = profile.thing
+        switch answer.topic {
+        case .bought, .value:
+            return [thing.store.isEmpty ? nil : "at \(thing.store)", thing.value?.formatted].compactMap { $0 }.joined(separator: ", ")
+        case .warranty:
+            return profile.warrantyEvidence.map { "From the warranty: “\($0)”" }
+        default:
+            return nil
+        }
+    }
+}
+
+/// "What did I pay for eggs last time?": latest, lowest, highest, average.
+private struct PriceHistoryView: View {
+    let history: PriceHistory?
+    let terms: [String]
+
+    var body: some View {
+        if let history, let latest = history.latest {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Last time").font(.subheadline).foregroundStyle(.secondary)
+                    Text(latest.transaction.money.formatted).font(Theme.display(.largeTitle, weight: .bold)).monospacedDigit()
+                    Text("\(latest.transaction.memo.isEmpty ? latest.transaction.merchant : latest.transaction.memo) at \(latest.transaction.merchant), \(latest.day.date().formatted(date: .abbreviated, time: .omitted))")
+                        .font(.subheadline)
+                }
+                if history.points.count > 1 {
+                    HStack(spacing: 10) {
+                        stat("Lowest", history.lowest, history.currency)
+                        stat("Highest", history.highest, history.currency)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Average").font(.caption).foregroundStyle(.secondary)
+                            Text(Money(cents: history.averageCents, currency: history.currency).formatted).font(.headline).monospacedDigit()
+                            Text("\(history.points.count) times").font(.caption2).foregroundStyle(.secondary)
+                        }
+                        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    if history.changeCents != 0, let first = history.first {
+                        Label("\(history.changeCents > 0 ? "Up" : "Down") \(Money(cents: abs(history.changeCents), currency: history.currency).formatted) since \(first.day.date().formatted(.dateTime.month(.abbreviated).year()))",
+                              systemImage: history.changeCents > 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(history.changeCents > 0 ? Color.orange : Color.green)
+                    }
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(history.points.reversed().prefix(12).enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Divider().padding(.leading) }
+                        NavigationLink(value: RecordListView.Destination(record: item.record, pagePosition: item.transaction.pagePosition)) {
+                            CountedRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                Label(history.isPurchases ? "From whole purchases, since receipts don't list it as a line."
+                                          : "From the lines on your saved receipts.", systemImage: "info.circle")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        } else {
+            Text("No saved receipt lists “\(terms.joined(separator: " "))”. Only receipts that print each item can answer this.")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+
+    private func stat(_ title: String, _ item: Counted?, _ currency: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(item?.transaction.money.formatted ?? "—").font(.headline).monospacedDigit()
+            Text(item?.transaction.merchant ?? "").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// "Show everything for the house": the collection's records.
+private struct CollectionAnswerView: View {
+    let collection: Collection
+    let records: [Record]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            NavigationLink { CollectionView(collectionId: collection.id) } label: {
+                Label("\(collection.name) · \(records.count) \(records.count == 1 ? "record" : "records")", systemImage: collection.symbol)
+                    .font(Theme.display(.title3))
+            }
+            .buttonStyle(.plain)
+            ForEach(records.prefix(15)) { record in
+                NavigationLink(value: RecordListView.Destination(record: record)) {
+                    HStack(spacing: 12) {
+                        RecordThumbnail(record: record, pagePosition: nil, style: .square(44))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                            Text("\(record.kind.label) · \(record.effectiveDay.date().formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(12)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
             }
         }
     }

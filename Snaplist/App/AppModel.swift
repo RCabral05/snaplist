@@ -351,6 +351,31 @@ final class AppModel {
     func ask(_ text: String) async -> AskResult {
         let today = Day(.now)
         var question = QuestionParser.parse(text, today: today)
+        // "When did I buy my TV?", "Is my TV still under warranty?": a saved
+        // thing, unless it's really a spending question that shares a word.
+        if let thing = try? archive.store.thingQuestion(text, today: today) {
+            let isSpending = if case .spending = question { true } else { false }
+            if thing.isOutOfWarrantyList || !(isSpending && [.value, .overview].contains(thing.topic)) {
+                return .thing(thing)
+            }
+        }
+        // "How much have I spent on my car?", "everything for the house".
+        if let collection = try? archive.store.collection(namedIn: text) {
+            let records = (try? archive.store.records(in: collection)) ?? []
+            switch question {
+            case .spending(var query):
+                let names = Set([collection.name.lowercased(), "car", "vehicle", "house", "home", "trip", "trips", "travel",
+                                 "vacation", "pet", "dog", "cat", "kids", "children", "work", "taxes", "tax"])
+                query.merchantTerms.removeAll { names.contains($0) }
+                if let answer = try? archive.store.answer(query.within(collection, records: records)) {
+                    return .spending(answer)
+                }
+            case .search:
+                return .collection(collection, records)
+            default:
+                break
+            }
+        }
         // "Mom's warranties", "receipts from the Boston trip": people and
         // places the person saved come before any guessing.
         if case .search = question, let tagged = try? archive.store.taggedRecords(matching: text), tagged.otherWords.isEmpty {
@@ -362,7 +387,7 @@ final class AppModel {
         let rulesStruggled: Bool = switch question {
         case .search: true
         case .spending(let query): !((try? archive.store.unknownMerchantTerms(query.merchantTerms)) ?? []).isEmpty
-        case .whereIs, .expiry, .lastBought: false
+        case .whereIs, .expiry, .lastBought, .priceHistory: false
         }
         if rulesStruggled, let interpretation = await QuestionInterpreter.interpret(text) {
             let reread = QuestionParser.question(from: interpretation, original: text, today: today)
@@ -385,6 +410,8 @@ final class AppModel {
                 return .expiry(try archive.store.expiries(terms), terms: terms)
             case .lastBought(let terms):
                 return .lastBought(try archive.store.lastBought(terms), terms: terms)
+            case .priceHistory(let terms, let categories):
+                return .priceHistory(try archive.store.priceHistory(terms, categories: categories), terms: terms)
             case .search(let text):
                 return .search(try archive.store.searchQuestion(text), text: text)
             }

@@ -14,6 +14,8 @@ struct Derived: Sendable {
     var inventory: InventorySummary?
     var taxYears: [Int] = []
     var importantDocuments: [ImportantDocument] = []
+    var priceChanges: [PriceChange] = []
+    var collections: [Collection] = []
 }
 
 extension AppModel {
@@ -33,6 +35,7 @@ extension AppModel {
             derivedRevision += 1
             await Reminders.schedule(fresh.upcoming)
             checkBudgets()
+            notifyNewPriceChanges(fresh.priceChanges)
             updateWidgets()
             updateSpotlight()
         }
@@ -47,6 +50,27 @@ extension AppModel {
             budgets: (try? store.budgetStatus(in: month)) ?? [],
             inventory: try? store.inventorySummary(),
             taxYears: (try? store.taxYears()) ?? [],
-            importantDocuments: (try? store.importantDocuments()) ?? [])
+            importantDocuments: (try? store.importantDocuments()) ?? [],
+            priceChanges: (try? store.priceChanges()) ?? [],
+            collections: (try? store.collections()) ?? [])
+    }
+}
+
+extension AppModel {
+    /// A notification the first time each bill or subscription change is
+    /// seen, when reminders are on. Changes already there when this first
+    /// runs are only remembered, so updating doesn't announce old news.
+    func notifyNewPriceChanges(_ changes: [PriceChange]) {
+        let key = "seenPriceChanges"
+        let firstRun = UserDefaults.standard.object(forKey: key) == nil
+        var seen = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        let new = changes.filter { !seen.contains($0.id) }
+        guard !new.isEmpty || firstRun else { return }
+        seen.formUnion(new.map(\.id))
+        UserDefaults.standard.set(Array(seen), forKey: key)
+        guard !firstRun, Reminders.isEnabled else { return }
+        for change in new.prefix(3) {
+            Task { await Reminders.notifyPriceChange(change) }
+        }
     }
 }
