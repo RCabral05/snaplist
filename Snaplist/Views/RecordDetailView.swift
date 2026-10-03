@@ -87,20 +87,20 @@ struct RecordDetailView: View {
                 } label: {
                     Label("More", systemImage: "ellipsis")
                 }
+                .confirmationDialog("Delete \"\(current.title)\"?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                    Button("Delete", role: .destructive) {
+                        model.delete(current.id)
+                        dismiss()
+                    }
+                } message: {
+                    Text("The original and its text are removed from this iPhone. This can't be undone.")
+                }
             }
         }
         .sheet(isPresented: $isEditing) { EditRecordView(record: current) }
         .fullScreenCover(item: $zoomed) { slot in
             ZoomViewer(url: model.archive.url(for: slot.asset), type: slot.asset.type,
                        pageInAsset: slot.pageInAsset, title: current.title)
-        }
-        .confirmationDialog("Delete \"\(current.title)\"?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                model.delete(current.id)
-                dismiss()
-            }
-        } message: {
-            Text("The original and its text are removed from this iPhone. This can't be undone.")
         }
         .task(id: "\(current.status)-\(current.kind)-\(model.amountsRevision)") { load() }
     }

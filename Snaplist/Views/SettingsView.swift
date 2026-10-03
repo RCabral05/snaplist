@@ -122,6 +122,19 @@ struct SettingsView: View {
                     exportRow
                     Button("Delete Everything", role: .destructive) { isConfirmingDelete = true }
                         .disabled(model.records.isEmpty)
+                        // On the button, so iOS points the confirmation at it.
+                        .confirmationDialog("Delete everything in Snaplist?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                            Button("Delete \(model.records.count) Records", role: .destructive) {
+                                Task {
+                                    guard await AppLock.confirmOwner("Delete everything in Snaplist") else { return }
+                                    await model.deleteEverything()
+                                    export = .idle
+                                    deleted = true
+                                }
+                            }
+                        } message: {
+                            Text("Every original, its text and amounts, and your corrections are removed from this iPhone. This can't be undone. Export first if you want a copy.")
+                        }
                 } header: {
                     Text("Your data")
                 } footer: {
@@ -143,18 +156,6 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-            }
-            .confirmationDialog("Delete everything in Snaplist?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                Button("Delete \(model.records.count) Records", role: .destructive) {
-                    Task {
-                        guard await AppLock.confirmOwner("Delete everything in Snaplist") else { return }
-                        await model.deleteEverything()
-                        export = .idle
-                        deleted = true
-                    }
-                }
-            } message: {
-                Text("Every original, its text and amounts, and your corrections are removed from this iPhone. This can't be undone. Export first if you want a copy.")
             }
         }
     }

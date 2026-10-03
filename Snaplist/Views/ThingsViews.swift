@@ -176,6 +176,12 @@ struct ThingProfileView: View {
                     Button("Delete This Thing", role: .destructive) { isConfirmingDelete = true }
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
+                        .confirmationDialog("Delete \(profile?.thing.name ?? "this")?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                            Button("Delete", role: .destructive) {
+                                model.deleteThing(thingId)
+                                dismiss()
+                            }
+                        }
                     Text("Deleting the thing keeps its receipt, warranty and other records.")
                         .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
@@ -190,12 +196,6 @@ struct ThingProfileView: View {
         }
         .sheet(isPresented: $isEditing) {
             if let profile { ThingEditor(thing: profile.thing, sourceRecord: nil) }
-        }
-        .confirmationDialog("Delete \(profile?.thing.name ?? "this")?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                model.deleteThing(thingId)
-                dismiss()
-            }
         }
         .task(id: model.derivedRevision) {
             profile = model.thingProfile(thingId)
