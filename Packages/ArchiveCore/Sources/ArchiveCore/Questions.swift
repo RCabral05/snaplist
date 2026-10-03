@@ -111,6 +111,19 @@ public enum QuestionParser {
         return .spending(query)
     }
 
+    /// Whether a question is about money at all. A model reading "what psi
+    /// should my tires be" as shopping at "Tire" is overruled when it isn't.
+    public static func mentionsMoney(_ question: String) -> Bool {
+        let text = " " + question.lowercased().replacingOccurrences(of: "’", with: "'")
+            .components(separatedBy: CharacterSet(charactersIn: "?!.,;:\"")).joined(separator: " ") + " "
+        if text.contains("$") { return true }
+        let words = [" spend ", " spent ", " spending ", " cost ", " costs ", " pay ", " paid ", " paying ", " price ",
+                     " prices ", " how much ", " total ", " budget ", " bill ", " bills ", " charge ", " charged ",
+                     " buy ", " bought ", " purchase ", " purchased ", " order ", " ordered ", " expensive ", " cheap ",
+                     " money ", " dollars ", " set me back ", " receipt ", " receipts ", " get at ", " got at "]
+        return words.contains { text.contains($0) }
+    }
+
     /// "What did I get at…", "what have I bought from…": asking for the things.
     public static func asksWhatWasBought(_ question: String) -> Bool {
         let text = " " + question.lowercased().replacingOccurrences(of: "’", with: "'") + " "

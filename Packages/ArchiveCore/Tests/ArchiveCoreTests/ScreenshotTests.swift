@@ -47,4 +47,37 @@ private let routerScreenshot = RecognizedPage(lines: [
         #expect(try store.searchQuestion("router admin password").map(\.id) == [record.id])
         #expect(try store.searchQuestion("passport number").isEmpty)
     }
+
+    @Test func aTirePressureLabel() throws {
+        // How Vision reads a sideways sticker once it's turned the right way up. Made up values.
+        let tmp = try TemporaryArchive()
+        let record = try tmp.archive.add(kind: .document, title: "Photo", nameSource: .automatic,
+                                         items: [ImportItem(type: .image, source: .data(Data([1])), fileExtension: "jpg")])
+        let asset = try #require(try tmp.archive.store.assets(of: record.id).first)
+        let lines = ["COLD TIRE PRESSURE", "SOLO RIDING", "DUAL RIDING", "kPa kgf/cm2 psi", "FRONT 250 2.50 36",
+                     "REAR 290 2.90 42", "TIRE SIZE FRONT 120/70ZR17M/C (58W)", "TYPE BRIDGESTONE BATTLAX BT016F G"]
+        try tmp.archive.store.saveText([ExtractedAsset(assetId: asset.id, pages: [
+            RecognizedPage(lines: lines.map { RecognizedLine(text: $0) }, source: .ocr)])], for: record.id)
+        let store = tmp.archive.store
+        #expect(try store.record(record.id)?.title == "Cold Tire Pressure")
+        #expect(try store.record(record.id)?.kind == .document)
+        #expect(try store.transactions(of: record.id).isEmpty)
+
+        let question = "What psi should my tires be"
+        guard case .search = QuestionParser.parse(question, today: Day(year: 2026, month: 10, day: 3)!) else {
+            Issue.record("not a search"); return
+        }
+        #expect(!QuestionParser.mentionsMoney(question))
+        #expect(try store.searchQuestion(question).map(\.record.id) == [record.id])
+        #expect(try store.searchQuestion("tire pressure").map(\.record.id) == [record.id])
+    }
+
+    @Test func moneyQuestionsAreMoneyQuestions() {
+        for question in ["How much did I spend on tires", "what did the tires cost", "tire shop receipt", "what did I get at Discount Tire"] {
+            #expect(QuestionParser.mentionsMoney(question), "\(question)")
+        }
+        for question in ["What psi should my tires be", "what's my wifi password", "when does my passport expire"] {
+            #expect(!QuestionParser.mentionsMoney(question), "\(question)")
+        }
+    }
 }

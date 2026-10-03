@@ -129,9 +129,15 @@ extension ArchiveStore {
     ]
 
     private static func termExpression(_ term: String) -> String {
-        let quoted = "\"\(term)\"*"
-        guard let others = spellings[term.lowercased()] else { return quoted }
-        return "(" + ([quoted] + others.map { "\"\($0)\"" }).joined(separator: " OR ") + ")"
+        // "tires" finds "TIRE", "batteries" finds "BATTERY": the singular as a prefix.
+        let lower = term.lowercased()
+        let singular: String? = if lower.count > 4, lower.hasSuffix("ies") { String(lower.dropLast(3)) + "y" }
+            else if lower.count > 4, ["xes", "ches", "shes", "sses"].contains(where: lower.hasSuffix) { String(lower.dropLast(2)) }
+            else if lower.count > 3, lower.hasSuffix("s"), !lower.hasSuffix("ss"), !lower.hasSuffix("us") { String(lower.dropLast()) }
+            else { nil }
+        let prefixes = ([term] + (singular.map { [$0] } ?? [])).map { "\"\($0)\"*" }
+        let all = prefixes + (spellings[lower] ?? []).map { "\"\($0)\"" }
+        return all.count == 1 ? all[0] : "(" + all.joined(separator: " OR ") + ")"
     }
 
     /// For a question typed in Ask: the words that matter ("wifi password"

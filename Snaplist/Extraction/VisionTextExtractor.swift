@@ -1,5 +1,6 @@
 import ArchiveCore
 import Foundation
+import ImageIO
 import PDFKit
 import Vision
 
@@ -105,13 +106,34 @@ struct VisionTextExtractor: TextExtractor {
         }
     }
 
+    /// Reads the image the right way up; when little reads that way (a
+    /// sticker photographed sideways, a receipt shot in landscape), also
+    /// turned a quarter each way, keeping whichever reads best.
     private func recognize(_ image: CGImage) async throws -> RecognizedPage {
+        let upright = try await recognize(image, orientation: .up)
+        let uprightScore = Self.score(upright)
+        guard uprightScore < 80 else { return upright }
+        var best = (upright, uprightScore)
+        for orientation in [CGImagePropertyOrientation.right, .left] {
+            let turned = try await recognize(image, orientation: orientation)
+            let score = Self.score(turned)
+            if score > best.1 * 1.5 { best = (turned, score) }
+        }
+        return best.0
+    }
+
+    /// Letters read with confidence: a page of garbage scores low.
+    private static func score(_ page: RecognizedPage) -> Double {
+        page.lines.reduce(0) { $0 + Double($1.text.count(where: \.isLetter)) * ($1.confidence ?? 0.5) }
+    }
+
+    private func recognize(_ image: CGImage, orientation: CGImagePropertyOrientation) async throws -> RecognizedPage {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
         request.automaticallyDetectsLanguage = true
 
-        let observations = try await request.perform(on: image, orientation: .up)
+        let observations = try await request.perform(on: image, orientation: orientation)
         let lines = observations
             .compactMap { observation -> RecognizedLine? in
                 guard let best = observation.topCandidates(1).first else { return nil }

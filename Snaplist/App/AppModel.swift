@@ -391,8 +391,11 @@ final class AppModel {
         }
         if rulesStruggled, let interpretation = await QuestionInterpreter.interpret(text) {
             let reread = QuestionParser.question(from: interpretation, original: text, today: today)
-            // A model that can't place it either doesn't undo what the rules found.
-            if case .search = reread, case .spending = question {} else {
+            // A model that can't place it either doesn't undo what the rules
+            // found, and a question with nothing about money stays a search:
+            // "what psi should my tires be" isn't shopping at "Tire".
+            let madeUpSpending = if case .search = question, case .spending = reread, !QuestionParser.mentionsMoney(text) { true } else { false }
+            if case .search = reread, case .spending = question {} else if madeUpSpending {} else {
                 question = reread
                 readByModel = true
             }
