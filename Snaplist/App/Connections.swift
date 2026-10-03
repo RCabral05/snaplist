@@ -8,7 +8,7 @@ extension AppModel {
     /// A charge from the Shortcuts automation, on its card's statement.
     func logCharge(_ charge: LiveCharge, card: String?) throws {
         let name = card?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        try archive.addLive([charge], feed: name.isEmpty ? "Apple Pay" : name)
+        try archive.addLive([charge], feed: name.isEmpty ? "Apple Pay" : name, source: .tap)
         amountsChanged()
     }
 }
@@ -136,6 +136,10 @@ extension AppModel {
     /// When the app comes forward, at most every six hours: SimpleFIN
     /// refreshes about once a day and limits how often it's asked.
     func syncBanksIfDue() {
+        // Apple Card is on the iPhone itself: every time, once a minute at most.
+        if AppleCard.isEnabled, AppleCard.lastSync.map({ Date.now.timeIntervalSince($0) > 60 }) ?? true {
+            Task { try? await syncAppleCard() }
+        }
         guard SimpleFIN.isConnected else { return }
         if let last = SimpleFIN.lastSync, Date.now.timeIntervalSince(last) < 6 * 3600 { return }
         Task { try? await syncBanks() }

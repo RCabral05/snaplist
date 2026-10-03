@@ -71,6 +71,8 @@ enum SnaplistLink: String, Sendable {
     case scan, ask, spending, home
     /// The library, with whatever filter was just set.
     case library
+    /// Last month's recap, from its notification.
+    case recap
 
     var url: URL { URL(string: "snaplist://\(rawValue)")! }
 }

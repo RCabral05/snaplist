@@ -26,8 +26,18 @@ enum Reminders {
         center.removePendingNotificationRequests(withIdentifiers: pending)
         guard isEnabled else { return }
 
+        // On the 1st of every month: last month's recap.
+        let recap = UNMutableNotificationContent()
+        recap.title = "Your monthly recap is ready"
+        recap.body = "Where last month's money went, what renewed and what changed. Tap to see it."
+        recap.sound = .default
+        recap.userInfo = ["link": SnaplistLink.recap.rawValue]
+        try? await center.add(UNNotificationRequest(
+            identifier: prefix + "recap", content: recap,
+            trigger: UNCalendarNotificationTrigger(dateMatching: DateComponents(day: 1, hour: 9, minute: 5), repeats: true)))
+
         let calendar = Calendar.current
-        var added = 0
+        var added = 1
         for date in dates {
             // iOS keeps 64 per app; leave room.
             guard added < 50 else { break }
@@ -113,7 +123,12 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate, Send
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             didReceive response: UNNotificationResponse) async {
-        let id = (response.notification.request.content.userInfo["recordId"] as? String).flatMap(UUID.init(uuidString:))
+        let info = response.notification.request.content.userInfo
+        if let link = (info["link"] as? String).flatMap(SnaplistLink.init(rawValue:)) {
+            await MainActor.run { (try? SharedModel.model())?.pendingLink = link }
+            return
+        }
+        let id = (info["recordId"] as? String).flatMap(UUID.init(uuidString:))
         guard let id else { return }
         await MainActor.run {
             (try? SharedModel.model())?.pendingRecordId = id

@@ -10,10 +10,10 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
         let store = tmp.archive.store
         let coffee = try #require(LiveCharge.tap(merchant: "Starbucks", amount: "$5.45", on: october3))
         let gas = try #require(LiveCharge.tap(merchant: "Shell", amount: "40.00", on: october3))
-        #expect(try tmp.archive.addLive([coffee, gas], feed: "Apple Card") == 2)
+        #expect(try tmp.archive.addLive([coffee, gas], feed: "Apple Card", source: .tap) == 2)
 
         let record = try #require(try store.records(kind: .statement).first)
-        #expect(record.title == "Apple Card · October 2026")
+        #expect(record.title == "Apple Card taps · October 2026")
         let lines = try store.transactions(of: record.id)
         #expect(lines.map(\.amountCents) == [545, 4000])
         #expect(lines.map(\.category) == [.dining, .fuel])
@@ -24,7 +24,7 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
         fixed.category = .groceries
         try store.save(fixed)
         let lunch = try #require(LiveCharge.tap(merchant: "Chipotle", amount: "$12.10", on: october3.adding(days: 1)))
-        try tmp.archive.addLive([lunch], feed: "Apple Card")
+        try tmp.archive.addLive([lunch], feed: "Apple Card", source: .tap)
         let after = try store.transactions(of: record.id)
         #expect(after.count == 3)
         #expect(after.first { $0.amountCents == 545 }?.category == .groceries)
@@ -32,10 +32,10 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
 
         // Another month, another statement; another card, another statement.
         try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Target", amount: "$20", on: Day(year: 2026, month: 11, day: 1)!))],
-                                feed: "Apple Card")
-        try tmp.archive.addLive([coffee], feed: "Chase Freedom")
+                                feed: "Apple Card", source: .tap)
+        try tmp.archive.addLive([coffee], feed: "Chase Freedom", source: .tap)
         #expect(Set(try store.records(kind: .statement).map(\.title))
-                == ["Apple Card · October 2026", "Apple Card · November 2026", "Chase Freedom · October 2026"])
+                == ["Apple Card taps · October 2026", "Apple Card taps · November 2026", "Chase Freedom taps · October 2026"])
     }
 
     @Test func amountsAsWalletGivesThem() {
@@ -53,7 +53,7 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
         try tmp.archive.store.saveText([ExtractedAsset(assetId: asset.id, pages: [RecognizedPage(lines: [
             "STARBUCKS", "10/03/2026", "GRANDE LATTE 5.45", "TOTAL 5.45", "VISA"].map { RecognizedLine(text: $0) }, source: .ocr)])],
             for: record.id)
-        try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Starbucks", amount: "$5.45", on: october3))], feed: "Apple Card")
+        try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Starbucks", amount: "$5.45", on: october3))], feed: "Apple Card", source: .tap)
         let answer = try tmp.archive.store.answer(SpendingQuery(range: DayRange.month(10, of: 2026)))
         #expect(answer.totals == [Money(cents: 545)])
         #expect(answer.duplicates.count == 1)
@@ -61,7 +61,7 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
 
     @Test func theStatementImportedLaterCountsOnce() throws {
         let tmp = try TemporaryArchive()
-        try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Shell", amount: "$40.00", on: october3))], feed: "Apple Card")
+        try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Shell", amount: "$40.00", on: october3))], feed: "Apple Card", source: .tap)
         let csv = try tmp.archive.add(kind: .statement, title: "Apple Card October", nameSource: .file,
                                       items: [ImportItem(type: .csv, source: .data(Data([1])), fileExtension: "csv")])
         let asset = try #require(try tmp.archive.store.assets(of: csv.id).first)
@@ -70,6 +70,16 @@ private let october3 = Day(year: 2026, month: 10, day: 3)!
             "10/03/2026,10/04/2026,SHELL OIL 57442,Shell,Gas,Purchase,40.00",
         ].map { RecognizedLine(text: $0) }, source: .file)])], for: csv.id)
         #expect(try tmp.archive.store.answer(SpendingQuery(categories: [.fuel])).totals == [Money(cents: 4000)])
+    }
+
+    @Test func aTapAndTheSameChargeFromAppleCardCountOnce() throws {
+        let tmp = try TemporaryArchive()
+        try tmp.archive.addLive([try #require(LiveCharge.tap(merchant: "Shell", amount: "$40.00", on: october3))],
+                                feed: "Apple Card", source: .tap)
+        try tmp.archive.addLive([LiveCharge(id: "W1", day: october3, description: "SHELL OIL 57442", merchant: "Shell", amountCents: 4000)],
+                                feed: "Apple Card", source: .wallet)
+        #expect(Set(try tmp.archive.store.records(kind: .statement).map(\.title)) == ["Apple Card taps · October 2026", "Apple Card · October 2026"])
+        #expect(try tmp.archive.store.answer(SpendingQuery()).totals == [Money(cents: 4000)])
     }
 }
 

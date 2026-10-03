@@ -94,14 +94,19 @@ extension ArchiveStore {
     /// Every amount that can count as spending, with its record, duplicates
     /// already dropped as the person decided (or as guessed).
     func spendingAmounts() throws -> [Counted] {
-        let all = try db.read { db -> [Counted] in
+        let all = try everySpendingAmount()
+        let dropped = Set(Self.duplicates(in: all, decisions: try duplicateDecisions()).map(\.dropped.id))
+        return all.filter { !dropped.contains($0.id) }
+    }
+
+    /// Every amount that isn't a payment, duplicates included.
+    func everySpendingAmount() throws -> [Counted] {
+        try db.read { db -> [Counted] in
             let amounts = try Amount.filter(Column("kind") != AmountKind.payment.rawValue).fetchAll(db)
             let records = try Record.fetchAll(db, keys: Array(Set(amounts.map(\.recordId))))
             let byId = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
             return amounts.compactMap { amount in byId[amount.recordId].map { Counted(transaction: amount, record: $0) } }
         }
-        let dropped = Set(Self.duplicates(in: all, decisions: try duplicateDecisions()).map(\.dropped.id))
-        return all.filter { !dropped.contains($0.id) }
     }
 
     /// Month by month, the latest `months` of them.

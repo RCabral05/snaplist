@@ -129,6 +129,9 @@ struct MainTabs: View {
             case .library:
                 libraryPath = []
                 selection = .library
+            case .recap:
+                selection = .home
+                model.showRecap = true
             }
         }
         // From Spotlight or a reminder.

@@ -4,7 +4,7 @@ import Foundation
 /// "Export Transactions" CSV. Exact, unlike reading a PDF: every column is
 /// labelled. The file's lines are stored as one page, one line each, so an
 /// amount still points back at the line it came from.
-enum CSVStatement {
+public enum CSVStatement {
     /// Splits one CSV line into fields, honouring quotes ("a, b" and "").
     static func fields(_ line: String) -> [String] {
         var fields: [String] = []
@@ -159,6 +159,12 @@ enum CSVStatement {
     /// paying off a card (the card's own statement has the purchases).
     static let movedOut = ["transfer to", "to savings", "to checking", "credit crd", "credit card payment", "crd autopay",
                            "card autopay", "cardmember serv", "card pmt", "applecard gsbank", "apple card payment"]
+
+    /// Money in that's pay or a transfer, not a refund.
+    public static func isMoneyIn(_ lowercased: String) -> Bool { moneyIn.contains { lowercased.contains($0) } }
+
+    /// Money out to another account or a card payoff, not spending.
+    public static func isMovedOut(_ lowercased: String) -> Bool { movedOut.contains { lowercased.contains($0) } }
 
     /// "-1,234.56", "$12.00", "(5.00)" → signed cents.
     static func cents(_ text: String) -> Int64? {

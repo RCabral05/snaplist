@@ -22,6 +22,9 @@ struct HomeView: View {
     @State private var changes: [PriceChange] = []
     @State private var collections: [Collection] = []
     @State private var isAddingCollection = false
+    /// Last month, when there's a recap to show for it.
+    @State private var recapMonth: DayRange?
+    @State private var isShowingRecap = false
 
     var body: some View {
         NavigationStack {
@@ -36,6 +39,9 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         header
                         askField
+                        if let recapMonth {
+                            recapRow(recapMonth)
+                        }
                         if let month = overview?.months.last(where: { $0.count > 0 }) {
                             MonthCard(month: month, overview: overview!) { open(.spending) }
                         }
@@ -63,10 +69,43 @@ struct HomeView: View {
             }
             // Records change as their text is read, not only when added.
             .task(id: model.derivedRevision) { load() }
+            .sheet(isPresented: $isShowingRecap) {
+                RecapView(range: recapMonth ?? ArchiveStore.lastMonth(before: Day(.now)))
+            }
+            .task(id: model.showRecap) {
+                guard model.showRecap else { return }
+                model.showRecap = false
+                isShowingRecap = true
+            }
         }
     }
 
     // MARK: Parts
+
+    /// In the first two weeks of a month: last month's recap.
+    private func recapRow(_ month: DayRange) -> some View {
+        Button { isShowingRecap = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .font(.title3)
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.accent.opacity(0.12), in: .circle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your \(month.start.date().formatted(.dateTime.month(.wide))) recap").font(.subheadline.weight(.semibold))
+                    Text("Where it went, what renewed, what changed").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.border))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("recap-row")
+    }
 
     private var header: some View {
         HStack(alignment: .bottom) {
@@ -277,6 +316,8 @@ struct HomeView: View {
     private func load() {
         overview = model.spendingOverview()
         let today = Day(.now)
+        let last = ArchiveStore.lastMonth(before: today)
+        recapMonth = today.day <= 14 && (overview?.months.contains { $0.range == last && $0.count > 0 } ?? false) ? last : nil
         let horizon = today.adding(days: 30)
         // The month the spending card shows, so the bars match its total.
         let current = model.budgetStatus()

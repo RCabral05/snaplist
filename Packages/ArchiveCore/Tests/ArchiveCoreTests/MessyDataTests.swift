@@ -171,6 +171,18 @@ import Testing
         }
     }
 
+    @Test func aReturnThatNeverCameBack() throws {
+        try add([["TARGET", "09/10/2026", "RETURN", "BATH TOWEL  -12.99", "TOTAL  -12.99", "REFUND TO VISA ****4421"]])
+        try add([["TARGET", "09/12/2026", "RETURN", "LAMP  -30.00", "TOTAL  -30.00", "REFUND TO VISA ****4421"]])
+        let statement = try add([["CHASE", "Freedom Visa Statement", "Statement period 09/01/2026 - 09/30/2026", "New balance $40.00"],
+                                 ["09/05  NETFLIX.COM  15.49", "09/13  TARGET 00012345  -12.99", "09/20  SHELL OIL 57442  40.00"]],
+                                source: .pdfText)
+        let check = try #require(try store.statementCheck(statement))
+        // The towel came back as a credit; the lamp didn't.
+        #expect(check.missingRefunds.map(\.transaction.amountCents) == [3000])
+        #expect(check.withoutReceipt.map(\.transaction.amountCents) == [4000, 1549])
+    }
+
     // MARK: Statements
 
     @Test func aStatementAcrossNewYear() throws {

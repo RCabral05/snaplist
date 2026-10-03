@@ -140,6 +140,14 @@ extension AppModel {
 
     func priceChanges() -> [PriceChange] { derived.priceChanges }
 
+    func monthlyRecap(for month: DayRange) -> MonthlyRecap? {
+        try? archive.store.monthlyRecap(for: month)
+    }
+
+    func statementCheck(_ recordId: UUID) -> StatementCheck? {
+        try? archive.store.statementCheck(recordId)
+    }
+
     // MARK: Collections
 
     func collections() -> [Collection] { derived.collections }

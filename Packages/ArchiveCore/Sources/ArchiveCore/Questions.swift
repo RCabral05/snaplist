@@ -268,7 +268,7 @@ public enum QuestionParser {
         return nil
     }
 
-    static func monthLabel(_ month: Int, _ year: Int) -> String {
+    public static func monthLabel(_ month: Int, _ year: Int) -> String {
         let names = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
                      "October", "November", "December"]
         return "\(names[month - 1]) \(year)"

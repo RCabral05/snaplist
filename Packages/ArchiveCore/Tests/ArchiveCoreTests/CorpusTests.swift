@@ -434,6 +434,51 @@ import Testing
         }
     }
 
+    @Test func theMonthlyRecap() throws {
+        let september = try #require(DayRange.month(9, of: 2026))
+        #expect(ArchiveStore.lastMonth(before: Corpus.today) == september)
+        let recap = try #require(try store.monthlyRecap(for: september))
+        #expect(recap.month.totalCents == corpus.ledgerTotal(in: september))
+        #expect(recap.previous?.label == "August 2026")
+        let august = try #require(DayRange.month(8, of: 2026))
+        let october = try #require(DayRange.month(10, of: 2026))
+        #expect(recap.deltaCents == corpus.ledgerTotal(in: september) - corpus.ledgerTotal(in: august))
+        #expect(recap.categories.map(\.cents).reduce(0, +) == recap.month.totalCents)
+        #expect(recap.categories.map(\.cents) == recap.categories.map(\.cents).sorted(by: >))
+        let renewed = Set(recap.renewals.map { $0.transaction.merchant.lowercased() })
+        for name in ["netflix", "spotify", "verizon"] {
+            #expect(renewed.contains { $0.contains(name) }, "\(name) not in \(renewed)")
+        }
+        #expect(recap.biggest.count == 3)
+        #expect(!recap.biggest.contains { renewed.contains($0.transaction.merchant.lowercased()) })
+        // The Netflix raise was in August: August's recap has it, September's doesn't.
+        #expect(try store.monthlyRecap(for: august)?.priceChanges.contains { $0.merchant.lowercased().contains("netflix") } == true)
+        #expect(try store.monthlyRecap(for: october) == nil)
+    }
+
+    @Test func checkingAStatement() throws {
+        let march = try #require(corpus.named["statement 2026-3"])
+        let check = try #require(try store.statementCheck(march))
+        let lines = try store.transactions(of: march).filter { $0.kind == .purchase }
+        let mirrored = corpus.cardPurchases.filter { $0.alreadyCounted && !$0.isPayment && $0.day.year == 2026 && $0.day.month == 3 }
+        #expect(check.matched == mirrored.count, "\(check.matched) matched, \(mirrored.count) receipts")
+        #expect(check.withoutReceipt.count == lines.count - mirrored.count)
+        #expect(check.withoutReceipt.map(\.transaction.amountCents) == check.withoutReceipt.map(\.transaction.amountCents).sorted(by: >))
+        #expect(check.withoutReceipt.contains { $0.transaction.memo.contains("NETFLIX") })
+        #expect(check.missingRefunds.isEmpty)
+        // Netflix and Spotify started repeating on the first statements, not March's.
+        #expect(check.newRecurring.isEmpty, "\(check.newRecurring.map(\.merchant))")
+        let firstId = try #require(corpus.named["statement 2025-11"])
+        let first = try #require(try store.statementCheck(firstId))
+        #expect(first.newRecurring.contains { $0.merchant.lowercased().contains("netflix") }, "\(first.newRecurring.map(\.merchant))")
+        // August's statement has the Netflix raise on it.
+        let augustId = try #require(corpus.named["statement 2026-8"])
+        let august = try #require(try store.statementCheck(augustId))
+        #expect(august.priceChanges.contains { $0.merchant.lowercased().contains("netflix") })
+        let receiptId = try #require(corpus.named["receipt 0"])
+        #expect(try store.statementCheck(receiptId) == nil)
+    }
+
     @Test func theWholeArchiveExports() throws {
         let folder = corpus.tmp.directory.appendingPathComponent("export")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

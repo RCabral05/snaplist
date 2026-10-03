@@ -13,9 +13,56 @@ struct ConnectionsView: View {
     @State private var message: String?
     @State private var failed = false
     @State private var isConfirmingDisconnect = false
+    @State private var appleCardOn = AppleCard.isEnabled
+    @State private var appleCardWorking = false
+    @State private var appleCardMessage: String?
 
     var body: some View {
         Form {
+            Section {
+                if appleCardOn {
+                    if let last = AppleCard.lastSync {
+                        LabeledContent("Last checked", value: last.formatted(.relative(presentation: .named)))
+                    }
+                    Button {
+                        Task { await syncAppleCard() }
+                    } label: {
+                        if appleCardWorking { ProgressView() } else { Label("Check Now", systemImage: "arrow.clockwise") }
+                    }
+                    .disabled(appleCardWorking)
+                    Button("Turn Off", role: .destructive) {
+                        AppleCard.disconnect()
+                        appleCardOn = false
+                        appleCardMessage = nil
+                    }
+                } else {
+                    Button {
+                        Task {
+                            appleCardWorking = true
+                            defer { appleCardWorking = false }
+                            do {
+                                try await AppleCard.connect()
+                                appleCardOn = true
+                                await syncAppleCard()
+                            } catch {
+                                appleCardMessage = error.localizedDescription
+                            }
+                        }
+                    } label: {
+                        if appleCardWorking { ProgressView() } else { Label("Connect Apple Card", systemImage: "creditcard.fill") }
+                    }
+                    .disabled(appleCardWorking)
+                }
+                if let appleCardMessage {
+                    Text(appleCardMessage).font(.footnote).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Apple Card")
+            } footer: {
+                Text("Every Apple Card, Apple Cash and Savings transaction, in stores, in apps and online, read from Wallet on this iPhone. Nothing goes through a server. Checked when Snaplist opens.")
+            }
+            .listRowBackground(Theme.surface)
+
             Section {
                 step(1, "In the Shortcuts app, open the Automation tab at the bottom and tap +.")
                 step(2, "Scroll the list of triggers to Wallet (called Transaction on some iOS versions), pick your cards, and choose Run Immediately.")
@@ -85,6 +132,17 @@ struct ConnectionsView: View {
         .warmForm()
         .navigationTitle("Live Charges")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func syncAppleCard() async {
+        appleCardWorking = true
+        defer { appleCardWorking = false }
+        do {
+            let added = try await model.syncAppleCard()
+            appleCardMessage = added == 0 ? "Up to date." : added == 1 ? "1 new charge." : "\(added) new charges."
+        } catch {
+            appleCardMessage = error.localizedDescription
+        }
     }
 
     private func step(_ number: Int, _ text: String) -> some View {

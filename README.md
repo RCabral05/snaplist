@@ -136,9 +136,23 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 15. ~~Live charges: Apple Pay taps through a Shortcuts automation ("Log a Charge"), and banks and
     cards through SimpleFIN Bridge (opt-in, read-only, access URL in the Keychain). Each card's
     charges for a month are a CSV statement that grows, so duplicates work as for any statement.~~
-16. Apple Card through FinanceKit, once Apple grants the entitlement.
+16. Apple Card through FinanceKit: written (`Snaplist/App/AppleCard.swift`, Settings → Live charges),
+    waiting on Apple to grant the FinanceKit entitlement. See "Turning on Apple Card" below.
+17. ~~Monthly recap (Home in the first two weeks of a month, and a notification on the 1st) and a
+    statement check on every statement: charges without a receipt, returns never credited, charges
+    that just started repeating, and price changes.~~
 
 Later: iCloud sync, household sharing, a paid tier.
+
+### Turning on Apple Card
+
+FinanceKit needs a managed entitlement Apple grants per app.
+
+1. At developer.apple.com, request the FinanceKit entitlement for `com.rcabral.snaplist` (Apple's
+   FinanceKit page links to the request form). Approval can take a while.
+2. Once granted, enable FinanceKit for the App ID under Certificates, Identifiers & Profiles.
+3. Add `com.apple.developer.financekit` (`financial-data`) to `Snaplist/Snaplist.entitlements`
+   and build. Until then, Connect Apple Card says Apple hasn't switched it on.
 
 ### Turning on widgets
 

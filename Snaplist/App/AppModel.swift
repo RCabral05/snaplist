@@ -54,6 +54,8 @@ final class AppModel {
     private(set) var hasLoaded = false
     /// Where a widget asked to go: snaplist://scan and the like.
     var pendingLink: SnaplistLink?
+    /// Set when the recap notification is tapped; Home shows it.
+    var showRecap = false
     /// "Added 2 files", shown briefly after something arrives from another app.
     var notice: String?
 

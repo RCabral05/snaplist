@@ -1,6 +1,17 @@
 import Foundation
 import GRDB
 
+/// Where live charges come from. Each keeps its own statements, so the same
+/// charge from two of them is counted once like any two statements.
+public enum LiveSource: String, Sendable {
+    /// Apple Pay taps logged by a Shortcuts automation.
+    case tap
+    /// A bank or card through SimpleFIN.
+    case bank
+    /// Apple Card, Apple Cash and Savings through FinanceKit.
+    case wallet
+}
+
 /// A charge that didn't come from a document: an Apple Pay tap logged by a
 /// Shortcuts automation, or a transaction from a connected bank.
 public struct LiveCharge: Hashable, Sendable {
@@ -35,11 +46,11 @@ extension Archive {
     /// Being statements, they're counted once against receipts and against a
     /// statement imported later. Returns how many were new.
     @discardableResult
-    public func addLive(_ charges: [LiveCharge], feed: String) throws -> Int {
+    public func addLive(_ charges: [LiveCharge], feed: String, source: LiveSource = .bank) throws -> Int {
         var added = 0
         let byMonth = Dictionary(grouping: charges) { $0.day.year * 100 + $0.day.month }
         for (month, charges) in byMonth.sorted(by: { $0.key < $1.key }) {
-            let key = "\(feed)|\(month)"
+            let key = source == .bank ? "\(feed)|\(month)" : "\(source.rawValue)|\(feed)|\(month)"
             var rows: [String]
             let record: Record
             if let existing = try liveRecord(key), let asset = try store.assets(of: existing.id).first {
@@ -61,7 +72,7 @@ extension Archive {
                 rows = [LiveCSV.header] + Self.inDayOrder(unique).map(LiveCSV.row)
                 added += unique.count
                 let label = QuestionParser.monthLabel(month % 100, month / 100)
-                record = try add(kind: .statement, title: "\(feed) · \(label)", nameSource: .file,
+                record = try add(kind: .statement, title: source == .tap ? "\(feed) taps · \(label)" : "\(feed) · \(label)", nameSource: .file,
                                  items: [ImportItem(type: .csv, source: .data(Data((rows.joined(separator: "\n") + "\n").utf8)),
                                                     fileExtension: "csv")])
                 try store.setLiveRecord(record.id, key: key)

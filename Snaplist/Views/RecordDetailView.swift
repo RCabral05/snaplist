@@ -57,6 +57,9 @@ struct RecordDetailView: View {
                     }
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
+                    if current.kind == .statement {
+                        StatementCheckSection(record: current)
+                    }
                     textSection
                 }
                 .padding(.bottom, 32)

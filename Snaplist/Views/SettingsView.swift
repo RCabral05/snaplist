@@ -109,7 +109,7 @@ struct SettingsView: View {
                 } footer: {
                     Text(remindersDenied
                          ? "Notifications are off for Snaplist. Turn them on in the Settings app under Notifications, then try again."
-                         : "Notifications before a bill is due or a return window closes (3 days), a warranty ends (30 days) or an ID or policy needs renewing (60 days), and when a budget passes 80% or 100%. Names and amounts can show on the Lock Screen; with the lock on, budget amounts don't.")
+                         : "Notifications before a bill is due or a return window closes (3 days), a warranty ends (30 days) or an ID or policy needs renewing (60 days), when a budget passes 80% or 100%, and a recap of last month on the 1st. Names and amounts can show on the Lock Screen; with the lock on, budget amounts don't.")
                 }
                 .listRowBackground(Theme.surface)
 
