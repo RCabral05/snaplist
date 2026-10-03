@@ -133,6 +133,10 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 13. ~~Things (item profiles with linked receipt, warranty, manual and photos; claim packets),
     bill and subscription changes, price memory, and collections (Home, Car, Taxes…).~~
 14. Widgets: written (`SnaplistWidgets/`, `Shared/`) but switched off; see below.
+15. ~~Live charges: Apple Pay taps through a Shortcuts automation ("Log a Charge"), and banks and
+    cards through SimpleFIN Bridge (opt-in, read-only, access URL in the Keychain). Each card's
+    charges for a month are a CSV statement that grows, so duplicates work as for any statement.~~
+16. Apple Card through FinanceKit, once Apple grants the entitlement.
 
 Later: iCloud sync, household sharing, a paid tier.
 

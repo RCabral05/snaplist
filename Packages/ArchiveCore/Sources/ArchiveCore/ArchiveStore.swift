@@ -239,6 +239,15 @@ public struct ArchiveStore: Sendable {
                                arguments: [id, row["recordId"], ThingRole.of(kind).rawValue])
             }
         }
+        migrator.registerMigration("v10-live-feeds") { db in
+            try db.execute(sql: """
+                -- Which record holds each card's charges for a month, as they come in.
+                CREATE TABLE liveFeed (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    recordId BLOB NOT NULL REFERENCES record(id) ON DELETE CASCADE
+                );
+                """)
+        }
         return migrator
     }
 

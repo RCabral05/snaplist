@@ -46,7 +46,10 @@ struct SnaplistApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     lock.sceneChanged(to: phase)
-                    if phase == .active { model.resumePending() }
+                    if phase == .active {
+                        model.resumePending()
+                        model.syncBanksIfDue()
+                    }
                 }
             case .failure(let error):
                 ContentUnavailableView(

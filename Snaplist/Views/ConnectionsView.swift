@@ -1,0 +1,124 @@
+import ArchiveCore
+import SwiftUI
+
+/// Charges that come in on their own: Apple Pay taps through a Shortcuts
+/// automation, and banks and cards through SimpleFIN.
+struct ConnectionsView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
+
+    @State private var isConnected = SimpleFIN.isConnected
+    @State private var token = ""
+    @State private var working = false
+    @State private var message: String?
+    @State private var failed = false
+    @State private var isConfirmingDisconnect = false
+
+    var body: some View {
+        Form {
+            Section {
+                step(1, "Open the Shortcuts app, go to Automation and tap +.")
+                step(2, "Choose Wallet, pick your cards, and turn on Run Immediately.")
+                step(3, "Create a new blank automation and add Snaplist's Log a Charge action.")
+                step(4, "Set Merchant, Amount and Card from the Shortcut Input: its Merchant, Amount and Card or Pass name.")
+                Button("Open Shortcuts", systemImage: "arrow.up.forward.app") {
+                    openURL(URL(string: "shortcuts://")!)
+                }
+            } header: {
+                Text("Apple Pay taps")
+            } footer: {
+                Text("Each tap is logged the moment you pay, on that card's statement for the month in Snaplist. A receipt you scan for it, or the card's statement when you import it, is counted once with it. Online purchases and swiped cards come in with the statement.")
+            }
+            .listRowBackground(Theme.surface)
+
+            Section {
+                if isConnected {
+                    let accounts = UserDefaults.standard.stringArray(forKey: SimpleFIN.accountsKey) ?? []
+                    ForEach(accounts, id: \.self) { account in
+                        Label(account, systemImage: "creditcard")
+                    }
+                    if let last = SimpleFIN.lastSync {
+                        LabeledContent("Last checked", value: last.formatted(.relative(presentation: .named)))
+                    }
+                    Button {
+                        Task { await sync() }
+                    } label: {
+                        if working { ProgressView() } else { Label("Check Now", systemImage: "arrow.clockwise") }
+                    }
+                    .disabled(working)
+                    Button("Disconnect", role: .destructive) { isConfirmingDisconnect = true }
+                        .confirmationDialog("Disconnect SimpleFIN?", isPresented: $isConfirmingDisconnect, titleVisibility: .visible) {
+                            Button("Disconnect", role: .destructive) {
+                                SimpleFIN.disconnect()
+                                isConnected = false
+                                message = nil
+                            }
+                        } message: {
+                            Text("Charges already in Snaplist stay. To stop SimpleFIN reading your bank too, remove the connection on SimpleFIN's site.")
+                        }
+                } else {
+                    Link(destination: SimpleFIN.siteURL) {
+                        Label("Get a Setup Token from SimpleFIN", systemImage: "arrow.up.forward.square")
+                    }
+                    TextField("Paste the setup token", text: $token, axis: .vertical)
+                        .lineLimit(1...3)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.footnote.monospaced())
+                    Button {
+                        Task { await connect() }
+                    } label: {
+                        if working { ProgressView() } else { Text("Connect") }
+                    }
+                    .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty || working)
+                }
+                if let message {
+                    Text(message).font(.footnote).foregroundStyle(failed ? Color.red : Color.secondary)
+                }
+            } header: {
+                Text("Banks and cards")
+            } footer: {
+                Text("SimpleFIN Bridge is a paid service, separate from Snaplist, that reads transactions from many US banks and card companies. You link your banks on its site; Snaplist then downloads posted charges, checking at most every few hours. Your transactions pass through SimpleFIN and the company it uses to reach your bank. Snaplist sends nothing back, can't move money, and keeps the connection in the Keychain on this iPhone only.")
+            }
+            .listRowBackground(Theme.surface)
+        }
+        .warmForm()
+        .navigationTitle("Live Charges")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func step(_ number: Int, _ text: String) -> some View {
+        Label {
+            Text(text).font(.subheadline)
+        } icon: {
+            Text("\(number)").font(.subheadline.weight(.bold)).foregroundStyle(Theme.accent)
+        }
+    }
+
+    private func connect() async {
+        working = true
+        defer { working = false }
+        do {
+            try await SimpleFIN.connect(setupToken: token)
+            token = ""
+            isConnected = true
+            await sync()
+        } catch {
+            failed = true
+            message = error.localizedDescription
+        }
+    }
+
+    private func sync() async {
+        working = true
+        defer { working = false }
+        do {
+            let added = try await model.syncBanks()
+            failed = false
+            message = added == 0 ? "Up to date." : added == 1 ? "1 new charge." : "\(added) new charges."
+        } catch {
+            failed = true
+            message = error.localizedDescription
+        }
+    }
+}

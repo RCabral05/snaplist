@@ -123,6 +123,41 @@ enum SpendingPeriodOption: String, AppEnum {
     }
 }
 
+/// "Log a Charge": for a Shortcuts automation that runs when a Wallet card
+/// is tapped, which hands over the merchant, the amount and the card's name.
+/// The charge goes on that card's statement for the month in Snaplist,
+/// where a receipt or the real statement for it later counts it once.
+struct LogChargeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log a Charge"
+    static let description = IntentDescription(
+        "Adds a card charge to Snaplist. Use it in a Shortcuts automation that runs when you tap a Wallet card.")
+    static let openAppWhenRun = false
+
+    @Parameter(title: "Merchant")
+    var merchant: String
+
+    @Parameter(title: "Amount", description: "As Wallet gives it, like $4.50.")
+    var amount: String
+
+    @Parameter(title: "Card", description: "The card's name, like Apple Card. Charges are kept per card.")
+    var card: String?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Log \(\.$amount) at \(\.$merchant) on \(\.$card)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let model = try SharedModel.model()
+        guard let charge = LiveCharge.tap(merchant: merchant, amount: amount, on: Day(.now)) else {
+            return .result(dialog: "Snaplist couldn't read the amount “\(amount)”, so nothing was logged.")
+        }
+        try model.logCharge(charge, card: card)
+        let money = Money(cents: abs(charge.amountCents), currency: charge.currency).formatted
+        return .result(dialog: "Logged \(money) at \(charge.description).")
+    }
+}
+
 struct SnaplistShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

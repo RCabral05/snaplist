@@ -81,6 +81,19 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section {
+                    NavigationLink {
+                        ConnectionsView()
+                    } label: {
+                        Label("Apple Pay, Banks and Cards", systemImage: "creditcard")
+                    }
+                } header: {
+                    Text("Live charges")
+                } footer: {
+                    Text("Log Apple Pay taps as you pay, or connect banks and cards through SimpleFIN.")
+                }
+                .listRowBackground(Theme.surface)
+
+                Section {
                     Toggle("Bills, Renewals and Budgets", isOn: $remindersEnabled)
                         .onChange(of: remindersEnabled) { _, enabled in
                             Task {
@@ -110,7 +123,9 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section("Where your data is") {
-                    Label("Only on this iPhone. There is no account, and nothing is uploaded.", systemImage: "iphone")
+                    Label(SimpleFIN.isConnected
+                          ? "Only on this iPhone. There is no account, and nothing is uploaded; bank charges are downloaded from SimpleFIN."
+                          : "Only on this iPhone. There is no account, and nothing is uploaded.", systemImage: "iphone")
                     Label("Encrypted by iOS while your iPhone is locked.", systemImage: "lock.shield")
                     Label("Text is read, and questions understood, on the iPhone itself, never by a server.", systemImage: "text.viewfinder")
                     Label("Included in your iPhone's own backups (iCloud or computer), which belong to your Apple ID.", systemImage: "externaldrive")
