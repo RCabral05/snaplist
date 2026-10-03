@@ -149,6 +149,10 @@ struct LogChargeIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let model = try SharedModel.model()
+        // Run by hand from the automation editor, there's no payment, so no amount.
+        if amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .result(dialog: "No payment came in, so nothing was logged. This runs by itself when you pay with a Wallet card; running it from the editor has nothing to log.")
+        }
         guard let charge = LiveCharge.tap(merchant: merchant, amount: amount, on: Day(.now)) else {
             return .result(dialog: "Snaplist couldn't read the amount “\(amount)”, so nothing was logged.")
         }
