@@ -44,12 +44,17 @@ final class ScreenshotTests: XCTestCase {
             sleep(1)
             snap("02-library-\(suffix)")
 
-            let receipts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Receipts'")).firstMatch
-            if receipts.waitForExistence(timeout: 3) {
-                receipts.tap()
-                sleep(1)
-                snap("03-filtered-\(suffix)")
-                receipts.tap()
+            let filter = app.buttons["library-filter"].firstMatch
+            if filter.waitForExistence(timeout: 3) {
+                filter.tap()
+                let receipts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Receipts'")).firstMatch
+                if receipts.waitForExistence(timeout: 3) {
+                    receipts.tap()
+                    sleep(1)
+                    snap("03-filtered-\(suffix)")
+                    filter.tap()
+                    app.buttons["Show All"].firstMatch.tap()
+                }
             }
 
             firstRecord.tap()

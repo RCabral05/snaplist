@@ -34,7 +34,6 @@ struct RecordListView: View {
                                 importFiles: { addFlow.isPickingFiles = true })
                 } else {
                     VStack(alignment: .leading, spacing: 16) {
-                        KindFilterBar()
                         if model.query.isEmpty {
                             grid
                         } else {
@@ -47,6 +46,11 @@ struct RecordListView: View {
             .background(Theme.background)
             .navigationTitle("Library")
             .navigationSubtitle(subtitle)
+            .toolbar {
+                if !model.records.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) { LibraryFilterMenu() }
+                }
+            }
             // Hidden on the welcome screen, where it would cover the buttons
             // and has nothing to search yet.
             .searchable(when: !model.records.isEmpty, text: $model.query, prompt: "Stores, amounts, any word")
@@ -135,7 +139,14 @@ struct RecordListView: View {
         let count = model.records.count
         guard count > 0 else { return "" }
         let reading = model.records.count { $0.status == .pending }
-        let base = count == 1 ? "1 document" : "\(count) documents"
+        var base = count == 1 ? "1 document" : "\(count) documents"
+        // What the filter is showing, since the button only says one is on.
+        let shown = model.visibleRecords.count
+        if let tag = model.tagFilter {
+            base = "\(model.kindFilter?.pluralLabel ?? "Everything") with \(tag.name) · \(shown)"
+        } else if let kind = model.kindFilter {
+            base = "\(kind.pluralLabel) · \(shown)"
+        }
         return reading > 0 ? "\(base) · reading \(reading)" : base
     }
 

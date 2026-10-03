@@ -1,72 +1,52 @@
 import ArchiveCore
 import SwiftUI
 
-/// "All · Receipts 4 · Warranties 1": one chip per category in use, each in
-/// its colour. Narrows both the grid and search.
-struct KindFilterBar: View {
+/// The Library's filter: a button that opens a menu of record types, then
+/// people and places. Filled in while a filter is on.
+struct LibraryFilterMenu: View {
     @Environment(AppModel.self) private var model
 
+    private var isFiltering: Bool { model.kindFilter != nil || model.tagFilter != nil }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Chip(title: "All", symbol: "square.grid.2x2", count: nil, tint: .accentColor,
-                     isSelected: model.kindFilter == nil && model.tagFilter == nil) {
-                    model.kindFilter = nil
-                    model.tagFilter = nil
-                }
+        Menu {
+            Button {
+                model.kindFilter = nil
+                model.tagFilter = nil
+            } label: {
+                checked("Show All", "square.grid.2x2", !isFiltering)
+            }
+            Section("Type") {
                 ForEach(model.kindCounts, id: \.kind) { entry in
-                    Chip(title: entry.kind.pluralLabel, symbol: entry.kind.symbol, count: entry.count,
-                         tint: entry.kind.tint, isSelected: model.kindFilter == entry.kind) {
+                    Button {
                         model.kindFilter = model.kindFilter == entry.kind ? nil : entry.kind
+                    } label: {
+                        checked("\(entry.kind.pluralLabel) (\(entry.count))", entry.kind.symbol, model.kindFilter == entry.kind)
                     }
                 }
-                if !model.tags.isEmpty {
-                    Divider().frame(height: 22)
+            }
+            if !model.tags.isEmpty {
+                Section("People and places") {
                     ForEach(model.tags) { tag in
-                        Chip(title: tag.name, symbol: tag.kind.symbol, count: model.recordCount(of: tag),
-                             tint: tag.kind.tint, isSelected: model.tagFilter?.id == tag.id) {
+                        Button {
                             model.tagFilter = model.tagFilter?.id == tag.id ? nil : tag
+                        } label: {
+                            checked("\(tag.name) (\(model.recordCount(of: tag)))", tag.kind.symbol, model.tagFilter?.id == tag.id)
                         }
                     }
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 2)
+        } label: {
+            Label("Filter", systemImage: isFiltering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .scrollClipDisabled()
+        .accessibilityIdentifier("library-filter")
         .sensoryFeedback(.selection, trigger: model.kindFilter)
         .sensoryFeedback(.selection, trigger: model.tagFilter)
     }
 
-    private struct Chip: View {
-        let title: String
-        let symbol: String
-        let count: Int?
-        let tint: Color
-        let isSelected: Bool
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 6) {
-                    Image(systemName: symbol).font(.caption.weight(.semibold))
-                    Text(title)
-                    if let count {
-                        Text("\(count)")
-                            .monospacedDigit()
-                            .foregroundStyle(isSelected ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.secondary))
-                    }
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(tint))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? AnyShapeStyle(tint) : AnyShapeStyle(tint.opacity(0.12)), in: .capsule)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .animation(.snappy(duration: 0.2), value: isSelected)
-        }
+    /// A menu row with a checkmark when it's the one showing.
+    private func checked(_ title: String, _ symbol: String, _ on: Bool) -> some View {
+        Label(title, systemImage: on ? "checkmark" : symbol)
     }
 }
 
