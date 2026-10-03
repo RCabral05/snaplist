@@ -79,8 +79,7 @@ final class ScreenshotTests: XCTestCase {
             snap("09-ask-where-\(suffix)")
 
             tab(app, "Library")
-            let search = app.searchFields.firstMatch
-            if !search.waitForExistence(timeout: 3) { app.swipeDown() }
+            let search = app.textFields["library-search"].firstMatch
             if search.waitForExistence(timeout: 5) {
                 search.tap()
                 search.typeText("shell")

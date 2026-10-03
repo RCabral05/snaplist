@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "2.5.1"
+    MARKETING_VERSION: "2.5.2"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:

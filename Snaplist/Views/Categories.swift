@@ -1,6 +1,50 @@
 import ArchiveCore
 import SwiftUI
 
+/// Search and the filter on one line, at the top of the Library.
+struct LibrarySearchBar: View {
+    @Binding var text: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Stores, amounts, any word", text: $text)
+                    .focused($isFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("library-search")
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                        isFocused = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(Theme.surface, in: .capsule)
+            .overlay(Capsule().strokeBorder(Theme.border))
+            .contentShape(.capsule)
+            .onTapGesture { isFocused = true }
+
+            LibraryFilterMenu()
+                .labelStyle(.iconOnly)
+                .font(.title3)
+                .frame(width: 44, height: 44)
+                .background(Theme.surface, in: .circle)
+                .overlay(Circle().strokeBorder(Theme.border))
+        }
+        .padding(.horizontal)
+    }
+}
+
 /// The Library's filter: a button that opens a menu of record types, then
 /// people and places. Filled in while a filter is on.
 struct LibraryFilterMenu: View {

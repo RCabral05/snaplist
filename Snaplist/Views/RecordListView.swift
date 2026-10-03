@@ -34,6 +34,7 @@ struct RecordListView: View {
                                 importFiles: { addFlow.isPickingFiles = true })
                 } else {
                     VStack(alignment: .leading, spacing: 16) {
+                        LibrarySearchBar(text: $model.query)
                         if model.query.isEmpty {
                             grid
                         } else {
@@ -46,14 +47,7 @@ struct RecordListView: View {
             .background(Theme.background)
             .navigationTitle("Library")
             .navigationSubtitle(subtitle)
-            .toolbar {
-                if !model.records.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) { LibraryFilterMenu() }
-                }
-            }
-            // Hidden on the welcome screen, where it would cover the buttons
-            // and has nothing to search yet.
-            .searchable(when: !model.records.isEmpty, text: $model.query, prompt: "Stores, amounts, any word")
+
             .navigationDestination(for: Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }
@@ -266,15 +260,6 @@ struct StatusPill: View {
 }
 
 private extension View {
-    @ViewBuilder
-    func searchable(when enabled: Bool, text: Binding<String>, prompt: String) -> some View {
-        if enabled {
-            searchable(text: text, prompt: Text(prompt))
-        } else {
-            self
-        }
-    }
-
     func pill() -> some View {
         font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
