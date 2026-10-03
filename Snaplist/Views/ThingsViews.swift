@@ -176,7 +176,7 @@ struct ThingProfileView: View {
                     Button("Delete This Thing", role: .destructive) { isConfirmingDelete = true }
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
-                        .confirmationDialog("Delete \(profile?.thing.name ?? "this")?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                        .confirmationDialog("Delete \(profile.thing.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
                             Button("Delete", role: .destructive) {
                                 model.deleteThing(thingId)
                                 dismiss()
