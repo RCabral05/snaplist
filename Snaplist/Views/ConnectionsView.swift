@@ -17,10 +17,10 @@ struct ConnectionsView: View {
     var body: some View {
         Form {
             Section {
-                step(1, "Open the Shortcuts app, go to Automation and tap +.")
-                step(2, "Choose Wallet, pick your cards, and turn on Run Immediately.")
-                step(3, "Create a new blank automation and add Snaplist's Log a Charge action.")
-                step(4, "Set Merchant, Amount and Card from the Shortcut Input: its Merchant, Amount and Card or Pass name.")
+                step(1, "In the Shortcuts app, open the Automation tab at the bottom and tap +.")
+                step(2, "Scroll the list of triggers to Wallet (called Transaction on some iOS versions), pick your cards, and choose Run Immediately.")
+                step(3, "Tap New Blank Automation, then Add Action, and search for Log a Charge.")
+                step(4, "Tap each blue field and choose from Shortcut Input: Merchant, Amount, and the card's name for Card.")
                 Button("Open Shortcuts", systemImage: "arrow.up.forward.app") {
                     openURL(URL(string: "shortcuts://")!)
                 }
