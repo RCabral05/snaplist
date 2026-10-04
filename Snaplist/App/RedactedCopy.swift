@@ -11,8 +11,10 @@ enum RedactedCopy {
     static let wordsKey = "alwaysHideWords"
 
     static var words: [String] {
-        (UserDefaults.standard.string(forKey: wordsKey) ?? "")
-            .split(whereSeparator: { $0 == "," || $0.isNewline }).map { $0.trimmingCharacters(in: .whitespaces) }
+        let stored = UserDefaults.standard.string(forKey: wordsKey) ?? ""
+        // One per line; 2.7.1 kept them on one line with commas.
+        let isOld = !stored.contains(where: \.isNewline) && stored.contains(",")
+        return stored.split(whereSeparator: { $0.isNewline || (isOld && $0 == ",") }).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
     }
 

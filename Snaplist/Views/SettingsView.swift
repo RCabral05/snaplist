@@ -9,7 +9,6 @@ struct SettingsView: View {
     @AppStorage(Spotlight.settingKey) private var showInSpotlight = false
     @AppStorage(Reminders.settingKey) private var remindersEnabled = false
     @AppStorage(PhotoPlaces.settingKey) private var namePlaces = false
-    @AppStorage(RedactedCopy.wordsKey) private var alwaysHide = ""
     @State private var remindersDenied = false
 
     @State private var export: ExportState = .idle
@@ -124,14 +123,15 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section {
-                    TextField("Your name, street, phone…", text: $alwaysHide, axis: .vertical)
-                        .lineLimit(1...4)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
+                    NavigationLink {
+                        AlwaysHideView()
+                    } label: {
+                        LabeledContent("Always Hide", value: RedactedCopy.words.isEmpty ? "Not set" : "\(RedactedCopy.words.count)")
+                    }
                 } header: {
                     Text("Sharing")
                 } footer: {
-                    Text("Share with Private Details Hidden always covers lines with these, separated by commas: your name, last name, street, phone number. Card and account numbers, addresses and ID numbers are covered anyway.")
+                    Text("Your name, street or phone, covered whenever you share with private details hidden.")
                 }
                 .listRowBackground(Theme.surface)
 
@@ -240,5 +240,57 @@ struct SettingsView: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return "\(short) (\(build))"
+    }
+}
+
+/// The person's own words to hide when sharing, one per row.
+private struct AlwaysHideView: View {
+    @AppStorage(RedactedCopy.wordsKey) private var stored = ""
+    @State private var words: [String] = []
+    @State private var newWord = ""
+    @FocusState private var isAdding: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(words, id: \.self) { word in
+                    Text(word)
+                }
+                .onDelete { offsets in
+                    words.remove(atOffsets: offsets)
+                    save()
+                }
+                HStack {
+                    TextField("Add your name, street or phone", text: $newWord)
+                        .focused($isAdding)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit(add)
+                    Button("Add", action: add)
+                        .disabled(newWord.trimmingCharacters(in: .whitespaces).count < 3)
+                }
+            } footer: {
+                Text("Any line that has one of these is covered when you share with private details hidden. Add your first and last name separately to catch either on its own. A phone number is found however it's printed. Swipe left to remove one.")
+            }
+            .listRowBackground(Theme.surface)
+        }
+        .warmForm()
+        .navigationTitle("Always Hide")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { words = RedactedCopy.words }
+    }
+
+    private func add() {
+        let word = newWord.trimmingCharacters(in: .whitespaces)
+        guard word.count >= 3, !words.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) else { return }
+        words.append(word)
+        newWord = ""
+        isAdding = true
+        save()
+    }
+
+    private func save() {
+        stored = words.joined(separator: "\n")
     }
 }
