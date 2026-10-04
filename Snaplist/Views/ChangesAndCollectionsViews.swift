@@ -153,7 +153,7 @@ struct CollectionView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if collection?.name == "Car" {
                     NavigationLink {
-                        CarView()
+                        ProLocked(feature: .car) { CarView() }
                     } label: {
                         Label("Maintenance and next oil change", systemImage: "wrench.and.screwdriver")
                             .font(.subheadline.weight(.semibold))
@@ -394,7 +394,7 @@ struct RecordCollectionsMenu: View {
                 }
             }
             if !collections.isEmpty { Divider() }
-            Button("New Collection…", systemImage: "plus") { isCreating = true }
+            Button("New Collection…", systemImage: "plus") { if model.canAddCollection() { isCreating = true } }
         } label: {
             HStack(spacing: 4) {
                 Text(label(collections)).lineLimit(1)

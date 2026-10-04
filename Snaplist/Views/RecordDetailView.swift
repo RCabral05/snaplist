@@ -59,7 +59,11 @@ struct RecordDetailView: View {
                     AmountsSection(record: current, transactions: transactions, showOnPage: showOnPage)
                     DuplicatesSection(record: current)
                     if current.kind == .statement {
-                        StatementCheckSection(record: current)
+                        if Pro.shared.isUnlocked {
+                            StatementCheckSection(record: current)
+                        } else {
+                            ProTeaser(feature: .statementCheck).padding(.horizontal)
+                        }
                     }
                     textSection
                 }
@@ -81,6 +85,7 @@ struct RecordDetailView: View {
                         }
                         if assets.contains(where: { $0.type == .image || $0.type == .pdf }) {
                             Button("Share with Private Details Hidden", systemImage: "eye.slash") {
+                                guard Pro.shared.require(.privateShare) else { return }
                                 do {
                                     redacted = try RedactedCopy.draft(current, archive: model.archive)
                                 } catch {

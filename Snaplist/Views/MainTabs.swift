@@ -46,7 +46,14 @@ struct MainTabs: View {
                 RecordListView(path: $libraryPath)
             }
             SwiftUI.Tab("Spending", systemImage: "chart.bar.xaxis", value: Tab.spending) {
-                OverviewView(showsDone: false)
+                if Pro.shared.isUnlocked {
+                    OverviewView(showsDone: false)
+                } else {
+                    NavigationStack {
+                        ProLocked(feature: .spending) { EmptyView() }
+                            .navigationTitle("Spending")
+                    }
+                }
             }
             SwiftUI.Tab("Ask", systemImage: "sparkle.magnifyingglass", value: Tab.ask) {
                 AskView(question: askQuestion, showsDone: false)
@@ -134,6 +141,10 @@ struct MainTabs: View {
                 model.showRecap = true
             }
         }
+        .sheet(item: Binding(get: { Pro.shared.paywall }, set: { Pro.shared.paywall = $0 })) { reason in
+            PaywallView(reason: reason)
+        }
+        .task { await Pro.shared.start() }
         // From the Control Center control or the Action button.
         .onReceive(NotificationCenter.default.publisher(for: LinkRequests.notification)) { _ in
             if let link = LinkRequests.take() { model.pendingLink = link }
@@ -169,6 +180,7 @@ struct MainTabs: View {
 /// The + tab: every way to add something, as big buttons.
 private struct AddView: View {
     @Environment(AddFlow.self) private var addFlow
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         NavigationStack {
@@ -201,8 +213,13 @@ private struct AddView: View {
         }
     }
 
+    /// Free is full: the paywall instead of the camera or a picker.
+    private func canAdd() -> Bool {
+        model.records.count < Pro.freeRecordLimit || Pro.shared.require(.records)
+    }
+
     private func option(_ title: String, _ detail: String, _ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: { if canAdd() { action() } }) {
             HStack(spacing: 14) {
                 Image(systemName: symbol)
                     .font(.title3.weight(.semibold))

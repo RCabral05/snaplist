@@ -128,6 +128,7 @@ struct ThemePicker: View {
             VStack(spacing: 14) {
                 ForEach(AppTheme.all) { theme in
                     Button {
+                        guard theme.id == .ledger || Pro.shared.require(.themes) else { return }
                         withAnimation(.snappy) { store.select(theme.id) }
                         model.updateWidgets()
                     } label: {

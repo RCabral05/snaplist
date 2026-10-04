@@ -153,7 +153,24 @@ Later: iCloud sync, household sharing, a paid tier.
       (see "Turning on Apple Card").
 - [ ] Widgets, the Control Center scan button and Share to Snaplist: register the App Group and two
       extension App IDs (see "Turning on widgets and sharing").
-- [ ] App Store: privacy details, screenshots, description, pricing.
+- [ ] Snaplist Pro in App Store Connect (see "Setting up Snaplist Pro").
+- [ ] A privacy policy page, linked from the paywall (`Pro.privacyURL`) and the App Store listing.
+- [ ] App Store: privacy details, screenshots, description.
+
+### Setting up Snaplist Pro
+
+Free keeps 25 records and 2 collections; Pro is $3.99 a month or $29.99 a year, with a
+7-day free trial on the yearly plan. In App Store Connect:
+
+1. Agreements, Tax, and Banking: sign the Paid Applications agreement and add banking and tax info.
+2. The app → Monetization → Subscriptions: create a group "Snaplist Pro" with two
+   auto-renewable subscriptions:
+   - `com.rcabral.snaplist.pro.monthly`: 1 month, $3.99.
+   - `com.rcabral.snaplist.pro.yearly`: 1 year, $29.99, introductory offer: free, 1 week.
+3. Give each a display name and description, and a review screenshot of the paywall.
+
+TestFlight buys are free sandbox purchases. Until the products exist, Settings → Snaplist Pro →
+Pro for Testing turns Pro on and off in TestFlight builds; it isn't in App Store builds.
 
 ### Turning on Apple Card
 

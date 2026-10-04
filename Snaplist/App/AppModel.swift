@@ -277,6 +277,12 @@ final class AppModel {
     @discardableResult
     func add(kind: RecordKind = .document, title: String, nameSource: NameSource = .person,
              items: [ImportItem], at date: Date = .now) -> Record? {
+        // Free keeps a set number of records; what's saved is never locked.
+        if records.count >= Pro.freeRecordLimit, !Pro.shared.require(.records) {
+            // In case the paywall can't show over a picker that's still open.
+            notice = "Free keeps up to \(Pro.freeRecordLimit) records. Get Pro in Settings to add more."
+            return nil
+        }
         do {
             let record = try archive.add(kind: kind, title: title, nameSource: nameSource, items: items, at: date)
             let ingestor = ingestor

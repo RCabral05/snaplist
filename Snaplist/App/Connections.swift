@@ -7,6 +7,7 @@ import Security
 extension AppModel {
     /// A charge from the Shortcuts automation, on its card's statement.
     func logCharge(_ charge: LiveCharge, card: String?) throws {
+        guard Pro.shared.isUnlocked else { throw ProRequired() }
         let name = card?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         try archive.addLive([charge], feed: name.isEmpty ? "Apple Pay" : name, source: .tap)
         amountsChanged()
@@ -136,6 +137,7 @@ extension AppModel {
     /// When the app comes forward, at most every six hours: SimpleFIN
     /// refreshes about once a day and limits how often it's asked.
     func syncBanksIfDue() {
+        guard Pro.shared.isUnlocked else { return }
         // Apple Card is on the iPhone itself: every time, once a minute at most.
         if AppleCard.isEnabled, AppleCard.lastSync.map({ Date.now.timeIntervalSince($0) > 60 }) ?? true {
             Task { try? await syncAppleCard() }
@@ -144,4 +146,9 @@ extension AppModel {
         if let last = SimpleFIN.lastSync, Date.now.timeIntervalSince(last) < 6 * 3600 { return }
         Task { try? await syncBanks() }
     }
+}
+
+/// Live charges are part of Snaplist Pro.
+struct ProRequired: LocalizedError {
+    var errorDescription: String? { "Logging charges is part of Snaplist Pro. Open Snaplist to get it." }
 }

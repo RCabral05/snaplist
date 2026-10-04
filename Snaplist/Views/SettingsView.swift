@@ -24,6 +24,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                ProSettingsSection()
+
                 Section {
                     NavigationLink {
                         ThemePicker()
@@ -82,7 +84,7 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink {
-                        ConnectionsView()
+                        ProLocked(feature: .liveCharges) { ConnectionsView() }
                     } label: {
                         Label("Apple Pay, Banks and Cards", systemImage: "creditcard")
                     }

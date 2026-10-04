@@ -39,17 +39,21 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         header
                         askField
-                        if let recapMonth {
-                            recapRow(recapMonth)
-                        }
-                        if let month = overview?.months.last(where: { $0.count > 0 }) {
-                            MonthCard(month: month, overview: overview!) { open(.spending) }
-                        }
-                        if !budgets.isEmpty {
-                            budgetsSection
-                        }
-                        if !changes.isEmpty {
-                            changesSection
+                        if Pro.shared.isUnlocked {
+                            if let recapMonth {
+                                recapRow(recapMonth)
+                            }
+                            if let month = overview?.months.last(where: { $0.count > 0 }) {
+                                MonthCard(month: month, overview: overview!) { open(.spending) }
+                            }
+                            if !budgets.isEmpty {
+                                budgetsSection
+                            }
+                            if !changes.isEmpty {
+                                changesSection
+                            }
+                        } else if overview?.months.contains(where: { $0.count > 0 }) ?? false {
+                            ProTeaser(feature: .spending)
                         }
                         if !comingUp.isEmpty {
                             comingUpSection
@@ -191,7 +195,7 @@ struct HomeView: View {
                         NavigationLink { CollectionView(collectionId: collection.id) } label: { CollectionCard(collection: collection) }
                             .buttonStyle(.plain)
                     }
-                    Button { isAddingCollection = true } label: {
+                    Button { if model.canAddCollection() { isAddingCollection = true } } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             Image(systemName: "plus").font(.title3).foregroundStyle(Theme.accent)
                             Text(collections.isEmpty ? "Car, Home…" : "New").font(.subheadline.weight(.semibold))
@@ -239,23 +243,23 @@ struct HomeView: View {
                 tool("IDs & policies", "person.text.rectangle", idsDetail)
             }
             NavigationLink {
-                ThingsView()
+                ProLocked(feature: .things) { ThingsView() }
             } label: {
                 tool("Things", "sofa",
                      inventory.map { $0.count == 0 ? "What you own" : "\($0.count) · \(Money(cents: $0.totalCents, currency: $0.currency).formattedWhole)" } ?? "What you own")
             }
             NavigationLink {
-                TaxReportView()
+                ProLocked(feature: .taxReport) { TaxReportView() }
             } label: {
                 tool("Tax report", "building.columns", hasTaxRecords ? "Ready to export" : "Mark records + Tax")
             }
             NavigationLink {
-                SubscriptionsView()
+                ProLocked(feature: .subscriptions) { SubscriptionsView() }
             } label: {
                 tool("Subscriptions", "repeat", subscriptionsDetail)
             }
             NavigationLink {
-                CarView()
+                ProLocked(feature: .car) { CarView() }
             } label: {
                 tool("Car", "car", carDetail)
             }

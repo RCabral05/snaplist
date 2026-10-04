@@ -200,6 +200,11 @@ extension AppModel {
         (try? archive.store.statementLines(in: collection)) ?? []
     }
 
+    /// Before opening the new-collection screen: free has a limit.
+    func canAddCollection() -> Bool {
+        collections().count < Pro.freeCollectionLimit || Pro.shared.require(.collections)
+    }
+
     func save(_ collection: Collection) {
         do {
             try archive.store.save(collection)
