@@ -65,15 +65,15 @@ enum ProFeature: String, Identifiable, CaseIterable {
 final class Pro {
     static let shared = Pro()
 
-    static let freeRecordLimit = 25
-    static let freeCollectionLimit = 2
-    static let monthlyID = "com.rcabral.snaplist.pro.monthly"
-    static let yearlyID = "com.rcabral.snaplist.pro.yearly"
+    nonisolated static let freeRecordLimit = 25
+    nonisolated static let freeCollectionLimit = 2
+    nonisolated static let monthlyID = "com.rcabral.snaplist.pro.monthly"
+    nonisolated static let yearlyID = "com.rcabral.snaplist.pro.yearly"
     /// Apple's standard terms, which App Review asks subscription apps to link.
-    static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    nonisolated static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     /// Set before release: App Review needs a privacy policy linked from the paywall.
-    static let privacyURL: URL? = nil
-    static let testOverrideKey = "proTestOverride"
+    nonisolated static let privacyURL: URL? = nil
+    nonisolated static let testOverrideKey = "proTestOverride"
 
     /// Yearly first.
     private(set) var products: [Product] = []

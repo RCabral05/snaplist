@@ -159,15 +159,16 @@ Later: iCloud sync, household sharing, a paid tier.
 
 ### Setting up Snaplist Pro
 
-Free keeps 25 records and 2 collections; Pro is $3.99 a month or $29.99 a year, with a
+Free keeps 25 records and 2 collections; Pro is $4.99 a month or $39.99 a year, with a
 7-day free trial on the yearly plan. In App Store Connect:
 
 1. Agreements, Tax, and Banking: sign the Paid Applications agreement and add banking and tax info.
 2. The app → Monetization → Subscriptions: create a group "Snaplist Pro" with two
    auto-renewable subscriptions:
-   - `com.rcabral.snaplist.pro.monthly`: 1 month, $3.99.
-   - `com.rcabral.snaplist.pro.yearly`: 1 year, $29.99, introductory offer: free, 1 week.
+   - `com.rcabral.snaplist.pro.monthly`: 1 month, $4.99.
+   - `com.rcabral.snaplist.pro.yearly`: 1 year, $39.99, introductory offer: free, 1 week.
 3. Give each a display name and description, and a review screenshot of the paywall.
+4. Account → Small Business Program: enroll, so Apple's cut is 15% rather than 30%.
 
 TestFlight buys are free sandbox purchases. Until the products exist, Settings → Snaplist Pro →
 Pro for Testing turns Pro on and off in TestFlight builds; it isn't in App Store builds.
