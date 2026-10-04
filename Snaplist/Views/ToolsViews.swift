@@ -114,6 +114,9 @@ struct TaxReportView: View {
     @State private var year = Calendar.current.component(.year, from: .now)
     @State private var report: TaxReport?
     @State private var export: ReportExport = .idle
+    @State private var isAdding = false
+    @State private var pickedForTax: [UUID] = []
+    @State private var isChoosingPurpose = false
 
     var body: some View {
         ScrollView {
@@ -170,13 +173,32 @@ struct TaxReportView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
                     ContentUnavailableView("Nothing marked for \(String(year))", systemImage: "building.columns",
-                                           description: Text("Open a receipt or bill and tap + Tax to mark it Business, Medical, Charity or anything else."))
+                                           description: Text("Tap + to add records, or open a receipt or bill and tap + Tax, to mark them Business, Medical, Charity or anything else."))
                 }
             }
             .padding()
         }
         .background(Theme.background)
         .navigationTitle("Tax Report")
+        .toolbar {
+            Button("Add Records", systemImage: "plus") { isAdding = true }
+        }
+        // The purpose is asked once the picker has gone, so the two don't collide.
+        .sheet(isPresented: $isAdding, onDismiss: { isChoosingPurpose = !pickedForTax.isEmpty }) {
+            RecordPicker(title: "Add to Tax Report", excluding: Set(report?.groups.flatMap { $0.entries.map(\.record.id) } ?? [])) { ids in
+                pickedForTax = ids
+            }
+        }
+        .confirmationDialog("What are they for?", isPresented: $isChoosingPurpose, titleVisibility: .visible) {
+            ForEach(TagKind.taxSuggestions, id: \.self) { purpose in
+                Button(purpose) {
+                    for id in pickedForTax { model.addTag(purpose, kind: .tax, to: id) }
+                    pickedForTax = []
+                }
+            }
+        } message: {
+            Text("They're marked with it, and the report groups them by it.")
+        }
         .onChange(of: year) { load() }
         .task(id: model.derivedRevision) {
             years = model.taxYears()

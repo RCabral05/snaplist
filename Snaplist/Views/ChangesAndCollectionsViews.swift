@@ -146,6 +146,7 @@ struct CollectionView: View {
     @State private var lines: [Counted] = []
     @State private var spending: SpendingAnswer?
     @State private var isEditing = false
+    @State private var isAdding = false
 
     var body: some View {
         ScrollView {
@@ -248,9 +249,17 @@ struct CollectionView: View {
         }
         .background(Theme.background)
         .navigationTitle(collection?.name ?? "Collection")
-        .toolbar { Button("Edit") { isEditing = true } }
+        .toolbar {
+            Button("Add Records", systemImage: "plus") { isAdding = true }
+            Button("Edit") { isEditing = true }
+        }
         .sheet(isPresented: $isEditing) {
             if let collection { CollectionEditor(collection: collection, isNew: false) }
+        }
+        .sheet(isPresented: $isAdding) {
+            RecordPicker(title: "Add to \(collection?.name ?? "Collection")", excluding: Set(records.map(\.id))) { ids in
+                for id in ids { model.setRecord(id, in: collectionId, included: true) }
+            }
         }
         .task(id: model.derivedRevision) { load() }
     }

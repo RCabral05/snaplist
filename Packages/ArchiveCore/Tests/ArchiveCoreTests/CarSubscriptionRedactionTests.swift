@@ -74,6 +74,14 @@ private func add(_ tmp: TemporaryArchive, _ pages: [[String]]) throws -> UUID {
         #expect(car.estimatedMileage(on: Day(year: 2026, month: 10, day: 1)!)! > 45_100)
     }
 
+    @Test func receiptsAddedByHandCount() throws {
+        let tmp = try TemporaryArchive()
+        let wash = try add(tmp, [["SUDS EXPRESS", "09/14/2026", "Ultimate wash  18.00", "TOTAL 18.00", "VISA"]])
+        #expect(try tmp.archive.store.carSummary() == nil)
+        let car = try #require(try tmp.archive.store.carSummary(alsoInclude: [wash]))
+        #expect(car.services.map(\.kinds) == [[.repair]])
+    }
+
     @Test func noCarNoSummary() throws {
         let tmp = try TemporaryArchive()
         _ = try add(tmp, [["CVS pharmacy", "09/01/2026", "AA BATTERIES 8PK  9.99", "TOTAL 9.99", "VISA"]])

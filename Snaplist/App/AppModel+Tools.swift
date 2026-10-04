@@ -169,6 +169,17 @@ extension AppModel {
 
     func carSummary() -> CarSummary? { derived.car }
 
+    /// Puts records in the Car collection, making it first if there isn't one.
+    func addToCar(_ ids: [UUID]) {
+        var car = collections().first { $0.name == "Car" }
+        if car == nil, let preset = Collection.presets.first(where: { $0.name == "Car" }) {
+            save(preset)
+            car = preset
+        }
+        guard let car else { return }
+        for id in ids { setRecord(id, in: car.id, included: true) }
+    }
+
     func monthlyRecap(for month: DayRange) -> MonthlyRecap? {
         try? archive.store.monthlyRecap(for: month)
     }

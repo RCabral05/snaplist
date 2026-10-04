@@ -257,6 +257,7 @@ struct CarView: View {
     @State private var car: CarSummary?
     @AppStorage(CarSettings.milesKey) private var miles = 5000
     @AppStorage(CarSettings.monthsKey) private var months = 6
+    @State private var isAdding = false
 
     var body: some View {
         List {
@@ -320,13 +321,21 @@ struct CarView: View {
                 .listRowBackground(Theme.surface)
             } else {
                 ContentUnavailableView("No car service yet", systemImage: "car",
-                                       description: Text("Scan an oil change or repair receipt, ideally one that prints the mileage, and the car's history and next oil change show up here."))
+                                       description: Text("Scan an oil change or repair receipt, ideally one that prints the mileage, or tap + to add receipts you already have."))
                     .listRowBackground(Color.clear)
             }
         }
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         .navigationTitle("Car")
+        .toolbar {
+            Button("Add Receipts", systemImage: "plus") { isAdding = true }
+        }
+        .sheet(isPresented: $isAdding) {
+            RecordPicker(title: "Add to Car", excluding: Set(car?.services.map(\.id) ?? [])) { ids in
+                model.addToCar(ids)
+            }
+        }
         .task(id: model.derivedRevision) { car = model.carSummary() }
     }
 }

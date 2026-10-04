@@ -107,6 +107,14 @@ extension ArchiveStore {
             .sorted { ($0.effectiveDay, $0.createdAt) > ($1.effectiveDay, $1.createdAt) }
     }
 
+    /// Records put in a collection by hand.
+    public func addedByHand(to collectionId: UUID) throws -> Set<UUID> {
+        try db.read { db in
+            Set(try UUID.fetchAll(db, sql: "SELECT recordId FROM collectionRecord WHERE collectionId = ? AND included",
+                                  arguments: [collectionId]))
+        }
+    }
+
     /// Statement lines that belong to a collection by what they say.
     public func statementLines(in collection: Collection) throws -> [Counted] {
         let words = collection.keywordList

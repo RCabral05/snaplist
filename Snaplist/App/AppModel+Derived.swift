@@ -57,7 +57,7 @@ extension AppModel {
             priceChanges: (try? store.priceChanges()) ?? [],
             collections: (try? store.collections()) ?? [],
             subscriptions: (try? store.subscriptions()) ?? [],
-            car: try? store.carSummary(oilChangeMiles: carMiles, oilChangeMonths: carMonths))
+            car: try? store.carSummary(oilChangeMiles: carMiles, oilChangeMonths: carMonths, alsoInclude: Self.carAddedByHand(store)))
     }
 }
 
@@ -77,5 +77,13 @@ extension AppModel {
         for change in new.prefix(3) {
             Task { await Reminders.notifyPriceChange(change) }
         }
+    }
+}
+
+extension AppModel {
+    /// Records put in the Car collection by hand count as car paperwork.
+    nonisolated static func carAddedByHand(_ store: ArchiveStore) -> Set<UUID> {
+        guard let car = (try? store.collections())?.first(where: { $0.name == "Car" }) else { return [] }
+        return (try? store.addedByHand(to: car.id)) ?? []
     }
 }

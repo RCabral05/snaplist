@@ -50,8 +50,11 @@ public struct CarSummary: Sendable {
 }
 
 extension ArchiveStore {
-    /// Nil when nothing in the archive is a car service.
-    public func carSummary(oilChangeMiles: Int = 5000, oilChangeMonths: Int = 6) throws -> CarSummary? {
+    /// Nil when nothing in the archive is a car service. `alsoInclude` are
+    /// records put in the Car collection by hand: they count even when
+    /// nothing in them says car.
+    public func carSummary(oilChangeMiles: Int = 5000, oilChangeMonths: Int = 6,
+                           alsoInclude: Set<UUID> = []) throws -> CarSummary? {
         let totals = try recordTotals()
         let services = try db.read { db in
             try Record.filter(Column("status") == IngestStatus.ready.rawValue)
@@ -60,8 +63,10 @@ extension ArchiveStore {
                 .compactMap { record -> CarService? in
                     let rows = Extractor.rows(of: try Self.storedPages(of: record.id, in: db))
                     let text = rows.map(\.text).joined(separator: "\n").lowercased()
-                    guard Self.isAboutACar(text) else { return nil }
-                    let kinds = Self.serviceKinds(in: text)
+                    let added = alsoInclude.contains(record.id)
+                    guard added || Self.isAboutACar(text) else { return nil }
+                    var kinds = Self.serviceKinds(in: text)
+                    if kinds.isEmpty, added { kinds = [.repair] }
                     guard !kinds.isEmpty else { return nil }
                     return CarService(record: record, day: record.effectiveDay, mileage: Self.mileage(in: rows),
                                       kinds: kinds, amount: totals[record.id])
