@@ -144,6 +144,16 @@ read that way. Siri and Shortcuts (`SnaplistIntents.swift`) run the same path.
 
 Later: iCloud sync, household sharing, a paid tier.
 
+### Before launch (checklist)
+
+- [ ] Pick the app's final name. The name on the Home Screen and in the App Store can change any
+      time; the bundle ID (`com.rcabral.snaplist`) can't once it's on the App Store, so decide on
+      it first if it should change too.
+- [ ] Request the FinanceKit entitlement for the final bundle ID, then turn on Apple Card
+      (see "Turning on Apple Card").
+- [ ] Widgets: register the App Group and widget App ID (see "Turning on widgets").
+- [ ] App Store: privacy details, screenshots, description, pricing.
+
 ### Turning on Apple Card
 
 FinanceKit needs a managed entitlement Apple grants per app.
