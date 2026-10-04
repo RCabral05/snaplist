@@ -1,5 +1,4 @@
 import ArchiveCore
-import PDFKit
 import SwiftUI
 
 /// One record: its pages to swipe through (tap for full screen), what it is
@@ -18,7 +17,7 @@ struct RecordDetailView: View {
     @State private var selection = 0
     @State private var zoomed: PageSlot?
     @State private var isEditing = false
-    @State private var redacted: RedactedCopy.Result?
+    @State private var redacted: RedactedCopy.Draft?
     @State private var isConfirmingDelete = false
     @State private var isShowingAllText = false
     @State private var copied = false
@@ -83,7 +82,7 @@ struct RecordDetailView: View {
                         if assets.contains(where: { $0.type == .image || $0.type == .pdf }) {
                             Button("Share with Private Details Hidden", systemImage: "eye.slash") {
                                 do {
-                                    redacted = try RedactedCopy.make(current, archive: model.archive)
+                                    redacted = try RedactedCopy.draft(current, archive: model.archive)
                                 } catch {
                                     model.errorMessage = "Couldn't make the copy: \(error.localizedDescription)"
                                 }
@@ -116,7 +115,7 @@ struct RecordDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) { EditRecordView(record: current) }
-        .sheet(item: $redacted) { copy in RedactedPreview(copy: copy) }
+        .sheet(item: $redacted) { draft in RedactedPreview(draft: draft) }
         .fullScreenCover(item: $zoomed) { slot in
             ZoomViewer(url: model.archive.url(for: slot.asset), type: slot.asset.type,
                        pageInAsset: slot.pageInAsset, title: current.title)
@@ -406,50 +405,83 @@ private extension View {
     }
 }
 
-/// The copy with private details hidden, to check before sending.
+/// The copy with private details hidden: tap a line to hide or show it,
+/// then share.
 private struct RedactedPreview: View {
     @Environment(\.dismiss) private var dismiss
-    let copy: RedactedCopy.Result
+    @State var draft: RedactedCopy.Draft
+    @State private var url: URL?
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                PDFPreview(url: copy.url)
-                VStack(alignment: .leading, spacing: 6) {
-                    Label(copy.hidden == 0 ? "Nothing private found to hide."
-                          : copy.hidden == 1 ? "1 line hidden." : "\(copy.hidden) lines hidden.",
-                          systemImage: "eye.slash")
-                        .font(.subheadline.weight(.medium))
-                    Text(copy.missed > 0
-                         ? "\(copy.missed) more couldn't be placed on the page. Check the copy before sending, and use the original markup tools if something still shows."
-                         : "Card and account numbers, addresses, phone numbers and ID numbers are covered. Check the copy before sending.")
-                        .font(.footnote).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(draft.hiddenCount == 1 ? "1 line hidden" : "\(draft.hiddenCount) lines hidden", systemImage: "eye.slash")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Tap any line to hide or show it. Card and account numbers, addresses, phone numbers, names and ID numbers are hidden for you, along with your words in Settings → Sharing.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        if draft.missed > 0 {
+                            Text("\(draft.missed) private line\(draft.missed == 1 ? "" : "s") couldn't be placed on the page. Check the copy before sending.")
+                                .font(.footnote).foregroundStyle(.orange)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach($draft.pages) { $page in
+                        PageEditor(page: $page)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
-                .background(Theme.surface)
             }
+            .background(Theme.background)
             .navigationTitle("Private Details Hidden")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    ShareLink(item: copy.url) { Label("Share", systemImage: "square.and.arrow.up") }
+                    if let url {
+                        ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
+                    } else {
+                        ProgressView()
+                    }
                 }
+            }
+            // A fresh PDF after every change, so Share always sends what's shown.
+            .task(id: draft.pages.flatMap { $0.lines.map(\.hidden) }) {
+                url = nil
+                url = try? RedactedCopy.render(draft)
             }
         }
     }
 }
 
-private struct PDFPreview: UIViewRepresentable {
-    let url: URL
+/// One page with its lines outlined; hidden ones black.
+private struct PageEditor: View {
+    @Binding var page: RedactedCopy.Page
 
-    func makeUIView(context: Context) -> PDFView {
-        let view = PDFView()
-        view.autoScales = true
-        view.document = PDFDocument(url: url)
-        return view
+    var body: some View {
+        Image(decorative: page.image, scale: 1)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .overlay {
+                GeometryReader { geometry in
+                    ForEach($page.lines) { $line in
+                        let size = geometry.size
+                        let box = CGRect(x: line.rect.minX * size.width, y: line.rect.minY * size.height,
+                                         width: line.rect.width * size.width, height: line.rect.height * size.height)
+                            .insetBy(dx: -3, dy: -2)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(line.hidden ? Color.black : Color.accentColor.opacity(0.06))
+                            .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(line.hidden ? Color.clear : Color.accentColor.opacity(0.35)))
+                            .frame(width: box.width, height: box.height)
+                            .position(x: box.midX, y: box.midY)
+                            .onTapGesture { line.hidden.toggle() }
+                            .accessibilityLabel(line.hidden ? "Hidden line" : line.text)
+                            .accessibilityHint(line.hidden ? "Double-tap to show it" : "Double-tap to hide it")
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
     }
-
-    func updateUIView(_ view: PDFView, context: Context) {}
 }

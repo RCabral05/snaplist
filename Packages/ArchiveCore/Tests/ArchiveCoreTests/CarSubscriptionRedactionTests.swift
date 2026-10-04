@@ -20,18 +20,28 @@ private func add(_ tmp: TemporaryArchive, _ pages: [[String]]) throws -> UUID {
             ("401-555-0199", .phone), ("(408) 555-0144", .phone), ("Account number 0000-0101-22", .account),
             ("Passport No. X00000000", .idNumber), ("DOB 01/02/1990", .birthDate), ("someone@example.com", .email),
             ("SSN 000-00-0000", .idNumber),
+            ("4015550199", .phone), ("+1 401 555 0199", .phone), ("Tel 401 555 0199", .phone), ("Phone: 401.555.0199", .phone),
+            ("401-555-019O", .phone), ("Name: Jordan Example", .name), ("Customer JORDAN EXAMPLE", .name),
+            ("Ship to: Jordan Example", .name), ("Cardholder Jordan Example", .name),
         ]
         for (text, reason) in hidden {
             #expect(Redactor.reason(for: text) == reason, "\(text)")
         }
         // What the copy is for stays readable.
         for text in ["COSTCO WHOLESALE", "ORGANIC EGGS 24  8.79", "TOTAL $72.65", "09/25/2026 17:42", "Total Items: 7",
-                     "SAN JOSE #423", "Order: 00000000", "Statement period 09/01/2026 - 09/30/2026", "UNLEADED 10.214 GAL"] {
+                     "SAN JOSE #423", "Order: 00000000", "Statement period 09/01/2026 - 09/30/2026", "UNLEADED 10.214 GAL",
+                     "MARRIOTT HOTEL 12345678", "Customer copy", "THANK YOU, COME AGAIN"] {
             #expect(Redactor.reason(for: text) == nil, "\(text)")
         }
         let page = RecognizedPage(lines: ["TARGET", "12 Park Ave", "TOTAL 20.00", "VISA ****4421"].map { RecognizedLine(text: $0) },
                                   source: .ocr)
         #expect(Redactor.privateLines(page).map(\.index) == [1, 3])
+
+        // The person's own words: their name anywhere, their phone however it's printed.
+        let receipt = RecognizedPage(lines: ["RISE EXAMPLE", "Jordan Example", "Loyalty: J. EXAMPLE", "(401) 555-0199", "TOTAL 20.00"]
+            .map { RecognizedLine(text: $0) }, source: .ocr)
+        #expect(Redactor.privateLines(receipt, alsoHide: ["Example", "401-555-0199"]).map(\.index) == [0, 1, 2, 3])
+        #expect(Redactor.privateLines(receipt, alsoHide: ["Jordan Example"]).map(\.index) == [1, 3])
     }
 }
 

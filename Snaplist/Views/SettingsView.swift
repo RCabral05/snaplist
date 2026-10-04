@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(Spotlight.settingKey) private var showInSpotlight = false
     @AppStorage(Reminders.settingKey) private var remindersEnabled = false
     @AppStorage(PhotoPlaces.settingKey) private var namePlaces = false
+    @AppStorage(RedactedCopy.wordsKey) private var alwaysHide = ""
     @State private var remindersDenied = false
 
     @State private var export: ExportState = .idle
@@ -119,6 +120,18 @@ struct SettingsView: View {
                     Text("People and places")
                 } footer: {
                     Text("When a photo you add has a location saved in it, tag it with the town, like Boston. Finding the town's name sends that location (never the photo) to Apple's map service; nothing else leaves your iPhone.")
+                }
+                .listRowBackground(Theme.surface)
+
+                Section {
+                    TextField("Your name, street, phone…", text: $alwaysHide, axis: .vertical)
+                        .lineLimit(1...4)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Sharing")
+                } footer: {
+                    Text("Share with Private Details Hidden always covers lines with these, separated by commas: your name, last name, street, phone number. Card and account numbers, addresses and ID numbers are covered anyway.")
                 }
                 .listRowBackground(Theme.surface)
 
