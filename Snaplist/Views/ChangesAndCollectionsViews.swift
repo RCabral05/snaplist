@@ -274,6 +274,8 @@ struct CollectionEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State var collection: Collection
     let isNew: Bool
+    /// After saving: a record's page puts the record in the new collection.
+    var onSave: ((Collection) -> Void)? = nil
 
     static let symbols = ["house", "car", "building.columns", "briefcase", "airplane", "figure.2.and.child.holdinghands",
                           "pawprint", "heart", "graduationcap", "wrench.and.screwdriver", "gift", "folder"]
@@ -350,6 +352,7 @@ struct CollectionEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         model.save(collection)
+                        onSave?(collection)
                         dismiss()
                     }
                     .disabled(collection.name.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -360,28 +363,50 @@ struct CollectionEditor: View {
 }
 
 /// From a record's ⋯ menu: put it in a collection, or take it out.
-struct CollectionMenu: View {
+/// On a record's page: the collections it's in, and a menu to add it to
+/// others, take it out, or start a new one with it in.
+struct RecordCollectionsMenu: View {
     @Environment(AppModel.self) private var model
     let record: Record
 
+    @State private var memberOf: Set<UUID> = []
+    @State private var isCreating = false
+
     var body: some View {
         let collections = model.collections()
-        if !collections.isEmpty {
-            Menu {
-                ForEach(collections) { collection in
-                    Button { model.setRecord(record.id, in: collection.id, included: true) } label: {
-                        Label("Add to \(collection.name)", systemImage: collection.symbol)
-                    }
+        Menu {
+            ForEach(collections) { collection in
+                let isIn = memberOf.contains(collection.id)
+                Button {
+                    model.setRecord(record.id, in: collection.id, included: !isIn)
+                    if isIn { memberOf.remove(collection.id) } else { memberOf.insert(collection.id) }
+                } label: {
+                    Label(collection.name, systemImage: isIn ? "checkmark" : collection.symbol)
                 }
-                Divider()
-                ForEach(collections) { collection in
-                    Button(role: .destructive) { model.setRecord(record.id, in: collection.id, included: false) } label: {
-                        Label("Leave Out of \(collection.name)", systemImage: "minus.circle")
-                    }
-                }
-            } label: {
-                Label("Collections", systemImage: "square.stack")
+            }
+            if !collections.isEmpty { Divider() }
+            Button("New Collection…", systemImage: "plus") { isCreating = true }
+        } label: {
+            HStack(spacing: 4) {
+                Text(label(collections)).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2)
             }
         }
+        .sheet(isPresented: $isCreating) {
+            CollectionEditor(collection: Collection(name: "", symbol: "folder", keywords: []), isNew: true) { created in
+                model.setRecord(record.id, in: created.id, included: true)
+                memberOf.insert(created.id)
+            }
+        }
+        .task(id: "\(record.id)-\(model.derivedRevision)") {
+            memberOf = Set(model.collections().filter { collection in
+                model.records(in: collection).contains { $0.id == record.id }
+            }.map(\.id))
+        }
+    }
+
+    private func label(_ collections: [Collection]) -> String {
+        let names = collections.filter { memberOf.contains($0.id) }.map(\.name)
+        return names.isEmpty ? "Add" : names.joined(separator: ", ")
     }
 }

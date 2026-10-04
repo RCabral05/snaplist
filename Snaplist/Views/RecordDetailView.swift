@@ -95,7 +95,6 @@ struct RecordDetailView: View {
                 Menu {
                     Button("Edit", systemImage: "pencil") { isEditing = true }
                     CategoryMenu(record: current)
-                    CollectionMenu(record: current)
                     if current.status == .failed {
                         Button("Read Text Again", systemImage: "arrow.clockwise") { model.retry(current.id) }
                     }
@@ -226,6 +225,8 @@ struct RecordDetailView: View {
                 .tint(current.kind.tint)
                 .labelsHidden()
             }
+            Divider().padding(.leading)
+            detailRow("Collections") { RecordCollectionsMenu(record: current) }
             Divider().padding(.leading)
             detailRow("Pages") { Text("\(max(slots.count, assets.count))") }
             Divider().padding(.leading)
