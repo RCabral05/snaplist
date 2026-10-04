@@ -32,9 +32,11 @@ final class ShareViewController: UIViewController {
         var saved = 0
         for provider in providers {
             do {
-                if try await saveFile(provider) || (try await saveWebPage(provider)) || (try await saveText(provider)) {
-                    saved += 1
-                }
+                // The first way that works: a file, then a web page, then text.
+                var done = try await saveFile(provider)
+                if !done { done = try await saveWebPage(provider) }
+                if !done { done = try await saveText(provider) }
+                if done { saved += 1 }
             } catch {
                 continue
             }
