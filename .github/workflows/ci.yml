@@ -40,6 +40,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+      # The widget and share extensions aren't in the project until their App
+      # IDs are registered, so they're type-checked here on their own.
+      - name: Type-check the extensions
+        run: |
+          SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          for sources in "SnaplistWidgets/*.swift" "SnaplistShare/*.swift"; do
+            xcrun swiftc -typecheck -parse-as-library -swift-version 6 -sdk "$SDK" \
+              -target arm64-apple-ios26.0-simulator $sources Shared/*.swift
+          done
 
   # Screenshots of the main screens with sample data, light and dark. Run by
   # hand (Actions > CI > Run workflow) since simulator time is billed at 10x.
