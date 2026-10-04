@@ -179,6 +179,7 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.surface)
             }
+            .paywallSheet()
             .warmForm()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

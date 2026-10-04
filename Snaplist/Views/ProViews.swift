@@ -223,3 +223,14 @@ struct ProSettingsSection: View {
         .manageSubscriptionsSheet(isPresented: $isManaging)
     }
 }
+
+extension View {
+    /// Shows the paywall when Pro is asked for. On the app's root, and again
+    /// on screens that are themselves sheets (Settings), since iOS shows a
+    /// sheet only from the screen on top.
+    func paywallSheet() -> some View {
+        sheet(item: Binding(get: { Pro.shared.paywall }, set: { Pro.shared.paywall = $0 })) { reason in
+            PaywallView(reason: reason)
+        }
+    }
+}

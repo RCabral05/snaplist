@@ -250,9 +250,7 @@ private struct SpendingTab: View {
 private struct ProPaywall: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .sheet(item: Binding(get: { Pro.shared.paywall }, set: { Pro.shared.paywall = $0 })) { reason in
-                PaywallView(reason: reason)
-            }
+            .paywallSheet()
             .task { await Pro.shared.start() }
     }
 }
