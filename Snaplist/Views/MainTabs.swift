@@ -46,14 +46,7 @@ struct MainTabs: View {
                 RecordListView(path: $libraryPath)
             }
             SwiftUI.Tab("Spending", systemImage: "chart.bar.xaxis", value: Tab.spending) {
-                if Pro.shared.isUnlocked {
-                    OverviewView(showsDone: false)
-                } else {
-                    NavigationStack {
-                        ProLocked(feature: .spending) { EmptyView() }
-                            .navigationTitle("Spending")
-                    }
-                }
+                SpendingTab()
             }
             SwiftUI.Tab("Ask", systemImage: "sparkle.magnifyingglass", value: Tab.ask) {
                 AskView(question: askQuestion, showsDone: false)
@@ -141,10 +134,7 @@ struct MainTabs: View {
                 model.showRecap = true
             }
         }
-        .sheet(item: Binding(get: { Pro.shared.paywall }, set: { Pro.shared.paywall = $0 })) { reason in
-            PaywallView(reason: reason)
-        }
-        .task { await Pro.shared.start() }
+        .modifier(ProPaywall())
         // From the Control Center control or the Action button.
         .onReceive(NotificationCenter.default.publisher(for: LinkRequests.notification)) { _ in
             if let link = LinkRequests.take() { model.pendingLink = link }
@@ -239,5 +229,30 @@ private struct AddView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Spending with Pro; what it would show without.
+private struct SpendingTab: View {
+    var body: some View {
+        if Pro.shared.isUnlocked {
+            OverviewView(showsDone: false)
+        } else {
+            NavigationStack {
+                ProLocked(feature: .spending) { EmptyView() }
+                    .navigationTitle("Spending")
+            }
+        }
+    }
+}
+
+/// The paywall, wherever Pro is asked for, and the App Store check at launch.
+private struct ProPaywall: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: Binding(get: { Pro.shared.paywall }, set: { Pro.shared.paywall = $0 })) { reason in
+                PaywallView(reason: reason)
+            }
+            .task { await Pro.shared.start() }
     }
 }
