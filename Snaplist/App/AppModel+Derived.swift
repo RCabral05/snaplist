@@ -16,6 +16,8 @@ struct Derived: Sendable {
     var importantDocuments: [ImportantDocument] = []
     var priceChanges: [PriceChange] = []
     var collections: [Collection] = []
+    var subscriptions: [Subscription] = []
+    var car: CarSummary?
 }
 
 extension AppModel {
@@ -26,14 +28,15 @@ extension AppModel {
         let store = archive.store
         let today = Day(.now)
         let month = budgetMonth
+        let carMiles = CarSettings.oilChangeMiles, carMonths = CarSettings.oilChangeMonths
         derivedTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            let fresh = await Self.compute(store, today: today, month: month)
+            let fresh = await Self.compute(store, today: today, month: month, carMiles: carMiles, carMonths: carMonths)
             guard !Task.isCancelled else { return }
             derived = fresh
             derivedRevision += 1
-            await Reminders.schedule(fresh.upcoming)
+            await Reminders.schedule(fresh.upcoming, subscriptions: fresh.subscriptions, car: fresh.car)
             checkBudgets()
             notifyNewPriceChanges(fresh.priceChanges)
             updateWidgets()
@@ -42,7 +45,7 @@ extension AppModel {
     }
 
     @concurrent
-    private static func compute(_ store: ArchiveStore, today: Day, month: DayRange) async -> Derived {
+    private static func compute(_ store: ArchiveStore, today: Day, month: DayRange, carMiles: Int, carMonths: Int) async -> Derived {
         Derived(
             overview: try? store.spendingOverview(),
             recurring: (try? store.recurringCharges()) ?? [],
@@ -52,7 +55,9 @@ extension AppModel {
             taxYears: (try? store.taxYears()) ?? [],
             importantDocuments: (try? store.importantDocuments()) ?? [],
             priceChanges: (try? store.priceChanges()) ?? [],
-            collections: (try? store.collections()) ?? [])
+            collections: (try? store.collections()) ?? [],
+            subscriptions: (try? store.subscriptions()) ?? [],
+            car: try? store.carSummary(oilChangeMiles: carMiles, oilChangeMonths: carMonths))
     }
 }
 

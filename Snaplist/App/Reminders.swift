@@ -20,7 +20,8 @@ enum Reminders {
 
     /// Replaces every scheduled reminder with ones for `dates`; with
     /// reminders off, just removes them.
-    static func schedule(_ dates: [UpcomingDate], now: Date = .now) async {
+    static func schedule(_ dates: [UpcomingDate], subscriptions: [Subscription] = [], car: CarSummary? = nil,
+                         now: Date = .now) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) }
         center.removePendingNotificationRequests(withIdentifiers: pending)
@@ -38,6 +39,45 @@ enum Reminders {
 
         let calendar = Calendar.current
         var added = 1
+
+        /// 9am on `day`, `daysBefore` ahead of it, if that's still to come.
+        func nineAM(_ day: Day, daysBefore: Int) -> Date? {
+            guard let date = calendar.date(byAdding: .day, value: -daysBefore, to: day.date(calendar: calendar)),
+                  let fire = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: date), fire > now else { return nil }
+            return fire
+        }
+        func add(_ id: String, _ fire: Date, _ title: String, _ body: String, recordId: UUID?) async {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            if let recordId { content.userInfo = ["recordId": recordId.uuidString] }
+            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+            try? await center.add(UNNotificationRequest(identifier: prefix + id, content: content,
+                                                        trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
+        }
+
+        // Subscriptions asked to be reminded about, and trials, two days ahead.
+        for subscription in subscriptions where subscription.remind {
+            guard let next = subscription.nextCharge, let fire = nineAM(next, daysBefore: 2), added < 50 else { continue }
+            let price = subscription.priceCents.map { Money(cents: $0, currency: subscription.currency).formatted }
+            let isTrial = subscription.trialEnds == next
+            await add("sub.\(subscription.key)", fire,
+                      isTrial ? "\(subscription.name) trial ends in 2 days" : "\(subscription.name) renews in 2 days",
+                      isTrial ? "After that it charges\(price.map { " \($0)" } ?? ""). Cancel before then if you don't want it."
+                              : "\(price ?? "It") will be charged \(next.date(calendar: calendar).formatted(.dateTime.month(.abbreviated).day())).",
+                      recordId: subscription.charge?.latest.record.id)
+            added += 1
+        }
+
+        // The car's next oil change, the morning it's due.
+        if let car, let due = car.nextOilChange, let fire = nineAM(due, daysBefore: 0) {
+            await add("car.oil", fire, "Oil change due",
+                      car.nextOilChangeMiles.map { "Due around \($0.formatted()) miles or today, whichever comes first." }
+                          ?? "Six months since the last one.",
+                      recordId: car.lastOilChange?.record.id)
+            added += 1
+        }
         for date in dates {
             // iOS keeps 64 per app; leave room.
             guard added < 50 else { break }

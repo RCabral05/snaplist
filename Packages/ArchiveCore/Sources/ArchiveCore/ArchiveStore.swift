@@ -248,6 +248,21 @@ public struct ArchiveStore: Sendable {
                 );
                 """)
         }
+        migrator.registerMigration("v11-subscriptions") { db in
+            try db.execute(sql: """
+                -- Reminders, typed-in trials and cancellations, per subscription.
+                CREATE TABLE subscriptionSetting (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    priceCents INTEGER,
+                    currency TEXT NOT NULL DEFAULT 'USD',
+                    cadence TEXT NOT NULL DEFAULT 'monthly',
+                    trialEnds TEXT,
+                    remind BOOLEAN NOT NULL DEFAULT 0,
+                    cancelledOn TEXT
+                );
+                """)
+        }
         return migrator
     }
 

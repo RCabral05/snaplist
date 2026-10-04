@@ -249,8 +249,33 @@ struct HomeView: View {
             } label: {
                 tool("Tax report", "building.columns", hasTaxRecords ? "Ready to export" : "Mark records + Tax")
             }
+            NavigationLink {
+                SubscriptionsView()
+            } label: {
+                tool("Subscriptions", "repeat", subscriptionsDetail)
+            }
+            NavigationLink {
+                CarView()
+            } label: {
+                tool("Car", "car", carDetail)
+            }
         }
         .buttonStyle(.plain)
+    }
+
+    /// "$54/mo", else a prompt.
+    private var subscriptionsDetail: String {
+        let active = model.subscriptions().filter { !$0.isCancelled }
+        guard let currency = active.first?.currency else { return "Found on statements" }
+        return "\(active.count) · \(Money(cents: active.reduce(0) { $0 + $1.monthlyCents }, currency: currency).formattedWhole)/mo"
+    }
+
+    /// "Oil change in 12d", else a prompt.
+    private var carDetail: String {
+        guard let car = model.carSummary() else { return "From service receipts" }
+        guard let due = car.nextOilChange else { return "\(car.services.count) services" }
+        let days = Day(.now).days(to: due)
+        return days < 0 ? "Oil change overdue" : "Oil change in \(days)d"
     }
 
     /// "Passport expires in 40 days", else how many there are.

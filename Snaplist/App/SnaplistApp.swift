@@ -47,6 +47,7 @@ struct SnaplistApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     lock.sceneChanged(to: phase)
                     if phase == .active {
+                        model.importInbox()
                         model.resumePending()
                         model.syncBanksIfDue()
                     }

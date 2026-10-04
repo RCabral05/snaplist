@@ -233,6 +233,26 @@ final class AppModel {
         return letters.count < 3 || generic.contains { lower.hasPrefix($0) } || UUID(uuidString: name) != nil
     }
 
+    /// What was shared to Snaplist from other apps while it was closed.
+    func importInbox() {
+        guard let inbox = SharedInbox.folder,
+              let files = try? FileManager.default.contentsOfDirectory(at: inbox, includingPropertiesForKeys: nil),
+              !files.isEmpty else { return }
+        let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Inbox-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        var named: [URL] = []
+        for file in files {
+            // "Order confirmation--1a2b3c4d.pdf" → "Order confirmation.pdf".
+            let base = file.deletingPathExtension().lastPathComponent.components(separatedBy: "--").first ?? "Shared"
+            let target = staging.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+            let destination = target.appendingPathComponent(base).appendingPathExtension(file.pathExtension)
+            if (try? FileManager.default.moveItem(at: file, to: destination)) != nil { named.append(destination) }
+        }
+        importFiles(named)
+        try? FileManager.default.removeItem(at: staging)
+    }
+
     /// One record per file, named after the file.
     func importFiles(_ urls: [URL]) {
         for url in urls {
@@ -604,7 +624,8 @@ final class AppModel {
     func updateReminders() {
         remindersTask?.cancel()
         let dates = derived.upcoming
-        remindersTask = Task { await Reminders.schedule(dates) }
+        let subscriptions = derived.subscriptions, car = derived.car
+        remindersTask = Task { await Reminders.schedule(dates, subscriptions: subscriptions, car: car) }
     }
 
     // MARK: From other apps

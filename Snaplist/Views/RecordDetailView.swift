@@ -1,4 +1,5 @@
 import ArchiveCore
+import PDFKit
 import SwiftUI
 
 /// One record: its pages to swipe through (tap for full screen), what it is
@@ -17,6 +18,7 @@ struct RecordDetailView: View {
     @State private var selection = 0
     @State private var zoomed: PageSlot?
     @State private var isEditing = false
+    @State private var redacted: RedactedCopy.Result?
     @State private var isConfirmingDelete = false
     @State private var isShowingAllText = false
     @State private var copied = false
@@ -74,8 +76,21 @@ struct RecordDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !assets.isEmpty {
-                    ShareLink(items: assets.map { model.archive.url(for: $0) }) {
-                        Label("Share Original", systemImage: "square.and.arrow.up")
+                    Menu {
+                        ShareLink(items: assets.map { model.archive.url(for: $0) }) {
+                            Label("Share Original", systemImage: "doc")
+                        }
+                        if assets.contains(where: { $0.type == .image || $0.type == .pdf }) {
+                            Button("Share with Private Details Hidden", systemImage: "eye.slash") {
+                                do {
+                                    redacted = try RedactedCopy.make(current, archive: model.archive)
+                                } catch {
+                                    model.errorMessage = "Couldn't make the copy: \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
                 Menu {
@@ -101,6 +116,7 @@ struct RecordDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) { EditRecordView(record: current) }
+        .sheet(item: $redacted) { copy in RedactedPreview(copy: copy) }
         .fullScreenCover(item: $zoomed) { slot in
             ZoomViewer(url: model.archive.url(for: slot.asset), type: slot.asset.type,
                        pageInAsset: slot.pageInAsset, title: current.title)
@@ -388,4 +404,52 @@ private extension View {
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .padding(.horizontal)
     }
+}
+
+/// The copy with private details hidden, to check before sending.
+private struct RedactedPreview: View {
+    @Environment(\.dismiss) private var dismiss
+    let copy: RedactedCopy.Result
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                PDFPreview(url: copy.url)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(copy.hidden == 0 ? "Nothing private found to hide."
+                          : copy.hidden == 1 ? "1 line hidden." : "\(copy.hidden) lines hidden.",
+                          systemImage: "eye.slash")
+                        .font(.subheadline.weight(.medium))
+                    Text(copy.missed > 0
+                         ? "\(copy.missed) more couldn't be placed on the page. Check the copy before sending, and use the original markup tools if something still shows."
+                         : "Card and account numbers, addresses, phone numbers and ID numbers are covered. Check the copy before sending.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Theme.surface)
+            }
+            .navigationTitle("Private Details Hidden")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    ShareLink(item: copy.url) { Label("Share", systemImage: "square.and.arrow.up") }
+                }
+            }
+        }
+    }
+}
+
+private struct PDFPreview: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateUIView(_ view: PDFView, context: Context) {}
 }

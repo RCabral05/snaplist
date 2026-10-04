@@ -150,6 +150,18 @@ struct CollectionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if collection?.name == "Car" {
+                    NavigationLink {
+                        CarView()
+                    } label: {
+                        Label("Maintenance and next oil change", systemImage: "wrench.and.screwdriver")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                    }
+                    .buttonStyle(.plain)
+                }
                 if let spending, !spending.counted.isEmpty {
                     NavigationLink {
                         ScrollView {

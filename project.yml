@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "6.0"
     # Above the 1.0.0 the Expo app used for this bundle ID, in case App Store
     # Connect already has builds under it.
-    MARKETING_VERSION: "2.6.0"
+    MARKETING_VERSION: "2.7.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Snaplist:
@@ -23,9 +23,12 @@ targets:
     sources: [Snaplist, Shared]
     dependencies:
       - package: ArchiveCore
-      # Widgets are off until the App Group is registered on the developer
-      # site (README, "Turning on widgets"). To turn them on, add back:
+      # Widgets, the Control Center control and the share extension are off
+      # until the App Group is registered on the developer site (README,
+      # "Turning on widgets and sharing"). To turn them on, add back:
       #   - target: SnaplistWidgets
+      #     embed: true
+      #   - target: SnaplistShare
       #     embed: true
       # and the app's entitlements:
       #   entitlements:
@@ -96,6 +99,35 @@ targets:
 #         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
 #         NSExtension:
 #           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+#
+#   SnaplistShare:
+#     type: app-extension
+#     platform: iOS
+#     sources: [SnaplistShare, Shared]
+#     settings:
+#       base:
+#         PRODUCT_BUNDLE_IDENTIFIER: com.rcabral.snaplist.share
+#         TARGETED_DEVICE_FAMILY: "1"
+#         CODE_SIGN_STYLE: Automatic
+#     entitlements:
+#       path: SnaplistShare/SnaplistShare.entitlements
+#       properties:
+#         com.apple.security.application-groups: [group.com.rcabral.snaplist]
+#     info:
+#       path: SnaplistShare/Info.plist
+#       properties:
+#         CFBundleDisplayName: Snaplist
+#         CFBundleShortVersionString: $(MARKETING_VERSION)
+#         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+#         NSExtension:
+#           NSExtensionPointIdentifier: com.apple.share-services
+#           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+#           NSExtensionAttributes:
+#             NSExtensionActivationRule:
+#               NSExtensionActivationSupportsImageWithMaxCount: 10
+#               NSExtensionActivationSupportsFileWithMaxCount: 10
+#               NSExtensionActivationSupportsWebURLWithMaxCount: 1
+#               NSExtensionActivationSupportsText: true
 
   SnaplistUITests:
     type: bundle.ui-testing

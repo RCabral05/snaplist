@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -7,6 +8,20 @@ struct SnaplistWidgets: WidgetBundle {
         MonthWidget()
         ComingUpWidget()
         QuickAddWidget()
+        ScanControl()
+    }
+}
+
+/// Scan from Control Center, the Lock Screen or the Action button.
+struct ScanControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.rcabral.snaplist.scan") {
+            ControlWidgetButton(action: ScanReceiptIntent()) {
+                Label("Scan Receipt", systemImage: "doc.viewfinder")
+            }
+        }
+        .displayName("Scan a Receipt")
+        .description("Opens Snaplist's scanner.")
     }
 }
 

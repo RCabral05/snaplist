@@ -140,6 +140,35 @@ extension AppModel {
 
     func priceChanges() -> [PriceChange] { derived.priceChanges }
 
+    // MARK: Subscriptions and the car
+
+    func subscriptions() -> [Subscription] { derived.subscriptions }
+
+    func save(_ subscription: Subscription) {
+        do {
+            try archive.store.save(subscription)
+            refreshDerived()
+        } catch {
+            errorMessage = "Couldn't save that: \(error.localizedDescription)"
+        }
+    }
+
+    func addTrial(name: String, priceCents: Int64?, cadence: RecurringCharge.Cadence, ends: Day) {
+        do {
+            try archive.store.addTrial(name: name, priceCents: priceCents, cadence: cadence, ends: ends)
+            refreshDerived()
+        } catch {
+            errorMessage = "Couldn't save the trial: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteTrial(_ key: String) {
+        try? archive.store.deleteSubscriptionSetting(key)
+        refreshDerived()
+    }
+
+    func carSummary() -> CarSummary? { derived.car }
+
     func monthlyRecap(for month: DayRange) -> MonthlyRecap? {
         try? archive.store.monthlyRecap(for: month)
     }
@@ -233,5 +262,21 @@ extension AppModel {
         try ReportPDF.render(pdf).write(to: folder.appending(path: pdfName))
         defer { try? FileManager.default.removeItem(at: folder) }
         return try zip(folder)
+    }
+}
+
+/// How often the car's oil is changed, as set on the Car screen.
+enum CarSettings {
+    static let milesKey = "carOilChangeMiles"
+    static let monthsKey = "carOilChangeMonths"
+
+    static var oilChangeMiles: Int {
+        let value = UserDefaults.standard.integer(forKey: milesKey)
+        return value > 0 ? value : 5000
+    }
+
+    static var oilChangeMonths: Int {
+        let value = UserDefaults.standard.integer(forKey: monthsKey)
+        return value > 0 ? value : 6
     }
 }

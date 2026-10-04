@@ -134,6 +134,13 @@ struct MainTabs: View {
                 model.showRecap = true
             }
         }
+        // From the Control Center control or the Action button.
+        .onReceive(NotificationCenter.default.publisher(for: LinkRequests.notification)) { _ in
+            if let link = LinkRequests.take() { model.pendingLink = link }
+        }
+        .onAppear {
+            if let link = LinkRequests.take() { model.pendingLink = link }
+        }
         // From Spotlight or a reminder.
         .task(id: model.pendingRecordId) { openPendingRecord() }
         .onChange(of: model.records) { openPendingRecord() }

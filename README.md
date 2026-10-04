@@ -151,7 +151,8 @@ Later: iCloud sync, household sharing, a paid tier.
       it first if it should change too.
 - [ ] Request the FinanceKit entitlement for the final bundle ID, then turn on Apple Card
       (see "Turning on Apple Card").
-- [ ] Widgets: register the App Group and widget App ID (see "Turning on widgets").
+- [ ] Widgets, the Control Center scan button and Share to Snaplist: register the App Group and two
+      extension App IDs (see "Turning on widgets and sharing").
 - [ ] App Store: privacy details, screenshots, description, pricing.
 
 ### Turning on Apple Card
@@ -164,7 +165,7 @@ FinanceKit needs a managed entitlement Apple grants per app.
 3. Add `com.apple.developer.financekit` (`financial-data`) to `Snaplist/Snaplist.entitlements`
    and build. Until then, Connect Apple Card says Apple hasn't switched it on.
 
-### Turning on widgets
+### Turning on widgets and sharing
 
 The widgets read a summary the app writes to a shared App Group, which has to
 be registered once by hand at developer.apple.com > Certificates, Identifiers
@@ -173,9 +174,12 @@ be registered once by hand at developer.apple.com > Certificates, Identifiers
 1. + > App Groups: `group.com.rcabral.snaplist`.
 2. `com.rcabral.snaplist`: enable App Groups, select that group.
 3. + > App IDs > App: `com.rcabral.snaplist.widgets`, App Groups enabled with
-   the same group.
+   the same group. (Widgets, and the Scan Receipt control for Control Center,
+   the Lock Screen and the Action button.)
+4. + > App IDs > App: `com.rcabral.snaplist.share`, App Groups enabled with the
+   same group. (Snaplist in the share sheet: Safari pages, PDFs, photos, text.)
 
-Then uncomment the widget target and the app's dependency and entitlements in
-`project.yml`, and in the TestFlight workflow archive with
+Then uncomment the widget and share targets and the app's dependencies and
+entitlements in `project.yml`, and in the TestFlight workflow archive with
 `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" AD_HOC_CODE_SIGNING_ALLOWED=YES`
 so the entitlements survive to the export.
