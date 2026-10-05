@@ -122,6 +122,8 @@ struct MainTabs: View {
             isShowingSettings = false
             switch link {
             case .scan:
+                // Free and full: the paywall, not a scan that can't be saved.
+                guard model.records.count < Pro.freeRecordLimit || Pro.shared.require(.records) else { break }
                 if addFlow.canScan { addFlow.isScanning = true } else { selection = .add }
             case .ask: selection = .ask
             case .spending: selection = .spending

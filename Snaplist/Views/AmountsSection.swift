@@ -125,6 +125,7 @@ struct AmountsSection: View {
                         Text(item.money.formatted).font(.subheadline).monospacedDigit()
                         // Something worth keeping track of: a TV, not eggs.
                         Button {
+                            guard Pro.shared.require(.things) else { return }
                             thingDraft = model.draftThing(from: record.id, item: item)
                         } label: {
                             Image(systemName: "plus.circle").foregroundStyle(Theme.accent)
@@ -424,10 +425,17 @@ struct AmountEditor: View {
             var fraction = String(cleaned[cleaned.index(after: index)...])
             while fraction.count < 2 { fraction += "0" }
             guard let units = Int64(whole.isEmpty ? "0" : String(whole)), let hundredths = Int64(fraction) else { return nil }
-            return units * 100 + hundredths
+            return Self.cents(units: units, plus: hundredths)
         }
         guard let units = Int64(cleaned.filter(\.isNumber)) else { return nil }
-        return units * 100
+        return Self.cents(units: units, plus: 0)
+    }
+
+    /// Nil for a number too big to be money, rather than a crash.
+    private static func cents(units: Int64, plus hundredths: Int64) -> Int64? {
+        let (scaled, overflowed) = units.multipliedReportingOverflow(by: 100)
+        guard !overflowed, scaled <= 100_000_000_000_00 else { return nil }
+        return scaled + hundredths
     }
 }
 

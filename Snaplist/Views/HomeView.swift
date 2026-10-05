@@ -79,7 +79,7 @@ struct HomeView: View {
             .task(id: model.showRecap) {
                 guard model.showRecap else { return }
                 model.showRecap = false
-                isShowingRecap = true
+                if Pro.shared.require(.spending) { isShowingRecap = true }
             }
         }
     }
@@ -402,6 +402,8 @@ private struct ComingUpRow: View {
             .foregroundStyle(item.tint)
             .frame(width: 40, height: 40)
             .background(item.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11))
+            // A fixed tile: its day number stops growing past large text.
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title).font(.subheadline.weight(.medium)).lineLimit(1)
                 Text(relative).font(.caption).foregroundStyle(.secondary)

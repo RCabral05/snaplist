@@ -120,7 +120,12 @@ struct AskView: View {
         isFocused = false
         Task {
             // Rules answer at once; a spinner only if Apple Intelligence is reading it.
-            let slow = Task { try await Task.sleep(for: .milliseconds(150)); isAnswering = true }
+            let slow = Task {
+                try await Task.sleep(for: .milliseconds(150))
+                // The answer may have come between the sleep ending and here.
+                guard !Task.isCancelled else { return }
+                isAnswering = true
+            }
             let result = await model.ask(text)
             slow.cancel()
             isAnswering = false
@@ -569,7 +574,7 @@ private struct ThingAnswerView: View {
     }
 
     private func card(_ profile: ThingProfile) -> some View {
-        NavigationLink { ThingProfileView(thingId: profile.id) } label: {
+        NavigationLink { ProLocked(feature: .things) { ThingProfileView(thingId: profile.id) } } label: {
             HStack(spacing: 12) {
                 ThingThumbnail(profile: profile)
                 VStack(alignment: .leading, spacing: 2) {

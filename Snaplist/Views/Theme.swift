@@ -87,8 +87,10 @@ struct DateGroup: Identifiable {
         var groups: [DateGroup] = []
         for record in records {
             let title = Self.title(for: record.effectiveDay.date(calendar: calendar), now: now, calendar: calendar)
-            if groups.last?.title == title {
-                groups[groups.count - 1].records.append(record)
+            // One group per title, even when a record dated ahead of today
+            // sorts away from the rest of its group.
+            if let index = groups.firstIndex(where: { $0.title == title }) {
+                groups[index].records.append(record)
             } else {
                 groups.append(DateGroup(title: title, records: [record]))
             }

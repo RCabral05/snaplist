@@ -75,6 +75,7 @@ struct RecapView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .task(id: model.derivedRevision) { load() }
+            .paywallSheet()
         }
     }
 

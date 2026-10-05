@@ -420,12 +420,14 @@ struct ThingsSection: View {
             }
             HStack(spacing: 10) {
                 Button {
+                    guard Pro.shared.require(.things) else { return }
                     draft = model.draftThing(from: record.id)
                 } label: {
                     Label("Make a Thing", systemImage: "plus.circle").frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.glass)
                 Button {
+                    guard Pro.shared.require(.things) else { return }
                     isPicking = true
                 } label: {
                     Label("Add to a Thing", systemImage: "link").frame(maxWidth: .infinity, minHeight: 44)

@@ -190,6 +190,14 @@ private struct MonthChart: View {
             }
             .frame(height: 200)
             .accessibilityLabel("Spending by month")
+            .accessibilityValue(overview.months.first { $0.range.start == selected }?.label ?? "")
+            .accessibilityHint("Swipe up or down to pick a month")
+            .accessibilityAdjustableAction { direction in
+                let starts = overview.months.map(\.range.start)
+                guard let current = starts.firstIndex(where: { $0 == selected }) ?? starts.indices.last else { return }
+                let next = direction == .increment ? min(current + 1, starts.count - 1) : max(current - 1, 0)
+                selection = starts[next]
+            }
         }
         .padding()
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
