@@ -5,6 +5,11 @@ on:
     branches: [main, native-archive]
   pull_request:
   workflow_dispatch:
+    inputs:
+      appstore:
+        description: "Screenshots at App Store size (6.9-inch Pro Max)"
+        type: boolean
+        default: false
 
 jobs:
   # The archive's logic: storage, search, ingestion. Cheap, so it runs first.
@@ -71,7 +76,8 @@ jobs:
           d=json.load(sys.stdin)['devices']
           ios=[(k,v) for k,v in d.items() if 'iOS' in k]
           ios.sort(key=lambda kv: [int(x) for x in kv[0].split('iOS-')[1].split('-')])
-          phones=[x for x in ios[-1][1] if x['name'].startswith('iPhone') and 'Pro' in x['name'] and 'Max' not in x['name']] or [x for x in ios[-1][1] if x['name'].startswith('iPhone')]
+          maxsize='${{ inputs.appstore }}' == 'true'
+          phones=[x for x in ios[-1][1] if x['name'].startswith('iPhone') and 'Pro' in x['name'] and ('Max' in x['name']) == maxsize] or [x for x in ios[-1][1] if x['name'].startswith('iPhone')]
           print(phones[-1]['udid'])")
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl list devices | grep "$DEVICE"
