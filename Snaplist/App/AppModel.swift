@@ -112,9 +112,7 @@ final class AppModel {
 
     /// Runs for the life of the window.
     func start() async {
-        if let ids = try? archive.store.records().map(\.id) {
-            _ = try? archive.files.sweep(keeping: Set(ids), unchangedSince: .now.addingTimeInterval(-3600))
-        }
+        await Self.tidyUp(archive)
         #if DEBUG
         if DemoData.shouldSeed, (try? archive.store.records().isEmpty) ?? false {
             DemoData.seed(into: self)
@@ -128,12 +126,14 @@ final class AppModel {
         }
         // Statements whose transactions couldn't be read: read again, as images.
         _ = try? archive.store.queueStatementsNeedingImageReading()
-        // Names records read before naming existed, e.g. "Scan Sep 30…".
-        _ = try? archive.store.refreshSuggestions()
-        // Once: receipts read before items were get their lines.
-        if !UserDefaults.standard.bool(forKey: "readReceiptItems") {
-            _ = try? archive.store.refreshItems()
+        // Once per version, off the main thread: everything read again with
+        // this version's reading rules (names, totals, items).
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        if UserDefaults.standard.string(forKey: "rereadForVersion") != version {
+            await Self.rereadEverything(archive.store)
+            UserDefaults.standard.set(version, forKey: "rereadForVersion")
             UserDefaults.standard.set(true, forKey: "readReceiptItems")
+            amountsChanged()
         }
         resumePending()
 
@@ -219,9 +219,11 @@ final class AppModel {
 
     /// A voice note becomes an item named by what was said.
     func importVoiceNote(_ url: URL) {
-        add(kind: .item, title: "Voice note · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))",
-            nameSource: .automatic, items: [ImportItem(type: .audio, source: .file(url), fileExtension: "m4a")])
-        try? FileManager.default.removeItem(at: url)
+        // Kept if it couldn't be added (the free limit), rather than lost.
+        if add(kind: .item, title: "Voice note · \(Date.now.formatted(.dateTime.month(.abbreviated).day()))",
+               nameSource: .automatic, items: [ImportItem(type: .audio, source: .file(url), fileExtension: "m4a")]) != nil {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     /// Camera-roll and scanner names say nothing: "IMG_4021", "Scan 3",
@@ -240,21 +242,26 @@ final class AppModel {
               !files.isEmpty else { return }
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Inbox-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-        var named: [URL] = []
+        var named: [URL: URL] = [:]
         for file in files {
             // "Order confirmation--1a2b3c4d.pdf" → "Order confirmation.pdf".
             let base = file.deletingPathExtension().lastPathComponent.components(separatedBy: "--").first ?? "Shared"
             let target = staging.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
             let destination = target.appendingPathComponent(base).appendingPathExtension(file.pathExtension)
-            if (try? FileManager.default.moveItem(at: file, to: destination)) != nil { named.append(destination) }
+            if (try? FileManager.default.copyItem(at: file, to: destination)) != nil { named[destination] = file }
         }
-        importFiles(named)
+        // Only what was added leaves the inbox; the rest waits (the free limit).
+        for added in importFiles(Array(named.keys)) {
+            if let original = named[added] { try? FileManager.default.removeItem(at: original) }
+        }
         try? FileManager.default.removeItem(at: staging)
     }
 
-    /// One record per file, named after the file.
-    func importFiles(_ urls: [URL]) {
+    /// One record per file, named after the file. Returns the files added.
+    @discardableResult
+    func importFiles(_ urls: [URL]) -> [URL] {
+        var added: [URL] = []
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -263,14 +270,19 @@ final class AppModel {
             let name = url.deletingPathExtension().lastPathComponent
             if type?.conforms(to: .commaSeparatedText) ?? false {
                 // A bank or card export: a statement, read column by column.
-                add(kind: .statement, title: Self.isGenericFileName(name) ? "Transactions" : name, nameSource: .file,
-                    items: [ImportItem(type: .csv, source: .file(url), fileExtension: "csv")])
+                if add(kind: .statement, title: Self.isGenericFileName(name) ? "Transactions" : name, nameSource: .file,
+                       items: [ImportItem(type: .csv, source: .file(url), fileExtension: "csv")]) != nil {
+                    added.append(url)
+                }
                 continue
             }
             let isPDF = type?.conforms(to: .pdf) ?? false
-            add(title: name, nameSource: Self.isGenericFileName(name) ? .automatic : .file,
-                items: [ImportItem(type: isPDF ? .pdf : .image, source: .file(url), fileExtension: url.pathExtension)])
+            if add(title: name, nameSource: Self.isGenericFileName(name) ? .automatic : .file,
+                   items: [ImportItem(type: isPDF ? .pdf : .image, source: .file(url), fileExtension: url.pathExtension)]) != nil {
+                added.append(url)
+            }
         }
+        return added
     }
 
     /// Imports start as a plain document; the person files them afterwards.
@@ -645,7 +657,8 @@ final class AppModel {
             return
         }
         guard url.isFileURL else { return }
-        importFiles([url])
+        // Not added (the free limit): the copy stays, and the paywall says why.
+        guard !importFiles([url]).isEmpty else { return }
         if url.path.contains("/Inbox/") {
             try? FileManager.default.removeItem(at: url)
         }
@@ -669,5 +682,22 @@ final class AppModel {
                 await Spotlight.removeAll()
             }
         }
+    }
+}
+
+extension AppModel {
+    /// Removes originals no record points to any more.
+    @concurrent
+    nonisolated static func tidyUp(_ archive: Archive) async {
+        if let ids = try? archive.store.records().map(\.id) {
+            _ = try? archive.files.sweep(keeping: Set(ids), unchangedSince: .now.addingTimeInterval(-3600))
+        }
+    }
+
+    /// Names, totals and items read again with the current rules.
+    @concurrent
+    nonisolated static func rereadEverything(_ store: ArchiveStore) async {
+        _ = try? store.refreshSuggestions()
+        _ = try? store.refreshItems()
     }
 }

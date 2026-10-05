@@ -39,6 +39,8 @@ enum Reminders {
 
         let calendar = Calendar.current
         var added = 1
+        // With Snaplist's lock on, names and amounts stay off the Lock Screen.
+        let discreet = await MainActor.run { AppLock.isEnabledSetting }
 
         /// 9am on `day`, `daysBefore` ahead of it, if that's still to come.
         func nineAM(_ day: Day, daysBefore: Int) -> Date? {
@@ -62,11 +64,16 @@ enum Reminders {
             guard let next = subscription.nextCharge, let fire = nineAM(next, daysBefore: 2), added < 50 else { continue }
             let price = subscription.priceCents.map { Money(cents: $0, currency: subscription.currency).formatted }
             let isTrial = subscription.trialEnds == next
-            await add("sub.\(subscription.key)", fire,
-                      isTrial ? "\(subscription.name) trial ends in 2 days" : "\(subscription.name) renews in 2 days",
-                      isTrial ? "After that it charges\(price.map { " \($0)" } ?? ""). Cancel before then if you don't want it."
-                              : "\(price ?? "It") will be charged \(next.date(calendar: calendar).formatted(.dateTime.month(.abbreviated).day())).",
-                      recordId: subscription.charge?.latest.record.id)
+            if discreet {
+                await add("sub.\(subscription.key)", fire, isTrial ? "A free trial ends in 2 days" : "A subscription renews in 2 days",
+                          "Open Snaplist to see which.", recordId: subscription.charge?.latest.record.id)
+            } else {
+                await add("sub.\(subscription.key)", fire,
+                          isTrial ? "\(subscription.name) trial ends in 2 days" : "\(subscription.name) renews in 2 days",
+                          isTrial ? "After that it charges\(price.map { " \($0)" } ?? ""). Cancel before then if you don't want it."
+                                  : "\(price ?? "It") will be charged \(next.date(calendar: calendar).formatted(.dateTime.month(.abbreviated).day())).",
+                          recordId: subscription.charge?.latest.record.id)
+            }
             added += 1
         }
 
@@ -99,6 +106,14 @@ enum Reminders {
             let content = UNMutableNotificationContent()
             let when = date.day.date(calendar: calendar).formatted(.dateTime.month(.abbreviated).day())
             switch date.kind {
+            case _ where discreet:
+                content.title = switch date.kind {
+                case .billDue: "A bill is due \(when)"
+                case .warrantyEnds: "A warranty ends \(when)"
+                case .renewal: "Something needs renewing by \(when)"
+                case .returnBy: "A return window closes \(when)"
+                }
+                content.body = "Open Snaplist to see which."
             case .billDue:
                 content.title = "\(date.record.title) is due \(when)"
                 content.body = date.amount.map { "\($0.formatted) is due. Tap to see the bill." } ?? "Tap to see it in Snaplist."

@@ -41,11 +41,11 @@ enum RedactedCopy {
         var hiddenCount: Int { pages.reduce(0) { $0 + $1.lines.count(where: \.hidden) } }
     }
 
-    @MainActor
-    static func draft(_ record: Record, archive: Archive) throws -> Draft {
+    /// Off the main thread: every page is drawn at full size.
+    @concurrent
+    nonisolated static func draft(_ record: Record, archive: Archive, words: [String]) async throws -> Draft {
         let store = archive.store
         let assets = try store.assets(of: record.id).filter { $0.type == .image || $0.type == .pdf }
-        let words = words
         var pages: [Page] = []
         var missed = 0
 
@@ -90,3 +90,6 @@ enum RedactedCopy {
         return url
     }
 }
+
+// Pages hold decoded images, made off the main thread and then shown.
+extension RedactedCopy.Draft: @unchecked Sendable {}

@@ -86,10 +86,13 @@ struct RecordDetailView: View {
                         if assets.contains(where: { $0.type == .image || $0.type == .pdf }) {
                             Button("Share with Private Details Hidden", systemImage: "eye.slash") {
                                 guard Pro.shared.require(.privateShare) else { return }
-                                do {
-                                    redacted = try RedactedCopy.draft(current, archive: model.archive)
-                                } catch {
-                                    model.errorMessage = "Couldn't make the copy: \(error.localizedDescription)"
+                                let record = current, archive = model.archive, words = RedactedCopy.words
+                                Task {
+                                    do {
+                                        redacted = try await RedactedCopy.draft(record, archive: archive, words: words)
+                                    } catch {
+                                        model.errorMessage = "Couldn't make the copy: \(error.localizedDescription)"
+                                    }
                                 }
                             }
                         }

@@ -153,6 +153,9 @@ struct LogChargeIntent: AppIntent {
         if amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .result(dialog: "No payment came in, so nothing was logged. This runs by itself when you pay with a Wallet card; running it from the editor has nothing to log.")
         }
+        // Run without the app open: check the subscription before logging.
+        await Pro.shared.start()
+        await Pro.shared.refresh()
         guard let charge = LiveCharge.tap(merchant: merchant, amount: amount, on: Day(.now)) else {
             return .result(dialog: "Snaplist couldn't read the amount “\(amount)”, so nothing was logged.")
         }
@@ -189,7 +192,15 @@ struct SnaplistShortcuts: AppShortcutsProvider {
 /// which can run before any window exists.
 @MainActor
 enum SharedModel {
-    static let opened: Result<AppModel, any Error> = Result { try AppModel.live() }
+    /// Opened once. A failure isn't kept: opening before the first unlock
+    /// after a restart fails, and should work once the iPhone is unlocked.
+    static var opened: Result<AppModel, any Error> {
+        if let cached, case .success = cached { return cached }
+        let fresh = Result<AppModel, any Error> { try AppModel.live() }
+        cached = fresh
+        return fresh
+    }
+    private static var cached: Result<AppModel, any Error>?
 
     static func model() throws -> AppModel {
         try opened.get()

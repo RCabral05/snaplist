@@ -78,7 +78,8 @@ final class Pro {
     /// Yearly first.
     private(set) var products: [Product] = []
     private(set) var hasSubscription = false
-    /// TestFlight or Xcode: a switch in Settings can turn Pro on and off.
+    /// Xcode, or a TestFlight build made with the tester switch: Settings
+    /// can turn Pro on and off.
     private(set) var isTestBuild = false
     var testOverride: Bool? {
         didSet { UserDefaults.standard.set(testOverride, forKey: Self.testOverrideKey) }
@@ -90,7 +91,10 @@ final class Pro {
 
     private init() {
         testOverride = UserDefaults.standard.object(forKey: Self.testOverrideKey) as? Bool
-        #if DEBUG
+        // Only in builds made for testing: Xcode, and TestFlight builds made
+        // with the tester switch. Never in the build App Review sees, which
+        // runs in the same sandbox as TestFlight.
+        #if DEBUG || TESTER_SWITCH
         isTestBuild = true
         #endif
     }
@@ -120,9 +124,6 @@ final class Pro {
                 if case .verified(let transaction) = update { await transaction.finish() }
                 await self?.refresh()
             }
-        }
-        if let app = try? await AppTransaction.shared, case .verified(let transaction) = app {
-            isTestBuild = isTestBuild || transaction.environment != .production
         }
         products = ((try? await Product.products(for: [Self.yearlyID, Self.monthlyID])) ?? [])
             .sorted { $0.id == Self.yearlyID && $1.id != Self.yearlyID }

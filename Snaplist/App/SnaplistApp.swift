@@ -12,6 +12,9 @@ struct SnaplistApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationRouter.shared
+        // At launch, not when a screen appears: a locked app, Siri and
+        // Shortcuts need to know about Pro too.
+        Task { await Pro.shared.start() }
     }
 
     var body: some Scene {
@@ -47,9 +50,13 @@ struct SnaplistApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     lock.sceneChanged(to: phase)
                     if phase == .active {
-                        model.importInbox()
                         model.resumePending()
-                        model.syncBanksIfDue()
+                        // Once Pro is known, so a subscriber isn't treated as free.
+                        Task {
+                            await Pro.shared.refresh()
+                            model.importInbox()
+                            model.syncBanksIfDue()
+                        }
                     }
                 }
             case .failure(let error):

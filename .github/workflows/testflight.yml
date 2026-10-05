@@ -4,6 +4,11 @@ name: TestFlight
 # become a TestFlight build.
 on:
   workflow_dispatch:
+    inputs:
+      tester_switch:
+        description: "Include Settings → Pro for Testing (turn off for the build sent to App Review)"
+        type: boolean
+        default: true
 
 concurrency:
   group: testflight
@@ -61,6 +66,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/Snaplist.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            ${{ inputs.tester_switch && 'SWIFT_ACTIVE_COMPILATION_CONDITIONS=TESTER_SWITCH' || '' }} \
             | tee archive.log | grep -E "error:|warning:|ARCHIVE (SUCCEEDED|FAILED)" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log
 
