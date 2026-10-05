@@ -93,8 +93,9 @@ public struct DayRange: Hashable, Sendable {
 
     public static func month(_ month: Int, of year: Int) -> DayRange? {
         guard let start = Day(year: year, month: month, day: 1) else { return nil }
-        let next = month == 12 ? Day(year: year + 1, month: 1, day: 1)! : Day(year: year, month: month + 1, day: 1)!
-        return DayRange(start, next.adding(days: -1))
+        // The month's last day, without stepping into a year Day can't hold.
+        guard let end = [31, 30, 29, 28].lazy.compactMap({ Day(year: year, month: month, day: $0) }).first else { return nil }
+        return DayRange(start, end)
     }
 
     /// Months `first`…`first + count - 1`, which may run into the next year.
@@ -154,7 +155,9 @@ enum DayParser {
         for (regex, build) in patterns {
             for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
                 guard !found.contains(where: { NSIntersectionRange($0.1, match.range).length > 0 }),
-                      let day = build(match, text) else { continue }
+                      let day = build(match, text),
+                      // A misread year ("2O26" as 2926) isn't a date on a receipt.
+                      (1950...2150).contains(day.year) else { continue }
                 found.append((day, match.range))
             }
         }

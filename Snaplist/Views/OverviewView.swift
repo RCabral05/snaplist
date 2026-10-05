@@ -139,68 +139,92 @@ private struct MonthChart: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            Chart {
-                ForEach(overview.months) { month in
-                    ForEach(SpendCategory.allCases, id: \.self) { category in
-                        let cents = max(0, month.byCategory[category] ?? 0)
-                        if cents > 0 {
-                            BarMark(x: .value("Month", month.range.start.date(), unit: .month),
-                                    y: .value("Spent", Double(cents) / 100))
-                                .foregroundStyle(by: .value("Category", category.label))
-                                .opacity(month.range.start == selected ? 1 : 0.45)
-                                .cornerRadius(3)
-                        }
-                    }
-                }
-            }
-            // At least six months wide, so two months of data aren't two giant bars.
-            .chartXScale(domain: xDomain)
-            .chartForegroundStyleScale(domain: SpendCategory.allCases.map(\.label),
-                                       range: SpendCategory.allCases.map(\.tint))
-            .chartLegend(.hidden)
-            .chartXAxis {
-                // Each month with spending by name; a stride skipped the first.
-                AxisMarks(values: overview.months.map { $0.range.start.date() }) { _ in
-                    AxisValueLabel(format: .dateTime.month(.narrow), centered: true)
-                }
-            }
-            .chartYAxis {
-                AxisMarks { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let amount = value.as(Double.self) {
-                            Text(amount, format: .currency(code: overview.currency).precision(.fractionLength(0)))
-                        }
-                    }
-                }
-            }
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle().fill(.clear).contentShape(Rectangle())
-                        .onTapGesture { location in
-                            guard let plot = proxy.plotFrame else { return }
-                            let x = location.x - geometry[plot].origin.x
-                            guard let date: Date = proxy.value(atX: x) else { return }
-                            let day = Day(date)
-                            if let month = overview.months.first(where: { $0.range.contains(day) }) {
-                                withAnimation(.snappy) { selection = month.range.start }
-                            }
-                        }
-                }
-            }
-            .frame(height: 200)
-            .accessibilityLabel("Spending by month")
-            .accessibilityValue(overview.months.first { $0.range.start == selected }?.label ?? "")
-            .accessibilityHint("Swipe up or down to pick a month")
-            .accessibilityAdjustableAction { direction in
-                let starts = overview.months.map(\.range.start)
-                guard let current = starts.firstIndex(where: { $0 == selected }) ?? starts.indices.last else { return }
-                let next = direction == .increment ? min(current + 1, starts.count - 1) : max(current - 1, 0)
-                selection = starts[next]
-            }
+            chart(selected: selected)
         }
         .padding()
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+    }
+
+    private struct Bar: Identifiable {
+        let month: Date
+        let category: SpendCategory
+        let dollars: Double
+        let isSelected: Bool
+        var id: String { "\(month.timeIntervalSince1970)-\(category.rawValue)" }
+    }
+
+    private func bars(selected: Day?) -> [Bar] {
+        overview.months.flatMap { month in
+            SpendCategory.allCases.compactMap { category -> Bar? in
+                let cents = max(0, month.byCategory[category] ?? 0)
+                guard cents > 0 else { return nil }
+                return Bar(month: month.range.start.date(), category: category, dollars: Double(cents) / 100,
+                           isSelected: month.range.start == selected)
+            }
+        }
+    }
+
+    private func chart(selected: Day?) -> some View {
+        let bars = bars(selected: selected)
+        let categories = SpendCategory.allCases
+        return Chart(bars) { bar in
+            BarMark(x: .value("Month", bar.month, unit: .month), y: .value("Spent", bar.dollars))
+                .foregroundStyle(by: .value("Category", bar.category.label))
+                .opacity(bar.isSelected ? 1 : 0.45)
+                .cornerRadius(3)
+        }
+        // At least six months wide, so two months of data aren't two giant bars.
+        .chartXScale(domain: xDomain)
+        .chartForegroundStyleScale(domain: categories.map(\.label), range: categories.map(\.tint))
+        .chartLegend(.hidden)
+        .chartXAxis { xAxis }
+        .chartYAxis { yAxis }
+        .chartOverlay { proxy in tapTarget(proxy) }
+        .frame(height: 200)
+        .accessibilityLabel("Spending by month")
+        .accessibilityValue(overview.months.first { $0.range.start == selected }?.label ?? "")
+        .accessibilityHint("Swipe up or down to pick a month")
+        .accessibilityAdjustableAction { direction in step(direction, from: selected) }
+    }
+
+    private var xAxis: some AxisContent {
+        // Each month with spending by name; a stride skipped the first.
+        AxisMarks(values: overview.months.map { $0.range.start.date() }) { _ in
+            AxisValueLabel(format: .dateTime.month(.narrow), centered: true)
+        }
+    }
+
+    private var yAxis: some AxisContent {
+        AxisMarks { value in
+            AxisGridLine()
+            AxisValueLabel {
+                if let amount = value.as(Double.self) {
+                    Text(amount, format: .currency(code: overview.currency).precision(.fractionLength(0)))
+                }
+            }
+        }
+    }
+
+    private func tapTarget(_ proxy: ChartProxy) -> some View {
+        GeometryReader { geometry in
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onTapGesture { location in
+                    guard let plot = proxy.plotFrame else { return }
+                    let x = location.x - geometry[plot].origin.x
+                    guard let date: Date = proxy.value(atX: x) else { return }
+                    let day = Day(date)
+                    if let month = overview.months.first(where: { $0.range.contains(day) }) {
+                        withAnimation(.snappy) { selection = month.range.start }
+                    }
+                }
+        }
+    }
+
+    private func step(_ direction: AccessibilityAdjustmentDirection, from selected: Day?) {
+        let starts = overview.months.map(\.range.start)
+        guard let current = starts.firstIndex(where: { $0 == selected }) ?? starts.indices.last else { return }
+        let next = direction == .increment ? min(current + 1, starts.count - 1) : max(current - 1, 0)
+        selection = starts[next]
     }
 }
 

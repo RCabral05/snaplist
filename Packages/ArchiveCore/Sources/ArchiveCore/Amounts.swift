@@ -218,6 +218,7 @@ extension ArchiveStore {
     /// the record alone, so a fix is never lost or duplicated.
     static func markExtractionEdited(_ recordId: UUID, in db: Database) throws {
         try db.execute(sql: "UPDATE txn SET isEdited = 1 WHERE recordId = ?", arguments: [recordId])
+        try db.execute(sql: "UPDATE record SET amountsEdited = 1 WHERE id = ?", arguments: [recordId])
     }
 }
 

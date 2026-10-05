@@ -43,7 +43,7 @@ enum MoneyParser {
             if let number = group("num") {
                 guard let value = parseDecimal(number) else { return nil }
                 cents = value
-            } else if let whole = group("whole"), let value = Int64(whole) {
+            } else if let whole = group("whole"), whole.count <= 12, let value = Int64(whole) {
                 cents = value * 100
             } else {
                 return nil
@@ -59,7 +59,8 @@ enum MoneyParser {
     /// point; every other separator groups thousands.
     static func parseDecimal(_ text: String) -> Int64? {
         let digits = text.filter(\.isNumber)
-        guard digits.count >= 3, let value = Int64(digits) else { return nil }
+        // Twelve digits is ten billion: anything longer is an ID, not money.
+        guard (3...12).contains(digits.count), let value = Int64(digits) else { return nil }
         return value
     }
 

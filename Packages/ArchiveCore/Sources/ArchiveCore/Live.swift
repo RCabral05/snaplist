@@ -55,9 +55,19 @@ extension Archive {
             let record: Record
             if let existing = try liveRecord(key), let asset = try store.assets(of: existing.id).first {
                 record = existing
-                rows = (try? String(contentsOf: url(for: asset), encoding: .utf8))?
-                    .split(whereSeparator: \.isNewline).map(String.init) ?? [LiveCSV.header]
-                if rows.first != LiveCSV.header { rows.insert(LiveCSV.header, at: 0) }
+                // A file that can't be read stops here rather than being
+                // written over with only the new charges.
+                rows = try String(contentsOf: url(for: asset), encoding: .utf8)
+                    .split(whereSeparator: \.isNewline).map(String.init)
+                if rows.first != LiveCSV.header {
+                    // From before the currency column: those were all dollars.
+                    if rows.first?.hasPrefix("Date,") == true { rows.removeFirst() }
+                    rows = [LiveCSV.header] + rows.map { row in
+                        var fields = CSVStatement.fields(row)
+                        if fields.count == 6 { fields.insert("USD", at: 5) }
+                        return fields.map(LiveCSV.quoted).joined(separator: ",")
+                    }
+                }
                 let known = Set(rows.dropFirst().compactMap { CSVStatement.fields($0).last }.filter { !$0.isEmpty })
                 let new = charges.filter { $0.id == nil || !known.contains($0.id!) }
                 guard !new.isEmpty else { continue }
@@ -129,14 +139,16 @@ extension ArchiveStore {
 /// The CSV a live statement keeps: one row per charge, in the columns the
 /// CSV reader already knows.
 enum LiveCSV {
-    static let header = "Date,Description,Merchant,Type,Amount,ID"
+    /// The ID stays last: charges already saved are found by it.
+    static let header = "Date,Description,Merchant,Type,Amount,Currency,ID"
 
     static func row(_ charge: LiveCharge) -> String {
         let type = charge.isPayment ? "Payment" : charge.amountCents >= 0 ? "Purchase" : "Return"
         // Purchases positive; payments and returns negative.
         let cents = charge.isPayment ? -abs(charge.amountCents) : charge.amountCents
         let amount = (cents < 0 ? "-" : "") + String(format: "%d.%02d", abs(cents) / 100, abs(cents) % 100)
-        return [charge.day.iso, charge.description, charge.merchant, type, amount, charge.id ?? ""].map(quoted).joined(separator: ",")
+        return [charge.day.iso, charge.description, charge.merchant, type, amount,
+                CSVStatement.currencyCode(charge.currency) ?? "USD", charge.id ?? ""].map(quoted).joined(separator: ",")
     }
 
     static func quoted(_ field: String) -> String {

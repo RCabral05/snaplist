@@ -79,7 +79,13 @@ extension ArchiveStore {
         }
         return list.sorted { a, b in
             if a.isCancelled != b.isCancelled { return !a.isCancelled }
-            return (a.nextCharge ?? Day(year: 9999, month: 1, day: 1)!, a.name) < (b.nextCharge ?? Day(year: 9999, month: 1, day: 1)!, b.name)
+            // Ones with no next charge last.
+            switch (a.nextCharge, b.nextCharge) {
+            case let (x?, y?) where x != y: return x < y
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return a.name < b.name
+            }
         }
     }
 

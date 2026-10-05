@@ -149,15 +149,26 @@ public struct TaxReport: Sendable {
     public struct Group: Hashable, Identifiable, Sendable {
         public var purpose: String
         public var entries: [Entry]
-        public var totalCents: Int64 { entries.reduce(0) { $0 + ($1.amount?.cents ?? 0) } }
+        /// In the report's currency; amounts in others are listed but not added.
+        public var currency: String = "USD"
+        public var totalCents: Int64 { TaxReport.sum(entries, in: currency) }
         public var id: String { purpose }
     }
 
     public var year: Int
     public var groups: [Group]
+    /// The currency most amounts are in.
     public var currency: String
 
-    public var totalCents: Int64 { groups.reduce(0) { $0 + $1.totalCents } }
+    /// Each record once, even when it's under two purposes.
+    public var totalCents: Int64 {
+        var seen = Set<UUID>()
+        return Self.sum(groups.flatMap(\.entries).filter { seen.insert($0.id).inserted }, in: currency)
+    }
+
+    static func sum(_ entries: [Entry], in currency: String) -> Int64 {
+        entries.reduce(0) { $0 + ($1.amount.flatMap { $0.currency == currency ? $0.cents : nil } ?? 0) }
+    }
 }
 
 /// The home inventory's total, for its header.
@@ -179,10 +190,14 @@ extension ArchiveStore {
                 groups[tag.name, default: []].append(TaxReport.Entry(record: record, amount: totals[record.id]))
             }
         }
-        let currency = totals.values.first?.currency ?? "USD"
+        var seen = Set<UUID>()
+        let amounts = groups.values.joined().filter { seen.insert($0.id).inserted }.compactMap(\.amount)
+        let currency = Dictionary(grouping: amounts, by: \.currency)
+            .max { ($0.value.count, $1.key) < ($1.value.count, $0.key) }?.key ?? "USD"
         return TaxReport(
             year: year,
-            groups: groups.map { TaxReport.Group(purpose: $0.key, entries: $0.value.sorted { $0.record.effectiveDay < $1.record.effectiveDay }) }
+            groups: groups.map { TaxReport.Group(purpose: $0.key, entries: $0.value.sorted { $0.record.effectiveDay < $1.record.effectiveDay },
+                                                 currency: currency) }
                 .sorted { $0.purpose.localizedCaseInsensitiveCompare($1.purpose) == .orderedAscending },
             currency: currency)
     }

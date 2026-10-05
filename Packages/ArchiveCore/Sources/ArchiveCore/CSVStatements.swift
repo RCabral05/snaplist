@@ -43,6 +43,7 @@ public enum CSVStatement {
         var amount: Int?
         var debit: Int?
         var credit: Int?
+        var currency: Int?
     }
 
     /// Which column is which, from the header row. Nil when it isn't a
@@ -65,7 +66,8 @@ public enum CSVStatement {
             type: first(["type", "transaction type"]),
             amount: first(["amount"], contains: true),
             debit: first(["debit", "withdrawal", "withdrawals"], contains: true),
-            credit: first(["credit", "deposit", "deposits"], contains: true))
+            credit: first(["credit", "deposit", "deposits"], contains: true),
+            currency: first(["currency"]))
         guard columns.amount != nil || columns.debit != nil else { return nil }
         guard columns.description != nil || columns.merchant != nil else { return nil }
         return columns
@@ -89,6 +91,7 @@ public enum CSVStatement {
             var category: String
             var type: String
             var cents: Int64
+            var currency: String
         }
         var rows: [Row] = []
         for (index, line) in page.lines.enumerated().dropFirst() {
@@ -111,7 +114,8 @@ public enum CSVStatement {
                 continue
             }
             rows.append(Row(line: index, date: date, description: cell(columns.description), merchant: cell(columns.merchant),
-                            category: cell(columns.category), type: cell(columns.type), cents: value))
+                            category: cell(columns.category), type: cell(columns.type), cents: value,
+                            currency: Self.currencyCode(cell(columns.currency)) ?? "USD"))
         }
 
         // Most banks show purchases as negative; Apple Card shows them
@@ -146,7 +150,7 @@ public enum CSVStatement {
             transactions.append(Amount(
                 recordId: recordId, pagePosition: 0, linePosition: row.line, date: row.date,
                 merchant: merchant, memo: row.description.isEmpty ? row.merchant : row.description,
-                amountCents: abs(row.cents), currency: "USD", kind: kind, category: category, source: .statement))
+                amountCents: abs(row.cents), currency: row.currency, kind: kind, category: category, source: .statement))
         }
         return ExtractedFacts(documentDate: rows.map(\.date).max(), transactions: transactions)
     }
@@ -167,6 +171,12 @@ public enum CSVStatement {
     public static func isMovedOut(_ lowercased: String) -> Bool { movedOut.contains { lowercased.contains($0) } }
 
     /// "-1,234.56", "$12.00", "(5.00)" → signed cents.
+    /// "EUR" from a currency column; nil for anything that isn't a code.
+    static func currencyCode(_ text: String) -> String? {
+        let code = text.trimmingCharacters(in: .whitespaces).uppercased()
+        return code.count == 3 && code.allSatisfy({ $0.isASCII && $0.isLetter }) ? code : nil
+    }
+
     static func cents(_ text: String) -> Int64? {
         var value = text.trimmingCharacters(in: .whitespaces)
         guard !value.isEmpty else { return nil }
@@ -177,7 +187,7 @@ public enum CSVStatement {
             .trimmingCharacters(in: .whitespaces)
         if value.hasPrefix("-") { negative = true; value.removeFirst() }
         let parts = value.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count <= 2, let whole = Int64(parts[0].isEmpty ? "0" : String(parts[0])) else { return nil }
+        guard parts.count <= 2, parts[0].count <= 12, let whole = Int64(parts[0].isEmpty ? "0" : String(parts[0])) else { return nil }
         var fraction: Int64 = 0
         if parts.count == 2 {
             var digits = String(parts[1].prefix(2))

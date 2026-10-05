@@ -332,11 +332,12 @@ extension ArchiveStore {
     /// called different is never matched; one they called the same always is.
     static func duplicates(in items: [Counted], decisions: DuplicateDecisions = DuplicateDecisions(),
                            honoringRejections: Bool = true) -> [Duplicate] {
-        let originals = items.filter { $0.transaction.source != .statement }
+        // Only the same amount can match, so each line looks only at those.
+        let originals = Dictionary(grouping: items.filter { $0.transaction.source != .statement }, by: AmountKey.init)
         var used = Set<Int64>()
         var found: [Duplicate] = []
         for line in items where line.transaction.source == .statement {
-            let match = originals.first { original in
+            let match = originals[AmountKey(line)]?.first { original in
                 guard !used.contains(original.id),
                       original.transaction.amountCents == line.transaction.amountCents,
                       original.transaction.currency == line.transaction.currency else { return false }
@@ -374,6 +375,7 @@ extension ArchiveStore {
             .sorted { ($0.record.createdAt, $0.id) < ($1.record.createdAt, $1.id) }
         var used = Set<Int64>()
         var found: [Duplicate] = []
+        for originals in Dictionary(grouping: originals, by: AmountKey.init).values {
         for (index, first) in originals.enumerated() where !used.contains(first.id) {
             for other in originals[(index + 1)...] where !used.contains(other.id) && other.record.id != first.record.id {
                 guard other.transaction.amountCents == first.transaction.amountCents,
@@ -388,7 +390,8 @@ extension ArchiveStore {
                 break
             }
         }
-        return found
+        }
+        return found.sorted { ($0.kept.record.createdAt, $0.kept.id) < ($1.kept.record.createdAt, $1.kept.id) }
     }
 
     /// The same charge on two statements: a card's CSV export and its PDF
@@ -401,6 +404,7 @@ extension ArchiveStore {
             .sorted { ($0.record.createdAt, $0.id) < ($1.record.createdAt, $1.id) }
         var used = Set<Int64>()
         var found: [Duplicate] = []
+        for lines in Dictionary(grouping: lines, by: AmountKey.init).values {
         for (index, line) in lines.enumerated() where !used.contains(line.id) {
             for other in lines[(index + 1)...] where !used.contains(other.id) && other.record.id != line.record.id {
                 guard other.transaction.amountCents == line.transaction.amountCents,
@@ -415,7 +419,8 @@ extension ArchiveStore {
                 break
             }
         }
-        return found
+        }
+        return found.sorted { ($0.kept.record.createdAt, $0.kept.id) < ($1.kept.record.createdAt, $1.kept.id) }
     }
 
     func duplicateDecisions() throws -> DuplicateDecisions {
@@ -466,12 +471,50 @@ extension ArchiveStore {
         }
     }
 
+    /// Whether two amounts look like the same store: a shared word
+    /// ("Mario's Pizzeria" and "MARIOS PIZZA"), or one name the start of the
+    /// other once spaces go ("WHOLEFDS" and "Whole Foods", "PG&E" and
+    /// "PGANDE"). A statement line's description counts too. Two places in
+    /// the same category aren't enough on their own.
     static func sameMerchant(_ a: Amount, _ b: Amount) -> Bool {
-        if a.category == b.category, a.category != .other { return true }
-        let words = { (t: Amount) in
-            Set(t.merchant.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 3 })
+        func names(_ t: Amount) -> [String] {
+            t.source == .statement && !t.memo.isEmpty && t.memo != t.merchant ? [t.merchant, t.memo] : [t.merchant]
         }
-        return !words(a).isDisjoint(with: words(b))
+        func words(_ text: String) -> Set<String> {
+            Set(text.lowercased().replacingOccurrences(of: "'", with: "").split { !$0.isLetter }.map(String.init)
+                .filter { $0.count >= 3 && !genericWords.contains($0) })
+        }
+        func compact(_ text: String) -> String {
+            text.lowercased().replacingOccurrences(of: "&", with: "and").filter { $0.isLetter }
+        }
+        for x in names(a) {
+            for y in names(b) {
+                if !words(x).isDisjoint(with: words(y)) { return true }
+                let (p, q) = (compact(x), compact(y))
+                let (short, long) = p.count <= q.count ? (p, q) : (q, p)
+                guard short.count >= 3 else { continue }
+                if long.hasPrefix(short) || zip(p, q).prefix { $0 == $1 }.count >= 5 { return true }
+            }
+        }
+        return false
+    }
+
+    /// Words on statement lines that say nothing about which store it was.
+    static let genericWords: Set<String> = [
+        "the", "and", "inc", "llc", "ltd", "corp", "com", "www", "store", "stores", "shop", "market", "pos", "purchase",
+        "debit", "credit", "card", "online", "payment", "pymt", "ach", "web", "recurring", "autopay", "bill", "sale",
+        "usa", "intl", "restaurant", "cafe", "bar", "grill", "kitchen", "pizza", "coffee", "gas", "station", "pharmacy",
+        "apple", "pay", "square", "sumup", "toast", "paypal", "venmo",
+    ]
+
+    /// Amounts that could be the same purchase: same cents, same currency.
+    struct AmountKey: Hashable {
+        let cents: Int64
+        let currency: String
+        init(_ item: Counted) {
+            cents = item.transaction.amountCents
+            currency = item.transaction.currency
+        }
     }
 
     /// Best matches for "where is …", items and notes first.

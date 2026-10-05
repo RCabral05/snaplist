@@ -263,6 +263,12 @@ public struct ArchiveStore: Sendable {
                 );
                 """)
         }
+        migrator.registerMigration("v12-amounts-edited") { db in
+            // Set once a person changes or deletes amounts, so deleting the
+            // last one doesn't bring the read ones back.
+            try db.execute(sql: "ALTER TABLE record ADD COLUMN amountsEdited BOOLEAN NOT NULL DEFAULT 0")
+            try db.execute(sql: "UPDATE record SET amountsEdited = 1 WHERE id IN (SELECT recordId FROM txn WHERE isEdited)")
+        }
         return migrator
     }
 
@@ -461,6 +467,8 @@ public struct ArchiveStore: Sendable {
             try db.execute(sql: "DELETE FROM budget")
             try db.execute(sql: "DELETE FROM thing")
             try db.execute(sql: "DELETE FROM collection")
+            try db.execute(sql: "DELETE FROM subscriptionSetting")
+            try db.execute(sql: "DELETE FROM liveFeed")
         }
     }
 
@@ -475,7 +483,7 @@ public struct ArchiveStore: Sendable {
                 SELECT * FROM record WHERE status = ? AND (
                     nameSource != ?
                     OR (documentDate IS NULL AND NOT documentDateEdited)
-                    OR NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id))
+                    OR (NOT amountsEdited AND NOT EXISTS (SELECT 1 FROM txn WHERE txn.recordId = record.id)))
                 """, arguments: [IngestStatus.ready.rawValue, NameSource.person.rawValue])
             var changed = 0
             for var record in records {
@@ -520,7 +528,10 @@ public struct ArchiveStore: Sendable {
             try item.insert(db)
         }
         let hasEdits = try Bool.fetchOne(
-            db, sql: "SELECT EXISTS (SELECT 1 FROM txn WHERE recordId = ? AND isEdited)", arguments: [record.id]) ?? false
+            db, sql: """
+                SELECT EXISTS (SELECT 1 FROM txn WHERE recordId = ? AND isEdited)
+                    OR EXISTS (SELECT 1 FROM record WHERE id = ? AND amountsEdited)
+                """, arguments: [record.id, record.id]) ?? false
         guard !hasEdits else { return }
         try db.execute(sql: "DELETE FROM txn WHERE recordId = ?", arguments: [record.id])
         let rules = try merchantRules(in: db)
