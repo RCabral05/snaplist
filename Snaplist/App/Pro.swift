@@ -28,7 +28,7 @@ enum ProFeature: String, Identifiable, CaseIterable {
         switch self {
         case .records: "Free keeps up to \(Pro.freeRecordLimit) records. Pro has no limit."
         case .spending: "Month by month, by category, with budgets, a recap on the 1st and price-change alerts."
-        case .liveCharges: "Apple Pay taps, banks and cards through SimpleFIN, and Apple Card, as they happen."
+        case .liveCharges: "Apple Pay taps and banks and cards through SimpleFIN, as they happen."
         case .subscriptions: "Everything that repeats, what it costs a year, and a heads-up before trials charge."
         case .car: "Service history from receipts and when the next oil change is due."
         case .things: "What you own, with its receipt, warranty and manual, ready for a claim."

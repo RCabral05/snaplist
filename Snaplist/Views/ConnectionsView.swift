@@ -19,6 +19,7 @@ struct ConnectionsView: View {
 
     var body: some View {
         Form {
+            if AppleCard.isAvailable {
             Section {
                 if appleCardOn {
                     if let last = AppleCard.lastSync {
@@ -62,6 +63,7 @@ struct ConnectionsView: View {
                 Text("Every Apple Card, Apple Cash and Savings transaction, in stores, in apps and online, read from Wallet on this iPhone. Nothing goes through a server. Checked when Snaplist opens.")
             }
             .listRowBackground(Theme.surface)
+            }
 
             Section {
                 step(1, "In the Shortcuts app, open the Automation tab at the bottom and tap +.")

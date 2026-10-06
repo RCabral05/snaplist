@@ -8,6 +8,10 @@ import FinanceKit
 /// iPhone through FinanceKit: nothing goes through a server. Needs Apple to
 /// grant Snaplist the FinanceKit entitlement; until then connecting says so.
 enum AppleCard {
+    /// Off until Apple grants the FinanceKit entitlement (README, "Turning on
+    /// Apple Card"): without it the connect button could only fail.
+    static let isAvailable = false
+
     static let enabledKey = "appleCardEnabled"
     static let lastSyncKey = "appleCardLastSync"
 
@@ -23,7 +27,7 @@ enum AppleCard {
         }
     }
 
-    static var isEnabled: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
+    static var isEnabled: Bool { isAvailable && UserDefaults.standard.bool(forKey: enabledKey) }
 
     static var lastSync: Date? {
         let value = UserDefaults.standard.double(forKey: lastSyncKey)

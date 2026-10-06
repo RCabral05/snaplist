@@ -87,5 +87,11 @@ private-details sharing, unlimited records and collections, and themes. Pro can 
 in the sandbox from Settings → Snaplist Pro. All processing is on device; there is no
 server.
 
+Live charges (Settings → Live charges) are optional: Apple Pay taps are logged by a
+Shortcuts automation the person sets up, using the app's "Log a Charge" action, and banks
+are read through SimpleFIN Bridge (simplefin.org), a read-only service the person signs up
+for themselves and connects by pasting a setup token. Neither is needed to review the rest
+of the app.
+
 ## What's New (first release)
 First release.

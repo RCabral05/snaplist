@@ -181,7 +181,8 @@ FinanceKit needs a managed entitlement Apple grants per app.
    FinanceKit page links to the request form). Approval can take a while.
 2. Once granted, enable FinanceKit for the App ID under Certificates, Identifiers & Profiles.
 3. Add `com.apple.developer.financekit` (`financial-data`) to `Snaplist/Snaplist.entitlements`
-   and build. Until then, Connect Apple Card says Apple hasn't switched it on.
+   and set `AppleCard.isAvailable` to `true` in `Snaplist/App/AppleCard.swift`. Until then the
+   Apple Card section is hidden, so App Review never sees a button that can't work.
 
 ### Turning on widgets and sharing
 
