@@ -69,6 +69,29 @@ unknown = [k for k, v in ar["attributes"].items() if v is None and k not in answ
 if unknown:
     print("Age rating questions left as they are:", ", ".join(unknown))
 
+# Content rights: Snaplist shows only what the person adds themselves.
+call("PATCH", f"/v1/apps/{app_id}", {"data": {"type": "apps", "id": app_id,
+     "attributes": {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}})
+print("Content rights: no third-party content")
+
+# The app itself is free; Pro is the subscriptions.
+points = call("GET", f"/v1/apps/{app_id}/appPricePoints", **{"filter[territory]": "USA", "limit": 200})["data"]
+free = next((p for p in points if float(p["attributes"]["customerPrice"]) == 0), None)
+if free is None:
+    print("No free price point found")
+else:
+    try:
+        call("POST", "/v1/appPriceSchedules", {
+            "data": {"type": "appPriceSchedules", "relationships": {
+                "app": {"data": {"type": "apps", "id": app_id}},
+                "baseTerritory": {"data": {"type": "territories", "id": "USA"}},
+                "manualPrices": {"data": [{"type": "appPrices", "id": "${free}"}]}}},
+            "included": [{"type": "appPrices", "id": "${free}", "attributes": {"startDate": None},
+                          "relationships": {"appPricePoint": {"data": {"type": "appPricePoints", "id": free["id"]}}}}]})
+        print("Price: Free")
+    except RuntimeError as error:
+        print("Price not set:", str(error)[:1500])
+
 if SUBMIT:
     drafts = [s for s in call("GET", "/v1/reviewSubmissions", **{"filter[app]": app_id, "filter[platform]": "IOS"})["data"]
               if s["attributes"]["state"] == "READY_FOR_REVIEW"]
