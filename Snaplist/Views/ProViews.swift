@@ -217,7 +217,7 @@ struct ProSettingsSection: View {
             Text("Snaplist Pro")
         } footer: {
             Text(pro.isTestBuild
-"                 ? "Pro for Testing and Sample Data only appear in TestFlight builds. Sample Data swaps in made-up records, for trying everything and taking screenshots; your own records are kept aside and come back when it's off."
+                 ? "Pro for Testing and Sample Data only appear in TestFlight builds. Sample Data swaps in made-up records, for trying everything and taking screenshots; your own records are kept aside and come back when it's off."
                  : "Free keeps up to \(Pro.freeRecordLimit) records and \(Pro.freeCollectionLimit) collections. Everything you've saved can always be opened, exported and deleted.")
         }
         .listRowBackground(Theme.surface)
