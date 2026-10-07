@@ -65,7 +65,7 @@ enum ProFeature: String, Identifiable, CaseIterable {
 final class Pro {
     static let shared = Pro()
 
-    nonisolated static let freeRecordLimit = 25
+    nonisolated static let freeRecordLimit = 5
     nonisolated static let freeCollectionLimit = 2
     nonisolated static let monthlyID = "com.rcabral.snaplist.pro.monthly"
     nonisolated static let yearlyID = "com.rcabral.snaplist.pro.yearly"

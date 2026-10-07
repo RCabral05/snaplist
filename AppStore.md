@@ -52,7 +52,7 @@ PRIVATE BY DESIGN
 • Optional Face ID lock
 • Export or delete everything anytime
 
-Free keeps up to 25 records. Snaplist Pro is $4.99 a month or $39.99 a year, with a 7-day free trial on the yearly plan. Payment is charged to your Apple Account and renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel in Settings → your name → Subscriptions.
+Free keeps up to 5 records. Snaplist Pro is $4.99 a month or $39.99 a year, with a 7-day free trial on the yearly plan. Payment is charged to your Apple Account and renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel in Settings → your name → Subscriptions.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 Privacy Policy: https://rcabral05.github.io/Snaplist-site/privacy.html
@@ -81,7 +81,7 @@ access": No.
 ## App Review notes
 Snaplist has no account or sign-in. To try it, scan any receipt or add a photo of one
 from the Add (+) tab, then ask a question on the Ask tab such as "how much did I spend
-this month". Free allows 25 records; Snaplist Pro (auto-renewable subscription, monthly
+this month". Free allows 5 records; Snaplist Pro (auto-renewable subscription, monthly
 or yearly) unlocks Spending, live charges, subscriptions, car, things, the tax report,
 private-details sharing, unlimited records and collections, and themes. Pro can be bought
 in the sandbox from Settings → Snaplist Pro. All processing is on device; there is no

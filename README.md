@@ -160,7 +160,7 @@ Later: iCloud sync, household sharing, a paid tier.
 
 ### Setting up Snaplist Pro
 
-Free keeps 25 records and 2 collections; Pro is $4.99 a month or $39.99 a year, with a
+Free keeps 5 records and 2 collections; Pro is $4.99 a month or $39.99 a year, with a
 7-day free trial on the yearly plan. In App Store Connect:
 
 1. Agreements, Tax, and Banking: sign the Paid Applications agreement and add banking and tax info.

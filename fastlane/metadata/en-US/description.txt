@@ -34,7 +34,7 @@ PRIVATE BY DESIGN
 • Optional Face ID lock
 • Export or delete everything anytime
 
-Free keeps up to 25 records. Snaplist Pro is $4.99 a month or $39.99 a year, with a 7-day free trial on the yearly plan. Payment is charged to your Apple Account and renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel in Settings → your name → Subscriptions.
+Free keeps up to 5 records. Snaplist Pro is $4.99 a month or $39.99 a year, with a 7-day free trial on the yearly plan. Payment is charged to your Apple Account and renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel in Settings → your name → Subscriptions.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 Privacy Policy: https://rcabral05.github.io/Snaplist-site/privacy.html
