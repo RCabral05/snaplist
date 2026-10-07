@@ -211,16 +211,40 @@ struct ProSettingsSection: View {
                 Toggle("Pro for Testing", isOn: Binding(
                     get: { pro.isUnlocked },
                     set: { pro.testOverride = $0 }))
+                SampleDataToggle()
             }
         } header: {
             Text("Snaplist Pro")
         } footer: {
             Text(pro.isTestBuild
-                 ? "Pro for Testing only appears in TestFlight builds, to try the app with and without Pro. It isn't in the App Store version."
+"                 ? "Pro for Testing and Sample Data only appear in TestFlight builds. Sample Data swaps in made-up records, for trying everything and taking screenshots; your own records are kept aside and come back when it's off."
                  : "Free keeps up to \(Pro.freeRecordLimit) records and \(Pro.freeCollectionLimit) collections. Everything you've saved can always be opened, exported and deleted.")
         }
         .listRowBackground(Theme.surface)
         .manageSubscriptionsSheet(isPresented: $isManaging)
+    }
+}
+
+/// TestFlight only: switches between your archive and the sample one.
+/// The archive is opened at launch, so Snaplist closes to switch.
+struct SampleDataToggle: View {
+    @State private var isOn = UserDefaults.standard.bool(forKey: "sampleDataOn")
+    @State private var isConfirming = false
+
+    var body: some View {
+        Toggle("Sample Data", isOn: Binding(get: { isOn }, set: { _ in isConfirming = true }))
+            .confirmationDialog(isOn ? "Back to your records?" : "Show sample data?", isPresented: $isConfirming,
+                                titleVisibility: .visible) {
+                Button("Switch and Close Snaplist") {
+                    UserDefaults.standard.set(!isOn, forKey: "sampleDataOn")
+                    UserDefaults.standard.synchronize()
+                    exit(0)
+                }
+            } message: {
+                Text(isOn
+                     ? "Snaplist closes. Open it again to see your own records; the samples are kept for next time."
+                     : "Snaplist closes. Open it again to find it full of made-up receipts, bills and statements. Your own records are kept aside, untouched.")
+            }
     }
 }
 

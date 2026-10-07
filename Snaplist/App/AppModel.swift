@@ -99,11 +99,15 @@ final class AppModel {
     /// The archive lives in Application Support, inside the app's sandbox.
     static func live() throws -> AppModel {
         var name = "Archive"
-        #if DEBUG
-        // Screenshots run against a throwaway archive, never the real one.
+        #if DEBUG || TESTER_SWITCH
+        // Screenshots and Sample Data use their own archive, never the real one.
         if DemoData.isEnabled {
             name = "DemoArchive"
-            try? FileManager.default.removeItem(at: URL.applicationSupportDirectory.appending(path: name))
+            // Tests start fresh each launch; the Settings switch keeps what
+            // was added to the samples until it's turned off.
+            if DemoData.isLaunchedForTests {
+                try? FileManager.default.removeItem(at: URL.applicationSupportDirectory.appending(path: name))
+            }
         }
         #endif
         let directory = URL.applicationSupportDirectory.appending(path: name, directoryHint: .isDirectory)
@@ -113,7 +117,7 @@ final class AppModel {
     /// Runs for the life of the window.
     func start() async {
         await Self.tidyUp(archive)
-        #if DEBUG
+        #if DEBUG || TESTER_SWITCH
         if DemoData.shouldSeed, (try? archive.store.records().isEmpty) ?? false {
             DemoData.seed(into: self)
         }

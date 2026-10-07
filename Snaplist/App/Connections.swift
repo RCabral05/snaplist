@@ -137,7 +137,8 @@ extension AppModel {
     /// When the app comes forward, at most every six hours: SimpleFIN
     /// refreshes about once a day and limits how often it's asked.
     func syncBanksIfDue() {
-        guard Pro.shared.isUnlocked else { return }
+        // Real charges never go into the sample archive.
+        guard Pro.shared.isUnlocked, !DemoData.isEnabled else { return }
         // Apple Card is on the iPhone itself: every time, once a minute at most.
         if AppleCard.isEnabled, AppleCard.lastSync.map({ Date.now.timeIntervalSince($0) > 60 }) ?? true {
             Task { try? await syncAppleCard() }

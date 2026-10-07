@@ -3,17 +3,29 @@ import SwiftUI
 import UIKit
 
 /// Sample records for screenshots and UI tests, enabled by the `-demoData`
-/// launch argument. Debug builds only; TestFlight and App Store builds are
-/// Release and don't contain this.
+/// launch argument, or in TestFlight builds by Settings → Sample Data. Never
+/// in the App Store build.
 ///
 /// The documents are drawn as images (and one PDF) so they go through the real
 /// pipeline: Vision reads the images, PDFKit reads the PDF's text layer.
-#if DEBUG
+#if DEBUG || TESTER_SWITCH
 enum DemoData {
+    /// Settings → Sample Data: a separate archive full of made-up records,
+    /// for trying everything and taking screenshots. The real archive is
+    /// left as it is and comes back when it's turned off.
+    static let settingKey = "sampleDataOn"
+    static var isSwitchedOn: Bool { UserDefaults.standard.bool(forKey: settingKey) }
+
     /// A throwaway archive and no lock: `-demoData` fills it, `-demoEmpty`
     /// leaves it empty to show the welcome screen.
     static var isEnabled: Bool {
         shouldSeed || ProcessInfo.processInfo.arguments.contains("-demoEmpty")
+    }
+
+    /// Started from a test with launch arguments, rather than the switch.
+    static var isLaunchedForTests: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-demoData") || arguments.contains("-demoEmpty")
     }
 
     /// `-forceDark` / `-forceLight`, since the simulator's own appearance
@@ -26,7 +38,7 @@ enum DemoData {
     }
 
     static var shouldSeed: Bool {
-        ProcessInfo.processInfo.arguments.contains("-demoData")
+        isSwitchedOn || ProcessInfo.processInfo.arguments.contains("-demoData")
     }
 
     @MainActor
@@ -250,5 +262,6 @@ enum DemoData {
 /// Release builds: no demo data, the system's appearance.
 enum DemoData {
     static let forcedColorScheme: ColorScheme? = nil
+    static let isEnabled = false
 }
 #endif
