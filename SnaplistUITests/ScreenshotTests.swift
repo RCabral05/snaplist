@@ -90,6 +90,179 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// Every screen in one theme, for a full look at the app. Run with
+    /// `-only-testing:SnaplistUITests/ScreenshotTests/testEveryScreen`.
+    @MainActor
+    func testEveryScreen() throws {
+        let theme = ProcessInfo.processInfo.environment["TOUR_THEME"] ?? "vault"
+        let flags = ["-theme", theme, theme == "clarity" ? "-forceLight" : "-forceDark"]
+        var count = 0
+        func shot(_ name: String) {
+            count += 1
+            snap(String(format: "%02d-%@", count, name))
+        }
+
+        let empty = XCUIApplication()
+        empty.launchArguments = ["-demoEmpty"] + flags
+        empty.launch()
+        sleep(2)
+        shot("welcome")
+        empty.terminate()
+
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoData"] + flags
+        app.launch()
+        XCTAssertTrue(app.textFields["home-ask"].waitForExistence(timeout: 30), "home didn't appear")
+        waitWhile(app.staticTexts["Reading"], timeout: 60)
+        sleep(3)
+
+        // Home, top to bottom.
+        shot("home")
+        for index in 1...3 {
+            app.swipeUp()
+            sleep(1)
+            shot("home-scrolled-\(index)")
+        }
+        app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast)
+        sleep(1)
+
+        // The recap, a sheet.
+        if open(app, "recap") {
+            shot("recap")
+            app.swipeUp(); sleep(1)
+            shot("recap-scrolled")
+            closeSheet(app)
+        }
+
+        // Each tool on Home.
+        for (label, name) in [("IDs & policies", "ids"), ("Things", "things"), ("Tax report", "tax-report"),
+                              ("Subscriptions", "subscriptions"), ("Car", "car")] {
+            if open(app, label) {
+                shot(name)
+                app.swipeUp(); sleep(1)
+                shot("\(name)-scrolled")
+                back(app)
+            }
+        }
+        if open(app, "Changes") { shot("changes"); back(app) }
+
+        // Library, filters, a receipt, a statement.
+        tab(app, "Library")
+        let firstRecord = app.descendants(matching: .any).matching(identifier: "record").firstMatch
+        if firstRecord.waitForExistence(timeout: 10) {
+            sleep(1)
+            shot("library")
+            let filter = app.buttons["library-filter"].firstMatch
+            if filter.waitForExistence(timeout: 3) {
+                filter.tap(); sleep(1)
+                shot("library-filter-menu")
+                app.swipeDown(velocity: .fast)
+                if app.buttons["library-filter"].exists == false { app.tap() }
+            }
+            for (term, name) in [("Shell", "receipt"), ("Chase", "statement")] {
+                let search = app.textFields["library-search"].firstMatch
+                guard search.waitForExistence(timeout: 3) else { break }
+                search.tap()
+                search.typeText(term + "\n")
+                sleep(2)
+                let record = app.descendants(matching: .any).matching(identifier: "record").firstMatch
+                if record.waitForExistence(timeout: 3) {
+                    record.tap(); sleep(2)
+                    shot(name)
+                    for index in 1...3 {
+                        app.swipeUp(); sleep(1)
+                        shot("\(name)-scrolled-\(index)")
+                    }
+                    back(app)
+                }
+                let clear = app.buttons["Clear text"].firstMatch
+                if clear.exists { clear.tap() }
+            }
+        }
+
+        // Spending.
+        tab(app, "Spending")
+        sleep(2)
+        shot("spending")
+        for index in 1...2 {
+            app.swipeUp(); sleep(1)
+            shot("spending-scrolled-\(index)")
+        }
+
+        // Ask.
+        tab(app, "Ask")
+        sleep(1)
+        shot("ask")
+        for (question, name) in [("How much did I spend on gas last month?", "ask-gas"),
+                                 ("What did I buy at Costco?", "ask-items"),
+                                 ("Where did I put the spare HDMI cable?", "ask-where"),
+                                 ("When does my passport expire?", "ask-expiry")] {
+            askQuestion(app, question)
+            shot(name)
+        }
+
+        // Add.
+        let add = app.buttons.matching(NSPredicate(format: "label == 'Add' OR identifier == 'add-tab'")).firstMatch
+        if add.waitForExistence(timeout: 2) {
+            add.tap(); sleep(2)
+            shot("add")
+            closeSheet(app)
+        }
+
+        // Settings and what's inside it.
+        tab(app, "Home")
+        app.swipeDown(velocity: .fast)
+        let settings = app.buttons["Settings"].firstMatch
+        if settings.waitForExistence(timeout: 3) {
+            settings.tap(); sleep(2)
+            shot("settings")
+            for index in 1...3 {
+                app.swipeUp(); sleep(1)
+                shot("settings-scrolled-\(index)")
+            }
+            for (label, name) in [("Always Hide", "always-hide"), ("Apple Pay, Banks and Cards", "live-charges"), ("Theme", "themes")] {
+                if open(app, label) {
+                    shot(name)
+                    back(app)
+                }
+            }
+            app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast); app.swipeDown(velocity: .fast)
+            if open(app, "Get Snaplist Pro") {
+                sleep(2)
+                shot("paywall")
+                closeSheet(app)
+            }
+        }
+        app.terminate()
+    }
+
+    /// Taps the first thing whose label starts with `label`, scrolling down
+    /// to find it. False when it isn't there.
+    @MainActor
+    private func open(_ app: XCUIApplication, _ label: String) -> Bool {
+        let predicate = NSPredicate(format: "label BEGINSWITH[c] %@", label)
+        for _ in 0..<6 {
+            for query in [app.buttons, app.staticTexts, app.cells] {
+                let element = query.matching(predicate).firstMatch
+                if element.exists, element.isHittable {
+                    element.tap()
+                    sleep(2)
+                    return true
+                }
+            }
+            app.swipeUp()
+            sleep(1)
+        }
+        return false
+    }
+
+    @MainActor
+    private func back(_ app: XCUIApplication) {
+        let button = app.navigationBars.buttons.firstMatch
+        if button.exists { button.tap() } else { app.swipeRight() }
+        sleep(1)
+    }
+
     @MainActor
     private func tab(_ app: XCUIApplication, _ name: String) {
         let button = app.tabBars.buttons[name]

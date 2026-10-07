@@ -3,6 +3,10 @@ name: CI
 on:
   push:
     branches: [main, native-archive]
+    # Only code: a README or App Store text change doesn't need a Mac build,
+    # and Mac minutes count ten times on a private repository.
+    paths: ["Snaplist/**", "Shared/**", "Packages/**", "SnaplistUITests/**", "SnaplistShare/**",
+            "SnaplistWidgets/**", "project.yml", ".github/workflows/ci.yml"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -10,6 +14,13 @@ on:
         description: "Screenshots at App Store size (6.9-inch Pro Max)"
         type: boolean
         default: false
+      every_screen:
+        description: "Every screen in one theme instead of the main screens in every theme"
+        type: boolean
+        default: false
+      theme:
+        description: "Theme for every screen (vault, ledger, clarity)"
+        default: vault
 
 jobs:
   # The archive's logic: storage, search, ingestion. Cheap, so it runs first.
@@ -82,11 +93,13 @@ jobs:
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl list devices | grep "$DEVICE"
       - name: Run the screenshot tour
+        env:
+          TEST_RUNNER_TOUR_THEME: ${{ inputs.theme }}
         run: |
           xcodebuild test \
             -project Snaplist.xcodeproj -scheme Snaplist \
             -destination "id=$DEVICE" \
-            -only-testing:SnaplistUITests/ScreenshotTests \
+            -only-testing:SnaplistUITests/ScreenshotTests/${{ inputs.every_screen && 'testEveryScreen' || 'testTour' }} \
             -resultBundlePath "$RUNNER_TEMP/tour.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
             | tee test.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" || true
