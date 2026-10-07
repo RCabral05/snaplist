@@ -1,0 +1,1 @@
+receipt,scanner,expense,budget,bills,warranty,tax,statement,spending,documents,subscription,tracker

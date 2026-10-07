@@ -1,0 +1,1 @@
+Scan a receipt, ask "how much did I spend on gas last month?" and get an exact answer, worked out on your iPhone. No account. Nothing uploaded.

@@ -1,0 +1,12 @@
+# Used by .github/workflows/appstore.yml. Uploads the listing text and
+# screenshots; never the app itself (TestFlight does that) and never submits
+# unless the workflow is run with "submit" ticked.
+app_identifier "com.rcabral.snaplist"
+platform "ios"
+metadata_path "./fastlane/metadata"
+screenshots_path "./fastlane/screenshots"
+overwrite_screenshots true
+skip_binary_upload true
+force true
+precheck_include_in_app_purchases false
+run_precheck_before_submit false

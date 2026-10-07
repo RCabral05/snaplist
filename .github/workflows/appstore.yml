@@ -1,0 +1,52 @@
+name: App Store listing
+
+# Run by hand. Uploads the App Store listing (fastlane/metadata) and
+# screenshots (fastlane/screenshots) to the version being prepared. With
+# "submit" ticked it also picks the newest build and sends it to App Review.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App Store version (the MARKETING_VERSION of the build to ship)"
+        required: true
+      submit:
+        description: "Also submit for review (only once the build is processed and everything in App Store Connect is filled in)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: appstore
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    runs-on: macos-26
+    env:
+      KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Write the App Store Connect key
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          printf '%s\n' "$KEY_P8" > "$KEY_PATH"
+          ruby -rjson -e 'puts JSON.generate(key_id: ENV["KEY_ID"], issuer_id: ENV["ISSUER_ID"], key: File.read(ARGV[0]), in_house: false)' "$KEY_PATH" > "$RUNNER_TEMP/api_key.json"
+          echo "API_KEY_PATH=$RUNNER_TEMP/api_key.json" >> "$GITHUB_ENV"
+
+      - name: Install fastlane
+        run: command -v fastlane || brew install fastlane
+
+      - name: Upload the listing
+        env:
+          VERSION: ${{ inputs.version }}
+          SUBMIT: ${{ inputs.submit }}
+        run: |
+          args=(--api_key_path "$API_KEY_PATH" --app_version "$VERSION")
+          if [ "$SUBMIT" = "true" ]; then
+            # Pricing comes from the subscriptions; the app itself is free.
+            args+=(--submit_for_review --automatic_release false
+                   --submission_information '{"add_id_info_uses_idfa": false}')
+          fi
+          fastlane deliver "${args[@]}"

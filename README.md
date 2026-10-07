@@ -146,16 +146,16 @@ Later: iCloud sync, household sharing, a paid tier.
 
 ### Before launch (checklist)
 
-- [ ] Pick the app's final name. The name on the Home Screen and in the App Store can change any
-      time; the bundle ID (`com.rcabral.snaplist`) can't once it's on the App Store, so decide on
-      it first if it should change too.
-- [ ] Request the FinanceKit entitlement for the final bundle ID, then turn on Apple Card
-      (see "Turning on Apple Card").
-- [ ] Widgets, the Control Center scan button and Share to Snaplist: register the App Group and two
-      extension App IDs (see "Turning on widgets and sharing").
+- [x] Name: Snaplist on the Home Screen, "Snaplist: Receipts & Bills" on the App Store.
+- [ ] Turn on GitHub Pages (Settings → Pages → main, /docs) so the privacy and support pages load.
 - [ ] Snaplist Pro in App Store Connect (see "Setting up Snaplist Pro").
-- [ ] A privacy policy page, linked from the paywall (`Pro.privacyURL`) and the App Store listing.
-- [ ] App Store: privacy details, screenshots, description.
+- [ ] App Store Connect, by hand: Pricing (Free), App Privacy ("Data Not Collected"), age rating,
+      copyright, and the App Review contact name and phone.
+- [ ] Run the TestFlight workflow with the tester switch off (the build App Review gets).
+- [ ] Run the App Store listing workflow with the version: it uploads the text and screenshots.
+      Run it again with "submit" ticked to send the build to App Review.
+- [ ] Later: FinanceKit for Apple Card (see "Turning on Apple Card"), and widgets and sharing
+      (see "Turning on widgets and sharing").
 
 ### Setting up Snaplist Pro
 
