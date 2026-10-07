@@ -128,6 +128,21 @@ struct VisionTextExtractor: TextExtractor {
     }
 
     private func recognize(_ image: CGImage, orientation: CGImagePropertyOrientation) async throws -> RecognizedPage {
+        // Each added record starts reading at once; twenty photos picked
+        // together would be twenty recognitions in parallel, which runs the
+        // app out of memory and has crashed inside Vision. Two at a time.
+        await RecognitionGate.shared.enter()
+        do {
+            let page = try await recognizeNow(image, orientation: orientation)
+            await RecognitionGate.shared.leave()
+            return page
+        } catch {
+            await RecognitionGate.shared.leave()
+            throw error
+        }
+    }
+
+    private func recognizeNow(_ image: CGImage, orientation: CGImagePropertyOrientation) async throws -> RecognizedPage {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -151,6 +166,34 @@ struct VisionTextExtractor: TextExtractor {
                 return abs(ab.y - bb.y) > ab.height / 2 ? ab.y < bb.y : ab.x < bb.x
             }
         return RecognizedPage(lines: lines, source: .ocr)
+    }
+}
+
+/// Lets a few text recognitions run at once; the rest wait their turn.
+actor RecognitionGate {
+    static let shared = RecognitionGate(limit: 2)
+
+    private let limit: Int
+    private var running = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(limit: Int) { self.limit = limit }
+
+    func enter() async {
+        if running < limit {
+            running += 1
+            return
+        }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func leave() {
+        if waiting.isEmpty {
+            running -= 1
+        } else {
+            // The slot passes straight to the next in line.
+            waiting.removeFirst().resume()
+        }
     }
 }
 

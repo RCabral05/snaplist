@@ -324,21 +324,22 @@ final class EveryScreenTests: ScreenshotTests {
         guard settings.waitForExistence(timeout: 3) else { return }
         settings.tap(); sleep(2)
         shot("settings")
-        scrollShots(app, "settings", 4)
-        for (label, name) in [("Always Hide", "always-hide"), ("Apple Pay, Banks and Cards", "live-charges"), ("Theme", "themes")] {
-            for _ in 0..<5 { app.swipeDown(velocity: .fast) }
-            if open(app, label) {
-                shot(name)
-                scrollShots(app, name, 1)
-                back(app)
-            }
-        }
-        for _ in 0..<5 { app.swipeDown(velocity: .fast) }
+        // Top to bottom, never swiping down: Settings is a sheet, and a swipe
+        // down at its top closes it.
         if open(app, "Get Snaplist Pro") {
             sleep(3)
             shot("paywall")
             scrollShots(app, "paywall", 1)
+            let notNow = app.buttons["Not Now"].firstMatch
+            if notNow.waitForExistence(timeout: 2) { notNow.tap(); sleep(1) }
         }
+        for (label, name) in [("Theme", "themes"), ("Apple Pay, Banks and Cards", "live-charges"), ("Always Hide", "always-hide")] {
+            if open(app, label) {
+                shot(name)
+                back(app)
+            }
+        }
+        scrollShots(app, "settings", 2)
         app.terminate()
     }
 
