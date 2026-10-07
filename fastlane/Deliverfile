@@ -10,3 +10,6 @@ skip_binary_upload true
 force true
 precheck_include_in_app_purchases false
 run_precheck_before_submit false
+# The App Review contact (name, phone) and notes are filled in by hand in App
+# Store Connect, so a phone number never sits in this repository. The notes to
+# paste are in AppStore.md.

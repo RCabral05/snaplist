@@ -49,4 +49,10 @@ jobs:
             args+=(--submit_for_review --automatic_release false
                    --submission_information '{"add_id_info_uses_idfa": false}')
           fi
-          fastlane deliver "${args[@]}"
+          # Screenshots on their own first: until the App Review contact is
+          # filled in by hand, the text upload stops at the review details.
+          fastlane deliver "${args[@]}" --skip_metadata true
+          fastlane deliver "${args[@]}" --skip_screenshots true || {
+            echo "::warning::The listing text is uploaded; if this stopped at the App Review details, fill in the App Review contact in App Store Connect and run this again."
+            [ "$SUBMIT" != "true" ]
+          }
