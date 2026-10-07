@@ -1,9 +1,28 @@
 name: App Store status
 
 # Run by hand: prints where the App Store submission stands (version, build,
-# screenshots, review details, age rating, price, subscriptions). Read-only.
+# screenshots, review details, age rating, price, subscriptions); with
+# "prepare" it also fills in the build, copyright and age rating.
 on:
   workflow_dispatch:
+    inputs:
+      prepare:
+        description: "Also attach the build, set copyright and answer the age rating"
+        type: boolean
+        default: false
+      version:
+        description: "App Store version"
+        default: "2.9.3"
+      build:
+        description: "Build number to attach (the one made with the tester switch off)"
+        default: "1056"
+      copyright:
+        description: "Copyright line"
+        default: "2026 Ryan Cabral"
+      submit:
+        description: "Add the version to the draft and submit for review"
+        type: boolean
+        default: false
 
 jobs:
   status:
@@ -15,4 +34,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: pip install --quiet pyjwt cryptography requests
+      - if: inputs.prepare || inputs.submit
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD: ${{ inputs.build }}
+          COPYRIGHT: ${{ inputs.copyright }}
+          SUBMIT: ${{ inputs.submit }}
+        run: python3 scripts/asc_prepare.py
       - run: python3 scripts/asc_status.py
