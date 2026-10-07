@@ -1,0 +1,18 @@
+name: App Store status
+
+# Run by hand: prints where the App Store submission stands (version, build,
+# screenshots, review details, age rating, price, subscriptions). Read-only.
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-24.04
+    env:
+      KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: pip install --quiet pyjwt cryptography requests
+      - run: python3 scripts/asc_status.py
