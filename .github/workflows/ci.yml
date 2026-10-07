@@ -99,7 +99,7 @@ jobs:
           xcodebuild test \
             -project Snaplist.xcodeproj -scheme Snaplist \
             -destination "id=$DEVICE" \
-            -only-testing:SnaplistUITests/ScreenshotTests/${{ inputs.every_screen && 'testEveryScreen' || 'testTour' }} \
+            -only-testing:SnaplistUITests/${{ inputs.every_screen && 'EveryScreenTests' || 'ScreenshotTests/testTour' }} \
             -resultBundlePath "$RUNNER_TEMP/tour.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
             | tee test.log | grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)" || true
