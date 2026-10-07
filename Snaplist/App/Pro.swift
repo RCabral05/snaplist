@@ -72,7 +72,7 @@ final class Pro {
     /// Apple's standard terms, which App Review asks subscription apps to link.
     nonisolated static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     /// Set before release: App Review needs a privacy policy linked from the paywall.
-    nonisolated static let privacyURL: URL? = URL(string: "https://rcabral05.github.io/snaplist/privacy.html")
+    nonisolated static let privacyURL: URL? = URL(string: "https://rcabral05.github.io/Snaplist-site/privacy.html")
     nonisolated static let testOverrideKey = "proTestOverride"
 
     /// Yearly first.

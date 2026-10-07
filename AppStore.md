@@ -55,19 +55,19 @@ PRIVATE BY DESIGN
 Free keeps up to 25 records. Snaplist Pro is $4.99 a month or $39.99 a year, with a 7-day free trial on the yearly plan. Payment is charged to your Apple Account and renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel in Settings → your name → Subscriptions.
 
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
-Privacy Policy: https://rcabral05.github.io/snaplist/privacy.html
+Privacy Policy: https://rcabral05.github.io/Snaplist-site/privacy.html
 
 ## Keywords (100 characters max, commas, no spaces)
 receipt,scanner,expense,budget,bills,warranty,tax,statement,spending,documents,subscription,tracker
 
 ## Support URL
-https://rcabral05.github.io/snaplist/support.html
+https://rcabral05.github.io/Snaplist-site/support.html
 
 ## Marketing URL
-https://rcabral05.github.io/snaplist/
+https://rcabral05.github.io/Snaplist-site/
 
 ## Privacy Policy URL
-https://rcabral05.github.io/snaplist/privacy.html
+https://rcabral05.github.io/Snaplist-site/privacy.html
 
 ## App Privacy (the questionnaire)
 Data collection: "No, we do not collect data from this app." Everything stays on the

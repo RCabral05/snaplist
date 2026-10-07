@@ -147,7 +147,8 @@ Later: iCloud sync, household sharing, a paid tier.
 ### Before launch (checklist)
 
 - [x] Name: Snaplist on the Home Screen, "Snaplist: Receipts & Bills" on the App Store.
-- [ ] Turn on GitHub Pages (Settings → Pages → main, /docs) so the privacy and support pages load.
+- [ ] The website (privacy, support) lives in the public Snaplist-site repo: turn on its Pages
+      (Settings → Pages → main, root). This repo stays private.
 - [ ] Snaplist Pro in App Store Connect (see "Setting up Snaplist Pro").
 - [ ] App Store Connect, by hand: Pricing (Free), App Privacy ("Data Not Collected"), age rating,
       copyright, and the App Review contact name and phone.
