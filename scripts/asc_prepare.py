@@ -24,7 +24,7 @@ H = {"Authorization": f"Bearer {token()}", "Content-Type": "application/json"}
 def call(method, path, body=None, **params):
     r = requests.request(method, BASE + path, headers=H, json=body, params=params)
     if r.status_code >= 400:
-        raise RuntimeError(f"{method} {path}: {r.status_code} {r.text[:600]}")
+        raise RuntimeError(f"{method} {path}: {r.status_code} {r.text[:1500]}")
     return r.json() if r.text else {}
 
 
@@ -50,24 +50,24 @@ print(f"Copyright: {COPYRIGHT}")
 info = next(i for i in call("GET", f"/v1/apps/{app_id}/appInfos")["data"]
             if i["attributes"].get("state") != "READY_FOR_DISTRIBUTION")
 ar = call("GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
-skip = {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAgeRatingOverride", "developerAgeRatingInfoUrl"}
-answered, failed = 0, []
-for key, value in ar["attributes"].items():
-    if key in skip or value is not None:
-        continue
-    for answer in ("NONE", False):
-        try:
-            call("PATCH", f"/v1/ageRatingDeclarations/{ar['id']}",
-                 {"data": {"type": "ageRatingDeclarations", "id": ar["id"], "attributes": {key: answer}}})
-            answered += 1
-            break
-        except RuntimeError as error:
-            last = str(error)
-    else:
-        failed.append(f"{key}: {last[:200]}")
-print(f"Age rating: {answered} answered")
-for f in failed:
-    print("  not answered:", f)
+# Yes/no questions take false; how-often questions take NONE. Sent together,
+# since Apple checks the answers as a set.
+yes_no = {"advertising", "ageAssurance", "gambling", "healthOrWellnessTopics", "lootBox", "messagingAndChat",
+          "parentalControls", "socialMedia", "socialMediaAgeRestricted", "unrestrictedWebAccess", "userGeneratedContent"}
+how_often = {"alcoholTobaccoOrDrugUseOrReferences", "contests", "gamblingSimulated", "gunsOrOtherWeapons",
+             "medicalOrTreatmentInformation", "profanityOrCrudeHumor", "sexualContentGraphicAndNudity",
+             "sexualContentOrNudity", "horrorOrFearThemes", "matureOrSuggestiveThemes", "violenceCartoonOrFantasy",
+             "violenceRealistic", "violenceRealisticProlongedGraphicOrSadistic"}
+answers = {k: (False if k in yes_no else "NONE") for k in ar["attributes"] if k in yes_no | how_often}
+try:
+    call("PATCH", f"/v1/ageRatingDeclarations/{ar['id']}",
+         {"data": {"type": "ageRatingDeclarations", "id": ar["id"], "attributes": answers}})
+    print(f"Age rating: {len(answers)} answered")
+except RuntimeError as error:
+    print("Age rating not saved:", str(error)[:1500])
+unknown = [k for k, v in ar["attributes"].items() if v is None and k not in answers]
+if unknown:
+    print("Age rating questions left as they are:", ", ".join(unknown))
 
 if SUBMIT:
     drafts = [s for s in call("GET", "/v1/reviewSubmissions", **{"filter[app]": app_id, "filter[platform]": "IOS"})["data"]
