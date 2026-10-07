@@ -83,7 +83,7 @@ if SUBMIT:
             "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
         print("Version added to the review submission")
     except RuntimeError as error:
-        print("Version not added (may already be in it):", str(error)[:300])
+        print("Version not added:", str(error)[:3000])
     call("PATCH", f"/v1/reviewSubmissions/{sid}",
          {"data": {"type": "reviewSubmissions", "id": sid, "attributes": {"submitted": True}}})
     print("Submitted for review")
