@@ -68,6 +68,16 @@ struct HomeView: View {
             }
             .background(Theme.background)
             .toolbar(.hidden, for: .navigationBar)
+            // No navigation bar here, so nothing covers the status bar:
+            // cards would scroll under the clock without this.
+            .overlay(alignment: .top) {
+                VStack(spacing: 0) {
+                    Theme.background.ignoresSafeArea(edges: .top).frame(height: 0)
+                    LinearGradient(colors: [Theme.background, Theme.background.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 14)
+                }
+                .allowsHitTesting(false)
+            }
             .navigationDestination(for: RecordListView.Destination.self) { destination in
                 RecordDetailView(record: destination.record, focusPage: destination.pagePosition)
             }

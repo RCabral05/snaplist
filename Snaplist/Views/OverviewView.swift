@@ -189,8 +189,17 @@ private struct MonthChart: View {
 
     private var xAxis: some AxisContent {
         // Each month with spending by name; a stride skipped the first.
-        AxisMarks(values: overview.months.map { $0.range.start.date() }) { _ in
-            AxisValueLabel(format: .dateTime.month(.narrow), centered: true)
+        // One mark past the last month: a centered label sits between a
+        // mark and the next, so without it the newest month had no letter.
+        let starts = overview.months.map { $0.range.start }
+        let marks = starts.map { $0.date() } + (starts.last.map { [$0.addingMonths(1).date()] } ?? [])
+        let end = marks.last
+        return AxisMarks(values: marks) { value in
+            AxisValueLabel(centered: true) {
+                if let date = value.as(Date.self), date != end {
+                    Text(date, format: .dateTime.month(.narrow))
+                }
+            }
         }
     }
 
@@ -301,7 +310,7 @@ private struct RecurringSection: View {
                                 .background(charge.category.tint.opacity(0.14), in: .circle)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(charge.merchant).font(.subheadline).lineLimit(1)
-                                Text("Next around \(charge.nextExpected.date().formatted(.dateTime.month(.abbreviated).day()))")
+                                Text(Self.when(charge))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -324,6 +333,14 @@ private struct RecurringSection: View {
             Label("Found from charges that come back each month or year at about the same price.", systemImage: "info.circle")
                 .font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    /// "Next around Nov 5", or once that's passed with no charge seen,
+    /// when it last came: a date in the past isn't "next".
+    static func when(_ charge: RecurringCharge) -> String {
+        let format = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        if charge.nextExpected >= Day(.now) { return "Next around \(charge.nextExpected.date().formatted(format))" }
+        return "Last charged \(charge.latest.day.date().formatted(format))"
     }
 }
 
