@@ -32,7 +32,8 @@ app = get("/v1/apps", **{"filter[bundleId]": BUNDLE})["data"][0]
 app_id = app["id"]
 line("App", f'{app["attributes"]["name"]} ({app_id})')
 
-versions = get(f"/v1/apps/{app_id}/appStoreVersions", **{"include": "build,appStoreReviewDetail,ageRatingDeclaration"})
+versions = get(f"/v1/apps/{app_id}/appStoreVersions", include="build")
+if "error" in versions: print(versions)
 for v in versions.get("data", []):
     a = v["attributes"]
     line("Version", f'{a["versionString"]} {a["platform"]} state={a.get("appStoreState") or a.get("appVersionState")} copyright={a.get("copyright")!r}')
