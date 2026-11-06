@@ -1,0 +1,29 @@
+PURPOSE AND AUDIENCE
+Snaplist is a private archive for personal paperwork: receipts, bills, bank and card statements, warranties, IDs and manuals. It is for individuals and households who keep paper and PDF records and want to find them and understand their spending without uploading them anywhere. It reads each document on the iPhone (store, date, total, line items), files it, and answers plain questions such as "How much did I spend on gas last month?" with the exact records the answer came from. It also tracks bill due dates, return windows, warranties, subscriptions and price changes.
+
+HOW TO USE IT
+No account, login or sample files are needed. Open the app and tap Photos or Files on the welcome screen, or the + button: Scan a document (camera), Choose photos, Import PDFs and files (including a bank's CSV export), or Record a voice note. Any receipt, bill or statement works; the text is read in a few seconds. Then:
+- Library: every document, searchable by any word or amount; tap one to see its pages and what was read.
+- Ask: type a question, e.g. "How much did I spend this month?", "What did I buy at Costco?", "When does my warranty expire?".
+- Spending (Pro): totals by month and category, budgets and a monthly recap.
+- Home tools (Pro): Subscriptions, Car, Things, Tax report, IDs & policies.
+- Settings: Face ID lock, reminders, export everything, delete everything.
+
+PAID FEATURES
+Free keeps up to 5 records. Snaplist Pro is an auto-renewable subscription ($4.99 a month, or $39.99 a year with a 7-day free trial), bought in the app with StoreKit from Settings > Snaplist Pro or from any "Unlock with Pro" button. Restore Purchases is in Settings and on the paywall. After adding 5 records, adding a 6th shows the paywall.
+
+EXTERNAL SERVICES
+- Apple StoreKit: subscriptions and purchases.
+- Apple Vision and PDFKit: reading text, on the device.
+- Apple's geocoder: optional; turns a photo's saved location into a town name. Only the location is sent, never the photo. Off unless the person turns it on in Settings.
+- SimpleFIN Bridge (simplefin.org): optional, Pro. A read-only bank-connection service the person signs up for themselves; they paste a setup token in Settings > Apple Pay, Banks and Cards. Not needed to review the app.
+- Apple Shortcuts (App Intents): optional "Log a Charge" action for a Wallet automation.
+There are no servers of ours, no accounts, no analytics, no advertising and no AI or third-party language-model services. All documents and text stay on the device.
+
+REGIONS
+The app works the same in every region. The interface is in English; amounts in dollars, euros and pounds are recognized from documents.
+
+REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Snaplist is not a bank, lender or payment service and gives no financial advice; it only organizes documents and transactions the person adds or connects read-only. It contains no protected third-party material.
+
+There is no user-generated content shared between people, no account creation and therefore no account deletion flow; Settings > Delete Everything removes all data from the device.

@@ -94,7 +94,7 @@ else:
 
 if SUBMIT:
     drafts = [s for s in call("GET", "/v1/reviewSubmissions", **{"filter[app]": app_id, "filter[platform]": "IOS"})["data"]
-              if s["attributes"]["state"] == "READY_FOR_REVIEW"]
+              if s["attributes"]["state"] in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES")]
     if drafts:
         sid = drafts[0]["id"]
     else:
